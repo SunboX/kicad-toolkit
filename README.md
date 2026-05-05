@@ -14,6 +14,10 @@ The package was extracted from PCB Styler so KiCad parser behavior, normalized
 model shape, layer styling, project archive support, and renderer output can be
 reused by other browser or Node-based tools.
 
+It is used in the public [PCB Styler](https://pcb-styler.app/) app for local
+KiCad board/project loading, styling, highlighting, badge overlays, and export
+workflows.
+
 ## Features
 
 - Parse standalone `.kicad_pcb` files from source text
@@ -29,6 +33,9 @@ reused by other browser or Node-based tools.
   or renderer
 
 ## Install
+
+The package is published on npm as
+[`kicad-toolkit`](https://www.npmjs.com/package/kicad-toolkit).
 
 ```bash
 npm install kicad-toolkit
