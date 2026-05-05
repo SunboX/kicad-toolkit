@@ -1,0 +1,22 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+SPDX-License-Identifier: CC-BY-SA-4.0
+-->
+
+# License
+
+This repository uses REUSE-compatible licensing metadata.
+
+Software source code is licensed under the GNU General Public License v3.0 or
+later (`GPL-3.0-or-later`).
+
+Documentation and non-code text are licensed under Creative Commons
+Attribution-ShareAlike 4.0 (`CC-BY-SA-4.0`) unless otherwise marked.
+
+For GPL-incompatible, closed-source, or proprietary use, see
+[COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+Full public license texts are available in:
+
+- [LICENSES/GPL-3.0-or-later.txt](LICENSES/GPL-3.0-or-later.txt)
+- [LICENSES/CC-BY-SA-4.0.txt](LICENSES/CC-BY-SA-4.0.txt)

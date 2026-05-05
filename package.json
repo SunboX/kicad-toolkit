@@ -1,0 +1,50 @@
+{
+    "name": "@sunbox/kicad-toolkit",
+    "version": "0.1.0",
+    "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
+    "license": "GPL-3.0-or-later",
+    "type": "module",
+    "main": "./src/index.mjs",
+    "exports": {
+        ".": "./src/index.mjs",
+        "./parser": "./src/parser.mjs",
+        "./renderers": "./src/renderers.mjs",
+        "./styles/kicad-renderers.css": "./src/styles/kicad-renderers.css"
+    },
+    "files": [
+        "src",
+        "docs",
+        "examples",
+        "spec",
+        "LICENSE",
+        "LICENSES",
+        "COMMERCIAL-LICENSE.md",
+        "CONTRIBUTING.md",
+        "NOTICE.md",
+        "README.md",
+        "AGENTS.md"
+    ],
+    "scripts": {
+        "start": "node examples/server.mjs",
+        "test": "node --test tests",
+        "format": "prettier --write .",
+        "check:format": "prettier --check ."
+    },
+    "dependencies": {
+        "fflate": "^0.8.2"
+    },
+    "devDependencies": {
+        "prettier": "^3.4.2"
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+ssh://git@github.com/SunboX/kicad-toolkit.git"
+    },
+    "bugs": {
+        "url": "https://github.com/SunboX/kicad-toolkit/issues"
+    },
+    "homepage": "https://github.com/SunboX/kicad-toolkit#readme"
+}

@@ -1,0 +1,12 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: KiCad Toolkit
+Upstream-Contact: André Fiedler / SunboX
+Source: https://github.com/SunboX/kicad-toolkit
+
+Files: package.json package-lock.json .gitignore .prettierignore .prettierrc.json AGENTS.md REUSE.toml
+Copyright: 2026 André Fiedler
+License: GPL-3.0-or-later
+
+Files: tests/fixtures/*
+Copyright: 2026 André Fiedler
+License: GPL-3.0-or-later
