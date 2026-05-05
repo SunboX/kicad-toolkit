@@ -2,11 +2,8 @@
 
 ## Context
 
-The KiCad Toolkit repository currently ships one browser example at
-`examples/minimal-board/`. It renders the repo-owned fake fixture through the
-public `KicadPcbParser` and `PcbSvgRenderer` APIs. The user requested a new
-example similar to the Altium Toolkit Arduino Uno example, but based on
-Tommy Gilligan's public RP2040 Minimal Design project.
+The user requested a browser example similar to the Altium Toolkit Arduino Uno
+example, but based on Tommy Gilligan's public RP2040 Minimal Design project.
 
 The upstream project is available at
 `https://github.com/tommy-gilligan/RP2040-minimal-design`. Its board file is
@@ -46,8 +43,7 @@ itself.
   `PcbSvgRenderer`.
 - `examples/rp2040-minimal-design/styles.css` will style the example with a
   restrained PCB viewer layout consistent with the existing examples.
-- `examples/README.md` will list both the minimal fixture example and the new
-  RP2040 example URL.
+- `examples/README.md` will list the RP2040 example URL.
 - `tests/project-structure.test.mjs` will verify the new example files exist.
   A focused test will also check that the example references the credited source
   repository and raw board URL.
@@ -72,4 +68,3 @@ Tests will stay local and deterministic. They will not fetch GitHub content.
 They will assert the example files exist and that the example source contains
 the intended credited source project URL and raw board URL. Full verification
 will use `npm test`.
-

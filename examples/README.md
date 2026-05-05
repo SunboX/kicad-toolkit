@@ -12,5 +12,7 @@ Run the local example server with:
 npm start
 ```
 
-Open `http://localhost:3002/minimal-board/` to view the minimal fake KiCad
-fixture rendered through the public package API.
+Open `http://localhost:3002/` or
+`http://localhost:3002/examples/rp2040-minimal-design/` to view the public
+RP2040 Minimal Design board by Tommy Gilligan. The example fetches the KiCad
+board from GitHub at runtime and does not redistribute the source board file.

@@ -7,6 +7,7 @@ import { constants } from 'node:fs'
 import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
+import { ExampleServer } from '../examples/server.mjs'
 
 const root = new URL('../', import.meta.url)
 
@@ -44,8 +45,9 @@ test('required project files exist', async () => {
         'docs/model-format.md',
         'docs/testing.md',
         'examples/server.mjs',
-        'examples/minimal-board/index.html',
-        'examples/minimal-board/example.mjs',
+        'examples/rp2040-minimal-design/index.html',
+        'examples/rp2040-minimal-design/example.mjs',
+        'examples/rp2040-minimal-design/styles.css',
         'src/index.mjs',
         'src/parser.mjs',
         'src/renderers.mjs',
@@ -80,6 +82,121 @@ test('required project files exist', async () => {
             await exists(relativePath),
             true,
             'Missing file: ' + relativePath
+        )
+    }
+})
+
+/**
+ * Verifies the RP2040 example credits and fetches the source board at runtime.
+ */
+test('RP2040 example credits and fetches the public source board', async () => {
+    const html = await readFile(
+        new URL('examples/rp2040-minimal-design/index.html', root),
+        'utf8'
+    )
+    const source = await readFile(
+        new URL('examples/rp2040-minimal-design/example.mjs', root),
+        'utf8'
+    )
+
+    assert.match(
+        html,
+        /https:\/\/github\.com\/tommy-gilligan\/RP2040-minimal-design/
+    )
+    assert.match(html, /Tommy Gilligan/)
+    assert.match(html, /BSD 3-Clause/)
+    assert.match(
+        source,
+        /https:\/\/raw\.githubusercontent\.com\/tommy-gilligan\/RP2040-minimal-design\/main\/RP2040_minimal\.kicad_pcb/
+    )
+})
+
+/**
+ * Verifies the default example route opens the RP2040 GitHub-loaded board.
+ */
+test('example server defaults to the RP2040 Minimal Design example', async () => {
+    const resolvedPath = await ExampleServer.resolveRequestPath(
+        fileURLToPath(root),
+        '/'
+    )
+
+    assert.equal(
+        resolvedPath.endsWith('examples/rp2040-minimal-design/index.html'),
+        true
+    )
+})
+
+/**
+ * Verifies the root route redirects to the default example directory.
+ */
+test('example server redirects root requests to the default example URL', async () => {
+    const { server, host, port } = await ExampleServer.start({
+        port: 0,
+        logger: { log() {} }
+    })
+
+    try {
+        const response = await fetch('http://' + host + ':' + port + '/', {
+            redirect: 'manual'
+        })
+
+        assert.equal(response.status, 302)
+        assert.equal(
+            response.headers.get('location'),
+            '/examples/rp2040-minimal-design/'
+        )
+    } finally {
+        await new Promise((resolveClose, rejectClose) => {
+            server.close((error) => {
+                if (error) rejectClose(error)
+                else resolveClose()
+            })
+        })
+    }
+})
+
+/**
+ * Verifies browser examples resolve package dependencies without bundling.
+ */
+test('browser examples that import the package root map fflate for browsers', async () => {
+    const exampleSlugs = ['rp2040-minimal-design']
+
+    for (const slug of exampleSlugs) {
+        const html = await readFile(
+            new URL('examples/' + slug + '/index.html', root),
+            'utf8'
+        )
+        const source = await readFile(
+            new URL('examples/' + slug + '/example.mjs', root),
+            'utf8'
+        )
+
+        if (!source.includes('../../src/index.mjs')) continue
+
+        assert.match(
+            html,
+            /"fflate":\s*"\.\.\/\.\.\/node_modules\/fflate\/esm\/browser\.js"/,
+            slug + ' must provide a browser import map for fflate'
+        )
+    }
+})
+
+/**
+ * Verifies browser examples do not trigger missing favicon requests.
+ */
+test('browser examples define inline favicons', async () => {
+    const exampleSlugs = ['rp2040-minimal-design']
+
+    for (const slug of exampleSlugs) {
+        const html = await readFile(
+            new URL('examples/' + slug + '/index.html', root),
+            'utf8'
+        )
+
+        assert.match(
+            html,
+            /rel="icon"/,
+            slug + ' must define an inline favicon'
         )
     }
 })

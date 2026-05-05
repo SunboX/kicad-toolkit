@@ -1,0 +1,107 @@
+<!--
+SPDX-FileCopyrightText: 2026 André Fiedler
+
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>RP2040 Minimal Design | KiCad Toolkit</title>
+        <link
+            rel="icon"
+            href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2323635c'/%3E%3Cpath d='M4 5h8v6H4z' fill='%23ffffff'/%3E%3Cpath d='M5 8h6' stroke='%23d19a2b' stroke-width='1.5'/%3E%3C/svg%3E"
+        />
+        <link rel="stylesheet" href="./styles.css" />
+        <script type="importmap">
+            {
+                "imports": {
+                    "fflate": "../../node_modules/fflate/esm/browser.js"
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <main class="app-shell">
+            <header class="app-header">
+                <div>
+                    <p class="eyebrow">KiCad Toolkit example</p>
+                    <h1>RP2040 Minimal Design viewer</h1>
+                    <p class="credit">
+                        Based on the public RP2040 Minimal Design project by
+                        <a
+                            href="https://github.com/tommy-gilligan/RP2040-minimal-design"
+                            target="_blank"
+                            rel="noreferrer"
+                            >Tommy Gilligan</a
+                        >, licensed under the BSD 3-Clause License.
+                    </p>
+                </div>
+                <a
+                    class="source-link"
+                    href="https://github.com/tommy-gilligan/RP2040-minimal-design"
+                    target="_blank"
+                    rel="noreferrer"
+                    >Source project</a
+                >
+            </header>
+
+            <section class="workspace" aria-label="RP2040 design example">
+                <aside class="control-panel">
+                    <p id="status" class="status" role="status">
+                        Loading credited source board from GitHub...
+                    </p>
+
+                    <div class="view-controls" aria-label="Board side">
+                        <button
+                            type="button"
+                            data-side="front"
+                            class="is-active"
+                            aria-pressed="true"
+                        >
+                            Front
+                        </button>
+                        <button
+                            type="button"
+                            data-side="back"
+                            aria-pressed="false"
+                        >
+                            Back
+                        </button>
+                    </div>
+
+                    <dl class="source-facts">
+                        <div>
+                            <dt>Reference</dt>
+                            <dd>RP2040 minimal design for JLCPCB</dd>
+                        </div>
+                        <div>
+                            <dt>Creator</dt>
+                            <dd>Tommy Gilligan</dd>
+                        </div>
+                        <div>
+                            <dt>Data flow</dt>
+                            <dd>Fetch public KiCad board at runtime</dd>
+                        </div>
+                    </dl>
+                </aside>
+
+                <section class="viewer-panel" aria-label="Rendered output">
+                    <div id="board" class="output" aria-label="Rendered PCB">
+                        <section class="empty-state">
+                            <h2>Loading credited source board</h2>
+                            <p>
+                                The example fetches the public KiCad board from
+                                GitHub at runtime. The source board file is not
+                                redistributed in this repository.
+                            </p>
+                        </section>
+                    </div>
+                </section>
+            </section>
+        </main>
+        <script type="module" src="./example.mjs"></script>
+    </body>
+</html>

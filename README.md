@@ -69,8 +69,9 @@ import '@sunbox/kicad-toolkit/styles/kicad-renderers.css'
 
 ## Examples
 
-- [Minimal board example](examples/minimal-board/) renders the repo-owned fake
-  KiCad fixture in a browser page.
+- [RP2040 Minimal Design example](examples/rp2040-minimal-design/) fetches
+  Tommy Gilligan's public KiCad board from GitHub and renders it in a browser
+  page.
 
 Run the local example server with:
 

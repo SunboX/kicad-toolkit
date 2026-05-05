@@ -8,7 +8,7 @@ import { createServer } from 'node:http'
 import { extname, join, normalize, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const DEFAULT_EXAMPLE_PATH = '/examples/minimal-board/'
+const DEFAULT_EXAMPLE_PATH = '/examples/rp2040-minimal-design/'
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 3002
 const CONTENT_TYPES = new Map([
@@ -50,6 +50,12 @@ export class ExampleServer {
         const root = resolve(rootDirectory)
 
         return async (request, response) => {
+            if (ExampleServer.#isDefaultRequest(request.url || '/')) {
+                response.writeHead(302, { location: DEFAULT_EXAMPLE_PATH })
+                response.end()
+                return
+            }
+
             const filePath = await ExampleServer.resolveRequestPath(
                 root,
                 request.url || '/'
@@ -138,7 +144,7 @@ export class ExampleServer {
             typeof address === 'object' && address ? address.port : port
         const url = 'http://' + host + ':' + resolvedPort + DEFAULT_EXAMPLE_PATH
 
-        logger.log('Serving KiCad Toolkit minimal board example at ' + url)
+        logger.log('Serving KiCad Toolkit examples at ' + url)
 
         return {
             server,
@@ -161,6 +167,15 @@ export class ExampleServer {
         }
 
         return port
+    }
+
+    /**
+     * Returns true when a request should be redirected to the default example.
+     * @param {string} requestUrl
+     * @returns {boolean}
+     */
+    static #isDefaultRequest(requestUrl) {
+        return new URL(requestUrl, 'http://localhost').pathname === '/'
     }
 
     /**
