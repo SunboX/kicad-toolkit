@@ -31,7 +31,7 @@ reused by other browser or Node-based tools.
 ## Install
 
 ```bash
-npm install git+ssh://git@github.com/SunboX/kicad-toolkit.git
+npm install kicad-toolkit
 ```
 
 ## Usage
@@ -41,7 +41,7 @@ import {
     KicadPcbParser,
     KicadProjectLoader,
     PcbSvgRenderer
-} from '@sunbox/kicad-toolkit'
+} from 'kicad-toolkit'
 
 const board = KicadPcbParser.parse(kicadPcbSource, {
     fileName: 'board.kicad_pcb'
@@ -57,7 +57,7 @@ const loaded = await KicadProjectLoader.loadFiles(fileInput.files)
 Optional renderer CSS is available through:
 
 ```js
-import '@sunbox/kicad-toolkit/styles/kicad-renderers.css'
+import 'kicad-toolkit/styles/kicad-renderers.css'
 ```
 
 ## Documentation

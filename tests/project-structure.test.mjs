@@ -219,7 +219,7 @@ test('package declares GPL and commercial licensing notices', async () => {
         'utf8'
     )
 
-    assert.equal(pkg.name, '@sunbox/kicad-toolkit')
+    assert.equal(pkg.name, 'kicad-toolkit')
     assert.equal(pkg.license, 'GPL-3.0-or-later')
     assert.match(readme, /GPL-3\.0-or-later/)
     assert.match(readme, /CC-BY-SA-4\.0/)

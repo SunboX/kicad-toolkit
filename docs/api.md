@@ -8,14 +8,14 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 ## Entrypoints
 
-`@sunbox/kicad-toolkit` exports the supported KiCad parser and renderer classes
+`kicad-toolkit` exports the supported KiCad parser and renderer classes
 from one entrypoint.
 
 Specialized entrypoints are also available:
 
-- `@sunbox/kicad-toolkit/parser`
-- `@sunbox/kicad-toolkit/renderers`
-- `@sunbox/kicad-toolkit/styles/kicad-renderers.css`
+- `kicad-toolkit/parser`
+- `kicad-toolkit/renderers`
+- `kicad-toolkit/styles/kicad-renderers.css`
 
 ## Parser
 
@@ -25,7 +25,7 @@ import {
     KicadProjectLoader,
     ProjectArchive,
     SExpressionParser
-} from '@sunbox/kicad-toolkit/parser'
+} from 'kicad-toolkit/parser'
 ```
 
 `KicadPcbParser.parse(source, options)` accepts KiCad `.kicad_pcb` source text
@@ -53,7 +53,7 @@ import {
     BadgeStyle,
     PcbSvgRenderer,
     RenderPalette
-} from '@sunbox/kicad-toolkit/renderers'
+} from 'kicad-toolkit/renderers'
 ```
 
 `PcbSvgRenderer.render(board, options)` returns deterministic SVG markup.
