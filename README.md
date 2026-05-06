@@ -11,24 +11,21 @@ rendering deterministic, non-interactive SVG output from the recovered board
 model.
 
 The package was extracted from PCB Styler so KiCad parser behavior, normalized
-model shape, layer styling, project archive support, and renderer output can be
-reused by other browser or Node-based tools.
+model shape, ZIP board loading, and base renderer output can be reused by other
+browser or Node-based tools.
 
 It is used in the public [PCB Styler](https://pcb-styler.app/) app for local
-KiCad board/project loading, styling, highlighting, badge overlays, and export
-workflows.
+KiCad board/project loading and base SVG rendering.
 
 ## Features
 
 - Parse standalone `.kicad_pcb` files from source text
 - Load browser `File` objects or named byte entries from KiCad board files and
   ZIP archives
-- Read and write portable PCB Styler project ZIP archives
 - Recover board outlines, footprints, pads, copper segments, vias, zones,
   drawings, text, layer side metadata, and board bounds
 - Render front or back PCB SVG with deterministic markup
-- Render KiCad stroke text, component hit areas, highlight states, and badge
-  overlays
+- Render KiCad stroke text
 - Run entirely with local input data; no network calls are made by the parser
   or renderer
 

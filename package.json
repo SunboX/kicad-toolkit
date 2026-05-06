@@ -17,9 +17,6 @@
         "board",
         "zip",
         "geometry",
-        "pcb-styler",
-        "component-highlighting",
-        "badges",
         "javascript",
         "esm"
     ],

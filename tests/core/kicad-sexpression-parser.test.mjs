@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { SExpressionParser } from '../../src/core/SExpressionParser.mjs'
+import { SExpressionParser } from '../../src/core/kicad/SExpressionParser.mjs'
 
 test('SExpressionParser parses KiCad atoms, strings, comments, and nested lists', () => {
     const parsed = SExpressionParser.parse(`

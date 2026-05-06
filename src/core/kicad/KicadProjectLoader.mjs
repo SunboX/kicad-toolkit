@@ -3,7 +3,6 @@
 
 import { strFromU8, unzipSync } from 'fflate'
 import { KicadPcbParser } from './KicadPcbParser.mjs'
-import { ProjectArchive } from './ProjectArchive.mjs'
 
 /**
  * Loads KiCad board files from direct files or project ZIP archives.
@@ -12,7 +11,7 @@ export class KicadProjectLoader {
     /**
      * Loads browser File objects.
      * @param {FileList | File[]} files
-     * @returns {Promise<{ board: object, sourceFileName: string, sourceText: string, projectSettings: object | null }>}
+     * @returns {Promise<{ board: object, sourceFileName: string, sourceText: string }>}
      */
     static async loadFiles(files) {
         const entries = await Promise.all(
@@ -29,12 +28,10 @@ export class KicadProjectLoader {
     /**
      * Loads named byte entries.
      * @param {{ name: string, bytes: Uint8Array }[]} entries
-     * @returns {Promise<{ board: object, sourceFileName: string, sourceText: string, projectSettings: object | null }>}
+     * @returns {Promise<{ board: object, sourceFileName: string, sourceText: string }>}
      */
     static async loadEntries(entries) {
-        const project = ProjectArchive.find(entries)
-        const boardEntry =
-            project?.boardEntry || KicadProjectLoader.findBoardEntry(entries)
+        const boardEntry = KicadProjectLoader.findBoardEntry(entries)
         if (!boardEntry) {
             throw new Error(
                 'No .kicad_pcb file found. Open a KiCad board or project ZIP.'
@@ -45,8 +42,7 @@ export class KicadProjectLoader {
         return {
             board: KicadPcbParser.parse(source, { fileName: boardEntry.name }),
             sourceFileName: boardEntry.name,
-            sourceText: source,
-            projectSettings: project?.settings || null
+            sourceText: source
         }
     }
 

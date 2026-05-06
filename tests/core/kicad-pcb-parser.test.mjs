@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import { KicadPcbParser } from '../../src/core/KicadPcbParser.mjs'
+import { KicadPcbParser } from '../../src/core/kicad/KicadPcbParser.mjs'
 
 const fixtureUrl = new URL('../fixtures/minimal.kicad_pcb', import.meta.url)
 

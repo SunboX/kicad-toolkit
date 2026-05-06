@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { Geometry } from '../core/Geometry.mjs'
-import { RenderPalette } from '../core/RenderPalette.mjs'
-import { BadgeRenderer } from './BadgeRenderer.mjs'
-import { ComponentHighlight } from './ComponentHighlight.mjs'
+import { Geometry } from '../core/kicad/Geometry.mjs'
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
 
 const kicadTextLineSpacingRatio = 1.61
@@ -22,18 +19,14 @@ export class PcbSvgRenderer {
     /**
      * Renders a PCB.
      * @param {object | null} board
-     * @param {{ side?: 'front' | 'back', markers?: object[], layerStyles?: Record<string, object>, colors?: Record<string, string>, highlightedFootprints?: readonly string[], hoveredFootprintId?: string, highlightColor?: string, badges?: readonly object[], badgeStyle?: object }} [options]
+     * @param {{ side?: 'front' | 'back' }} [options]
      * @returns {string}
      */
     static render(board, options = {}) {
         if (!board) return PcbSvgRenderer.renderEmpty()
 
         const side = options.side || 'front'
-        const layerStyles = RenderPalette.resolveStyles(
-            options.layerStyles,
-            options.colors
-        )
-        const highlight = ComponentHighlight.resolve(options)
+        const layerStyles = defaultLayerStyles()
         const viewBounds = Geometry.expandBounds(board.bounds, 4)
         const visiblePads = board.pads.filter((pad) =>
             isVisibleOnSide(pad, side)
@@ -60,34 +53,16 @@ export class PcbSvgRenderer {
             `<svg xmlns="http://www.w3.org/2000/svg" class="pcb-svg" viewBox="${formatNumber(viewBounds.minX)} ${formatNumber(viewBounds.minY)} ${formatNumber(viewBounds.width)} ${formatNumber(viewBounds.height)}" role="img" aria-label="${escapeAttribute(board.title || board.fileName || 'PCB')}">`,
             `<g class="pcb-scene"${sceneTransformAttribute(board.bounds, side)}>`,
             renderBoard(board, viewBounds, layerStyles),
-            renderComponentHitAreas(
-                board,
-                visiblePads,
-                visibleDrawings,
-                visibleTexts
-            ),
             visibleDrawings
                 .sort(compareDrawingOrder)
-                .map((drawing) =>
-                    renderDrawing(drawing, layerStyles, highlight)
-                )
+                .map((drawing) => renderDrawing(drawing, layerStyles))
                 .join(''),
-            visiblePads
-                .map((pad) => renderPad(pad, layerStyles, highlight))
-                .join(''),
-            visibleTexts
-                .map((text) => renderText(text, layerStyles, highlight))
-                .join(''),
+            visiblePads.map((pad) => renderPad(pad, layerStyles)).join(''),
+            visibleTexts.map((text) => renderText(text, layerStyles)).join(''),
             visibleViaDrills
                 .map((drawing) => renderViaDrill(drawing, layerStyles))
                 .join(''),
             visiblePads.map((pad) => renderPadDrill(pad, layerStyles)).join(''),
-            BadgeRenderer.render(
-                options.badges,
-                side,
-                highlight.color,
-                options.badgeStyle
-            ),
             '</g>',
             '</svg>'
         ].join('')
@@ -105,6 +80,71 @@ export class PcbSvgRenderer {
             '<text x="50" y="35.5" text-anchor="middle" fill="#6a7280" font-size="3.5">.kicad_pcb or project .zip</text>',
             '</svg>'
         ].join('')
+    }
+}
+
+/**
+ * Returns the base KiCad renderer layer styles.
+ * @returns {Record<string, { visible: boolean, fillColor: string, fillOpacity: number, borderColor: string, borderWidth: number | null }>}
+ */
+function defaultLayerStyles() {
+    return {
+        board: {
+            visible: true,
+            fillColor: '#000000',
+            fillOpacity: 1,
+            borderColor: '#000000',
+            borderWidth: null
+        },
+        edgeCuts: {
+            visible: true,
+            fillColor: '#000000',
+            fillOpacity: 1,
+            borderColor: '#8e929c',
+            borderWidth: null
+        },
+        pads: {
+            visible: true,
+            fillColor: '#cfd1d4',
+            fillOpacity: 1,
+            borderColor: '#50545f',
+            borderWidth: 0.16
+        },
+        traces: {
+            visible: true,
+            fillColor: '#70747d',
+            fillOpacity: 1,
+            borderColor: '#70747d',
+            borderWidth: null
+        },
+        zones: {
+            visible: true,
+            fillColor: '#3c3f46',
+            fillOpacity: 1,
+            borderColor: '#50545f',
+            borderWidth: null
+        },
+        vias: {
+            visible: true,
+            fillColor: '#70747d',
+            fillOpacity: 1,
+            borderColor: '#50545f',
+            borderWidth: 0.06
+        },
+        drills: {
+            visible: true,
+            fillColor: '#000000',
+            fillOpacity: 1,
+            borderColor: '#50545f',
+            borderWidth: null
+        },
+        silkscreen: {
+            visible: true,
+            fillColor: '#aeb3bd',
+            fillOpacity: 1,
+            borderColor: '#aeb3bd',
+            borderWidth: null
+        }
     }
 }
 
@@ -157,10 +197,9 @@ function renderBoard(board, bounds, layerStyles) {
  * Renders a drawing primitive.
  * @param {object} drawing
  * @param {Record<string, object>} layerStyles
- * @param {object} highlight
  * @returns {string}
  */
-function renderDrawing(drawing, layerStyles, highlight) {
+function renderDrawing(drawing, layerStyles) {
     if (drawing.type === 'segment') {
         return renderSegment(drawing, layerStyles)
     }
@@ -180,21 +219,14 @@ function renderDrawing(drawing, layerStyles, highlight) {
         style.layerStyle,
         Number(drawing.strokeWidth) || 0
     )
-    const highlightState = ComponentHighlight.stateFor(
-        drawing.ownerId,
-        highlight
-    )
-    const strokeColor = highlightState?.color || style.stroke
-    const stroke = drawing.fill && strokeWidth <= 0.01 ? 'none' : strokeColor
-    const fill = drawing.fill ? highlightState?.color || style.fill : 'none'
+    const stroke = drawing.fill && strokeWidth <= 0.01 ? 'none' : style.stroke
+    const fill = drawing.fill ? style.fill : 'none'
     const fillOpacity = drawing.fill
-        ? optionalAttribute(
-              highlightState ? '' : fillOpacityAttribute(style.layerStyle)
-          )
+        ? optionalAttribute(fillOpacityAttribute(style.layerStyle))
         : ''
     const base = [
         `class="pcb-drawing pcb-drawing--${style.name}"`,
-        ...componentAttributeList(drawing.ownerId, highlightState),
+        ...componentAttributeList(drawing.ownerId),
         `stroke="${stroke}"`,
         `stroke-width="${formatNumber(strokeWidth)}"`,
         roundedStrokeAttributes
@@ -287,22 +319,17 @@ function renderZone(zone, layerStyles) {
  * Renders one pad.
  * @param {object} pad
  * @param {Record<string, object>} layerStyles
- * @param {object} highlight
  * @returns {string}
  */
-function renderPad(pad, layerStyles, highlight) {
+function renderPad(pad, layerStyles) {
     const style = layerStyles.pads
     if (!style.visible) return ''
 
-    const highlightState = ComponentHighlight.stateFor(
-        pad.footprintId,
-        highlight
-    )
     const attributes = [
         'class="pcb-pad"',
-        ...componentAttributeList(pad.footprintId, highlightState),
-        `fill="${highlightState?.color || fillValue(style)}"`,
-        highlightState ? '' : fillOpacityAttribute(style),
+        ...componentAttributeList(pad.footprintId),
+        `fill="${fillValue(style)}"`,
+        fillOpacityAttribute(style),
         `stroke="${style.borderColor}"`,
         `stroke-width="${formatNumber(resolvePadStrokeWidth(pad, style))}"`,
         'vector-effect="non-scaling-stroke"'
@@ -324,72 +351,7 @@ function renderPadDrill(pad, layerStyles) {
     const style = layerStyles.drills
     if (!style.visible) return ''
 
-    return `<circle class="pcb-pad-drill" ${componentAttributeList(pad.footprintId, null).join(' ')} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(pad.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0.08)} vector-effect="non-scaling-stroke"/>`
-}
-
-/**
- * Renders transparent footprint targets for click and hover interaction.
- * @param {{ footprints?: object[] }} board
- * @param {object[]} pads
- * @param {object[]} drawings
- * @param {object[]} texts
- * @returns {string}
- */
-function renderComponentHitAreas(board, pads, drawings, texts) {
-    const visibleIds = visibleFootprintIds(pads, drawings, texts)
-    return (board.footprints || [])
-        .filter((footprint) => visibleIds.has(footprint.id))
-        .map(renderComponentHitArea)
-        .join('')
-}
-
-/**
- * Renders one transparent component hit area.
- * @param {{ id: string, reference?: string, bounds?: object }} footprint
- * @returns {string}
- */
-function renderComponentHitArea(footprint) {
-    if (!footprint.bounds) return ''
-
-    const bounds = Geometry.expandBounds(footprint.bounds, 0.4)
-    return [
-        '<rect',
-        'class="pcb-component-hit-area"',
-        `data-footprint-id="${escapeAttribute(footprint.id)}"`,
-        `aria-label="${escapeAttribute(`Toggle highlight ${footprint.reference || footprint.id}`)}"`,
-        `x="${formatNumber(bounds.minX)}"`,
-        `y="${formatNumber(bounds.minY)}"`,
-        `width="${formatNumber(bounds.width)}"`,
-        `height="${formatNumber(bounds.height)}"`,
-        'fill="transparent"',
-        'pointer-events="all"/>'
-    ].join(' ')
-}
-
-/**
- * Finds footprint ids that have visible renderable content.
- * @param {object[]} pads
- * @param {object[]} drawings
- * @param {object[]} texts
- * @returns {Set<string>}
- */
-function visibleFootprintIds(pads, drawings, texts) {
-    const ids = new Set()
-    pads.forEach((pad) => addFootprintId(ids, pad.footprintId))
-    drawings.forEach((drawing) => addFootprintId(ids, drawing.ownerId))
-    texts.forEach((text) => addFootprintId(ids, text.ownerId))
-    return ids
-}
-
-/**
- * Adds a real footprint id to a set.
- * @param {Set<string>} ids
- * @param {unknown} value
- * @returns {void}
- */
-function addFootprintId(ids, value) {
-    const id = String(value || '').trim()
-    if (id && id !== 'board') ids.add(id)
+    return `<circle class="pcb-pad-drill" ${componentAttributeList(pad.footprintId).join(' ')} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(pad.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0.08)} vector-effect="non-scaling-stroke"/>`
 }
 
 /**
@@ -433,23 +395,21 @@ function padRadiusAttributes(pad) {
  * Renders text.
  * @param {object} text
  * @param {Record<string, object>} layerStyles
- * @param {object} highlight
  * @returns {string}
  */
-function renderText(text, layerStyles, highlight) {
+function renderText(text, layerStyles) {
     const style = layerStyles.silkscreen
     if (!style.visible) return ''
 
     const lines = String(text.value || '').split('\n')
     const lineSpacing = textLineSpacing(text)
     const strokeWidth = resolveStrokeWidth(style, textStrokeWidth(text))
-    const highlightState = ComponentHighlight.stateFor(text.ownerId, highlight)
     const attrs = [
         'class="pcb-label"',
-        ...componentAttributeList(text.ownerId, highlightState),
+        ...componentAttributeList(text.ownerId),
         `aria-label="${escapeAttribute(text.value)}"`,
         'fill="none"',
-        `stroke="${highlightState?.color || style.borderColor}"`,
+        `stroke="${style.borderColor}"`,
         `stroke-width="${formatNumber(strokeWidth)}"`,
         'stroke-linecap="round"',
         'stroke-linejoin="round"',
@@ -695,19 +655,13 @@ function textStrokeWidth(text) {
 /**
  * Builds footprint metadata attributes for SVG primitives.
  * @param {unknown} ownerId
- * @param {{ state: 'selected' | 'hover', color: string } | null} highlightState
  * @returns {string[]}
  */
-function componentAttributeList(ownerId, highlightState) {
+function componentAttributeList(ownerId) {
     const id = String(ownerId || '').trim()
     if (!id || id === 'board') return []
 
-    const attributes = [`data-footprint-id="${escapeAttribute(id)}"`]
-    if (highlightState) {
-        attributes.push(`data-highlight-state="${highlightState.state}"`)
-    }
-
-    return attributes
+    return [`data-footprint-id="${escapeAttribute(id)}"`]
 }
 
 /**
