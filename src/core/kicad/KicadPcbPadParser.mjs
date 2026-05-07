@@ -407,7 +407,11 @@ function transformPrimitiveRotation(
     transform,
     preserveLocalRotation = false
 ) {
-    if (preserveLocalRotation) return normalizeRotation(localRotation)
+    if (preserveLocalRotation) {
+        return normalizeRotation(
+            transform.side === 'back' ? -localRotation : localRotation
+        )
+    }
     return normalizeRotation(localRotation - numberValue(transform.rotation, 0))
 }
 

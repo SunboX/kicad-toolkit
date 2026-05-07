@@ -215,6 +215,105 @@ test('PcbSvgRenderer draws pad drill cutouts above overlapping pads', () => {
     )
 })
 
+test('PcbSvgRenderer emits layer and pad metadata for styled primitives', () => {
+    const svg = PcbSvgRenderer.render(
+        {
+            title: 'Layer metadata',
+            bounds: {
+                minX: 0,
+                minY: 0,
+                maxX: 10,
+                maxY: 10,
+                width: 10,
+                height: 10
+            },
+            outlines: [],
+            drawings: [
+                {
+                    type: 'segment',
+                    side: 'front',
+                    layer: 'F.Cu',
+                    material: 'copper',
+                    start: { x: 1, y: 1 },
+                    end: { x: 3, y: 1 },
+                    strokeWidth: 0.2
+                },
+                {
+                    type: 'line',
+                    side: 'front',
+                    layer: 'F.SilkS',
+                    material: 'silk',
+                    start: { x: 1, y: 2 },
+                    end: { x: 3, y: 2 },
+                    strokeWidth: 0.12
+                },
+                {
+                    type: 'via',
+                    side: 'front',
+                    layer: 'F.Cu,B.Cu',
+                    material: 'copper',
+                    x: 5,
+                    y: 5,
+                    size: 1,
+                    drill: 0.4
+                },
+                {
+                    type: 'zone',
+                    side: 'front',
+                    layer: 'F.Cu',
+                    material: 'copper',
+                    points: [
+                        { x: 6, y: 1 },
+                        { x: 8, y: 1 },
+                        { x: 8, y: 3 }
+                    ]
+                }
+            ],
+            pads: [
+                {
+                    number: '1',
+                    footprintId: 'footprint:J1:0',
+                    type: 'smd',
+                    shape: 'rect',
+                    x: 4,
+                    y: 4,
+                    width: 1,
+                    height: 1,
+                    rotation: 0,
+                    drill: 0.4,
+                    layers: ['F.Cu', 'F.Mask', 'F.Paste'],
+                    side: 'front'
+                }
+            ],
+            texts: [],
+            footprints: []
+        },
+        { side: 'front' }
+    )
+
+    assert.match(
+        svg,
+        /class="pcb-segment"(?=[^>]+data-layer="F\.Cu")(?=[^>]+data-material="copper")/
+    )
+    assert.match(
+        svg,
+        /class="pcb-drawing pcb-drawing--silk"(?=[^>]+data-layer="F\.SilkS")(?=[^>]+data-material="silk")/
+    )
+    assert.match(
+        svg,
+        /class="pcb-via"(?=[^>]+data-layer="F\.Cu,B\.Cu")(?=[^>]+data-material="copper")/
+    )
+    assert.match(svg, /class="pcb-zone"(?=[^>]+data-layer="F\.Cu")/)
+    assert.match(
+        svg,
+        /class="pcb-pad"(?=[^>]+data-pad-number="1")(?=[^>]+data-pad-type="smd")(?=[^>]+data-pad-layers="F\.Cu F\.Mask F\.Paste")/
+    )
+    assert.match(
+        svg,
+        /class="pcb-pad-drill"(?=[^>]+data-pad-number="1")(?=[^>]+data-pad-layers="F\.Cu F\.Mask F\.Paste")/
+    )
+})
+
 test('PcbSvgRenderer mirrors KiCad bottom-side text when justify mirror is set', async () => {
     const source = await readFile(fixtureUrl, 'utf8')
     const board = KicadPcbParser.parse(source, {
@@ -472,7 +571,9 @@ test('PcbSvgRenderer draws via drill cutouts above filled silkscreen', () => {
     }
     const svg = PcbSvgRenderer.render(board, { side: 'front' })
     const silkscreenIndex = svg.indexOf('M 3 3 L 7 3 L 7 7 L 3 7 Z')
-    const drillIndex = svg.indexOf('class="pcb-via-drill" cx="5" cy="5"')
+    const drillIndex = svg.search(
+        /class="pcb-via-drill"[^>]+cx="5"[^>]+cy="5"/u
+    )
 
     assert.ok(silkscreenIndex >= 0)
     assert.ok(drillIndex > silkscreenIndex)

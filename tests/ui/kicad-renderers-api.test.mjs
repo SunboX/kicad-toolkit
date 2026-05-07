@@ -42,10 +42,73 @@ test('PcbSvgRenderer accepts an ECAD Forge KiCad document wrapper', () => {
 test('SchematicSvgRenderer emits deterministic schematic SVG markup', () => {
     const markup = SchematicSvgRenderer.render({
         schematic: {
-            sheet: { width: 100, height: 80 },
+            sheet: {
+                width: 100,
+                height: 80,
+                borderOn: true,
+                titleBlockOn: true,
+                marginWidth: 5,
+                xZones: 2,
+                yZones: 2,
+                titleBlock: {
+                    title: 'Demo sheet',
+                    revision: 'A',
+                    date: '2026-01-02',
+                    documentNumber: 'Demo Org',
+                    drawnBy: 'Demo Author'
+                }
+            },
             lines: [{ x1: 1, y1: 2, x2: 20, y2: 2, width: 0.2 }],
-            rectangles: [{ x: 10, y: 10, width: 20, height: 10 }],
-            texts: [{ value: 'SIG', x: 5, y: 5, size: 2 }],
+            rectangles: [
+                { x: 10, y: 10, width: 20, height: 10 },
+                { x: 12, y: 12, width: 2, height: 1, fill: 'outline' }
+            ],
+            pins: [
+                {
+                    x: 20,
+                    y: 2,
+                    length: 2.54,
+                    orientation: 'left',
+                    designator: '1'
+                },
+                {
+                    x: 30,
+                    y: 4,
+                    length: 2.54,
+                    orientation: 'right',
+                    designator: '2',
+                    numberVisible: false
+                },
+                {
+                    x: 40,
+                    y: 10,
+                    length: 2.54,
+                    orientation: 'top',
+                    designator: '3'
+                }
+            ],
+            texts: [
+                {
+                    value: 'SIG',
+                    x: 5,
+                    y: 5,
+                    size: 2,
+                    labelKind: 'local',
+                    rotation: 90,
+                    anchor: 'middle',
+                    vAlign: 'center'
+                },
+                {
+                    value: 'LEFT',
+                    x: 8,
+                    y: 7,
+                    size: 2,
+                    labelKind: 'local',
+                    rotation: 180,
+                    anchor: 'end',
+                    vAlign: 'bottom'
+                }
+            ],
             junctions: [{ x: 20, y: 2, diameter: 1 }]
         }
     })
@@ -53,6 +116,37 @@ test('SchematicSvgRenderer emits deterministic schematic SVG markup', () => {
     assert.match(markup, /schematic-svg/)
     assert.match(markup, /SIG/)
     assert.match(markup, /<line/)
+    assert.match(markup, /sheet-backdrop/)
+    assert.match(markup, /sheet-frame/)
+    assert.match(markup, /sheet-zone-label/)
+    assert.match(markup, /sheet-title-block/)
+    assert.match(markup, /Demo sheet/)
+    assert.match(markup, /Demo Org/)
+    assert.match(markup, /Demo Author/)
+    assert.match(markup, /viewBox="0 0 1000 800"/)
+    assert.match(markup, /class="svg-panel"/)
+    assert.match(markup, /transform="scale\(10\)"/)
+    assert.match(markup, /stroke="var\(--schematic-default-ink-color\)"/)
+    assert.match(
+        markup,
+        /x1="30" y1="4" x2="32.54" y2="4" stroke="var\(--schematic-power-color\)" stroke-width="0.08"/
+    )
+    assert.match(
+        markup,
+        /x1="40" y1="10" x2="40" y2="7.46" stroke="var\(--schematic-power-color\)" stroke-width="0.08"/
+    )
+    assert.match(markup, /fill="var\(--schematic-text-color\)"/)
+    assert.match(
+        markup,
+        /x="12" y="12" width="2" height="1" fill="var\(--schematic-power-color\)"/
+    )
+    assert.match(markup, /class="schematic-pin-number"/)
+    assert.match(markup, /font-size="0.85"/)
+    assert.match(markup, /transform="rotate\(-90 5 5\)"/)
+    assert.doesNotMatch(markup, /rotate\(180 8 7\)/)
+    assert.match(markup, /dominant-baseline="alphabetic"/)
+    assert.doesNotMatch(markup, /#1f2430/)
+    assert.doesNotMatch(markup, /#840000/)
 })
 
 test('BomTableRenderer renders grouped KiCad BOM rows', () => {

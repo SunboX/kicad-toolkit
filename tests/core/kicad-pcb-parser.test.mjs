@@ -101,7 +101,7 @@ test('KicadPcbParser parses a multi-footprint board without throwing', async () 
     assert.equal(board.title, 'Fixture Board')
     assert.equal(board.outlines.length, 1)
     assert.equal(board.footprints.length, 2)
-    assert.equal(board.pads.length, 4)
+    assert.equal(board.pads.length, 5)
     assert.ok(board.drawings.some((drawing) => drawing.type === 'segment'))
     assert.ok(board.drawings.some((drawing) => drawing.type === 'via'))
     assert.ok(board.drawings.some((drawing) => drawing.type === 'zone'))
@@ -131,7 +131,13 @@ test('KicadPcbParser applies KiCad bottom-footprint transforms and text alignmen
     const pad2 = bottomConnector.pads.find((pad) => pad.number === '2')
     assert.ok(pad2)
     assert.equal(pad2.side, 'both')
-    assert.equal(pad2.rotation, 90)
+    assert.equal(pad2.rotation, 270)
+
+    const pinOneMarker = bottomConnector.pads.find((pad) => pad.number === '3')
+    assert.ok(pinOneMarker)
+    assert.equal(pinOneMarker.shape, 'rect')
+    assert.equal(pinOneMarker.side, 'both')
+    assert.equal(pinOneMarker.rotation, 315)
 
     const referenceText = board.texts.find(
         (text) => text.value === 'J1' && text.layer === 'B.SilkS'
@@ -486,6 +492,12 @@ function multiFootprintFixture() {
                 (at -1 0 90)
                 (size 1.4 1.4)
                 (drill 0.7)
+                (layers "*.Cu" "*.Mask")
+            )
+            (pad "3" thru_hole rect
+                (at 0 -1 45)
+                (size 0.85 0.85)
+                (drill 0.5)
                 (layers "*.Cu" "*.Mask")
             )
         )

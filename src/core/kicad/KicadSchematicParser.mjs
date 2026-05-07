@@ -160,6 +160,7 @@ function parseSheetMetadata(root) {
     const paper = textValue(child(root, 'paper')) || 'A4'
     const titleBlock = child(root, 'title_block')
     const size = pageSizeForPaper(paper)
+    const comments = parseTitleBlockComments(titleBlock)
     return {
         width: size.width,
         height: size.height,
@@ -182,9 +183,23 @@ function parseSheetMetadata(root) {
             sheetNumber: '',
             sheetTotal: '',
             date: textValue(child(titleBlock, 'date')) || '',
-            drawnBy: ''
+            drawnBy: comments.get('1') || '',
+            comments: Object.fromEntries(comments)
         }
     }
+}
+
+/**
+ * Parses KiCad title-block comments by index.
+ * @param {Array | undefined} titleBlock Title block node.
+ * @returns {Map<string, string>}
+ */
+function parseTitleBlockComments(titleBlock) {
+    const comments = new Map()
+    for (const entry of children(titleBlock, 'comment')) {
+        comments.set(String(entry[1] || ''), String(entry[2] || ''))
+    }
+    return comments
 }
 
 /**
@@ -244,6 +259,7 @@ function parseLineNodes(root, name, isBus) {
                 color: isBus ? defaultAccentColor : defaultInkColor,
                 width,
                 isBus,
+                sourceType: name,
                 renderOrder: nodeIndex * 100 + index
             })
         }
@@ -272,7 +288,15 @@ function parseLabels(root, nodeName, labelKind) {
             labelKind,
             shape: textValue(child(node, 'shape')) || '',
             fontSize: font.size,
+            font,
             rotation: at.rotation,
+            anchor:
+                font.hAlign === 'right'
+                    ? 'end'
+                    : font.hAlign === 'center'
+                      ? 'middle'
+                      : 'start',
+            vAlign: font.vAlign,
             renderOrder: index
         }
         return { text, kind: labelKind }
@@ -425,7 +449,7 @@ function parseSchematicSymbol(node, index, librarySymbols) {
         transform,
         selection
     )
-    const texts = parseSymbolPropertyTexts(properties, uuid)
+    const texts = parseSymbolPropertyTexts(properties, uuid, { mirror })
     const component = {
         ownerIndex: uuid,
         designator,
@@ -467,9 +491,10 @@ function symbolLibId(node) {
  * Parses visible symbol property text.
  * @param {Map<string, object>} properties Symbol properties.
  * @param {string} ownerIndex Symbol owner id.
+ * @param {{ mirror?: string }} transform Symbol placement transform.
  * @returns {object[]}
  */
-function parseSymbolPropertyTexts(properties, ownerIndex) {
+function parseSymbolPropertyTexts(properties, ownerIndex, transform = {}) {
     return [...properties.entries()]
         .filter(([, property]) => property.visible)
         .map(([name, property]) => ({
@@ -481,8 +506,37 @@ function parseSymbolPropertyTexts(properties, ownerIndex) {
             propertyName: name,
             color: defaultInkColor,
             fontSize: property.fontSize,
-            rotation: property.rotation
+            font: property.font,
+            rotation: property.rotation,
+            anchor: mirrorTextAnchor(property.anchor, transform.mirror),
+            vAlign: mirrorTextVAlign(property.vAlign, transform.mirror)
         }))
+}
+
+/**
+ * Mirrors horizontal text justification for mirrored symbols.
+ * @param {string} anchor SVG anchor.
+ * @param {string | undefined} mirror KiCad mirror axis.
+ * @returns {string}
+ */
+function mirrorTextAnchor(anchor, mirror) {
+    if (mirror !== 'y') return anchor
+    if (anchor === 'start') return 'end'
+    if (anchor === 'end') return 'start'
+    return anchor
+}
+
+/**
+ * Mirrors vertical text justification for mirrored symbols.
+ * @param {string} vAlign Vertical alignment.
+ * @param {string | undefined} mirror KiCad mirror axis.
+ * @returns {string}
+ */
+function mirrorTextVAlign(vAlign, mirror) {
+    if (mirror !== 'x') return vAlign
+    if (vAlign === 'top') return 'bottom'
+    if (vAlign === 'bottom') return 'top'
+    return vAlign
 }
 
 /**
@@ -628,8 +682,8 @@ function segmentsTouch(left, right, junctions) {
 function pinConnectionPoint(pin) {
     if (pin.orientation === 'left') return { x: pin.x - pin.length, y: pin.y }
     if (pin.orientation === 'right') return { x: pin.x + pin.length, y: pin.y }
-    if (pin.orientation === 'top') return { x: pin.x, y: pin.y + pin.length }
-    return { x: pin.x, y: pin.y - pin.length }
+    if (pin.orientation === 'top') return { x: pin.x, y: pin.y - pin.length }
+    return { x: pin.x, y: pin.y + pin.length }
 }
 
 /**
@@ -677,6 +731,9 @@ function parseProperties(node) {
             y: at.y,
             rotation: at.rotation,
             fontSize: font.size,
+            font,
+            anchor: font.hAlign === 'right' ? 'end' : font.hAlign === 'center' ? 'middle' : 'start',
+            vAlign: font.vAlign,
             visible: !hasHiddenEffect(property)
         })
     }
@@ -689,11 +746,25 @@ function parseProperties(node) {
  * @returns {{ size: number }}
  */
 function parseTextFont(node) {
-    const font = child(child(node, 'effects'), 'font')
+    const effects = child(node, 'effects')
+    const font = child(effects, 'font')
     const size = child(font, 'size') || ['size', 1.27, 1.27]
+    const justify = child(effects, 'justify') || []
     return {
-        size: numberValue(size[2], numberValue(size[1], 1.27))
+        size: numberValue(size[2], numberValue(size[1], 1.27)),
+        hAlign: firstJustify(justify, ['left', 'center', 'right']) || 'left',
+        vAlign: firstJustify(justify, ['top', 'center', 'bottom']) || 'bottom'
     }
+}
+
+/**
+ * Finds a justify token.
+ * @param {Array} justify Justify node.
+ * @param {string[]} options Accepted values.
+ * @returns {string}
+ */
+function firstJustify(justify, options) {
+    return justify.slice(1).find((token) => options.includes(String(token))) || ''
 }
 
 /**

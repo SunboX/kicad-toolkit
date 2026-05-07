@@ -59,8 +59,10 @@ export class KicadSchematicSymbolParser {
      * @returns {object[]}
      */
     static parsePins(symbol, ownerIndex, transform, selection) {
+        const hidePinNumbers = pinNumbersHidden(symbol)
         return collectSymbolPinNodes(symbol, selection).map((node, index) => {
             const at = parseAt(child(node, 'at'))
+            const numberFont = parsePinTextFont(child(node, 'number'))
             const connection = transformPoint({ x: at.x, y: at.y }, transform)
             const length = numberValue(child(node, 'length')?.[1], 2.54)
             const innerLocal = pointFromPinConnection(at, length)
@@ -76,6 +78,8 @@ export class KicadSchematicSymbolParser {
                 name: textValue(child(node, 'name')) || '',
                 designator:
                     textValue(child(node, 'number')) || String(index + 1),
+                numberFontSize: numberFont.size,
+                numberVisible: numberFont.visible && !hidePinNumbers,
                 orientation,
                 electrical: 4,
                 color: defaultInkColor,
@@ -84,6 +88,34 @@ export class KicadSchematicSymbolParser {
                 ownerIndex
             }
         })
+    }
+}
+
+/**
+ * Checks whether a library symbol hides pin numbers.
+ * @param {Array | undefined} symbol Library symbol node.
+ * @returns {boolean}
+ */
+function pinNumbersHidden(symbol) {
+    return hasChild(child(symbol, 'pin_numbers'), 'hide')
+}
+
+/**
+ * Parses pin-number font visibility and size.
+ * @param {Array | undefined} node Pin number node.
+ * @returns {{ size: number, visible: boolean }}
+ */
+function parsePinTextFont(node) {
+    if (!Array.isArray(node)) return { size: 0, visible: false }
+    const effects = child(node, 'effects')
+    const font = child(effects, 'font')
+    const sizeNode = child(font, 'size') || ['size', 1.27, 1.27]
+    const width = numberValue(sizeNode[1], 1.27)
+    const height = numberValue(sizeNode[2], width)
+    const size = Math.max(width, height)
+    return {
+        size,
+        visible: size > 0
     }
 }
 
@@ -203,7 +235,7 @@ function parseSymbolPolyline(node, index, ownerIndex, transform, polygonsOnly) {
                   {
                       points,
                       color: defaultInkColor,
-                      fill: defaultFillColor,
+                      fill: fillType(node),
                       isSolid: true,
                       transparent: false,
                       lineWidth: strokeWidth(node),
@@ -243,7 +275,7 @@ function parseSymbolRectangle(node, index, ownerIndex, transform) {
         width: Math.abs(end.x - start.x),
         height: Math.abs(end.y - start.y),
         color: defaultInkColor,
-        fill: defaultFillColor,
+        fill: fillType(node),
         isSolid: false,
         transparent: true,
         lineWidth: strokeWidth(node),
@@ -270,7 +302,7 @@ function parseSymbolCircle(node, index, ownerIndex, transform) {
         radiusX: radius,
         radiusY: radius,
         color: defaultInkColor,
-        fill: defaultFillColor,
+        fill: fillType(node),
         isSolid: false,
         transparent: true,
         lineWidth: strokeWidth(node),
@@ -350,7 +382,7 @@ function orientationFromBodyAndConnection(body, connection) {
     if (Math.abs(dx) >= Math.abs(dy)) {
         return dx < 0 ? 'left' : 'right'
     }
-    return dy > 0 ? 'top' : 'bottom'
+    return dy < 0 ? 'top' : 'bottom'
 }
 
 /**
@@ -360,11 +392,16 @@ function orientationFromBodyAndConnection(body, connection) {
  * @returns {{ x: number, y: number }}
  */
 function transformPoint(point, transform) {
-    return Geometry.transformPoint(mirrorPoint(point, transform.mirror), {
-        x: transform.x,
-        y: transform.y,
-        rotation: transform.rotation
-    })
+    const mirrored = mirrorPoint(point, transform.mirror)
+    const radians = -(Number(transform.rotation) || 0) * (Math.PI / 180)
+    const cos = Math.cos(radians)
+    const sin = Math.sin(radians)
+    const x = mirrored.x * cos - mirrored.y * sin
+    const y = mirrored.x * sin + mirrored.y * cos
+    return {
+        x: transform.x + x,
+        y: transform.y - y
+    }
 }
 
 /**
@@ -426,6 +463,15 @@ function strokeWidth(node) {
 }
 
 /**
+ * Parses a primitive fill type.
+ * @param {Array} node Primitive node.
+ * @returns {string}
+ */
+function fillType(node) {
+    return textValue(child(child(node, 'fill'), 'type')) || defaultFillColor
+}
+
+/**
  * Finds direct child nodes.
  * @param {Array | undefined} node Parent node.
  * @param {string} [name] Optional child name.
@@ -446,6 +492,16 @@ function children(node, name) {
  */
 function child(node, name) {
     return children(node, name)[0]
+}
+
+/**
+ * Checks for a direct child node.
+ * @param {Array | undefined} node Parent node.
+ * @param {string} name Child node name.
+ * @returns {boolean}
+ */
+function hasChild(node, name) {
+    return children(node, name).length > 0
 }
 
 /**

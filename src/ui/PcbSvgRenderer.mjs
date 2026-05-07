@@ -4,6 +4,11 @@
 import { Geometry } from '../core/kicad/Geometry.mjs'
 import { KicadArcGeometry } from '../core/kicad/KicadArcGeometry.mjs'
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+import { defaultLayerStyles } from './PcbSvgLayerStyles.mjs'
+import {
+    drawingMetadataAttributeList,
+    padMetadataAttributeList
+} from './PcbSvgMetadata.mjs'
 
 const kicadTextLineSpacingRatio = 1.61
 const kicadFirstLineHeightRatio = 1.17
@@ -110,71 +115,6 @@ export class PcbSvgRenderer {
 }
 
 /**
- * Returns the base KiCad renderer layer styles.
- * @returns {Record<string, { visible: boolean, fillColor: string, fillOpacity: number, borderColor: string, borderWidth: number | null }>}
- */
-function defaultLayerStyles() {
-    return {
-        board: {
-            visible: true,
-            fillColor: '#000000',
-            fillOpacity: 1,
-            borderColor: '#000000',
-            borderWidth: null
-        },
-        edgeCuts: {
-            visible: true,
-            fillColor: '#000000',
-            fillOpacity: 1,
-            borderColor: '#8e929c',
-            borderWidth: null
-        },
-        pads: {
-            visible: true,
-            fillColor: '#cfd1d4',
-            fillOpacity: 1,
-            borderColor: '#50545f',
-            borderWidth: 0.16
-        },
-        traces: {
-            visible: true,
-            fillColor: '#70747d',
-            fillOpacity: 1,
-            borderColor: '#70747d',
-            borderWidth: null
-        },
-        zones: {
-            visible: true,
-            fillColor: '#3c3f46',
-            fillOpacity: 1,
-            borderColor: '#50545f',
-            borderWidth: null
-        },
-        vias: {
-            visible: true,
-            fillColor: '#70747d',
-            fillOpacity: 1,
-            borderColor: '#50545f',
-            borderWidth: 0.06
-        },
-        drills: {
-            visible: true,
-            fillColor: '#000000',
-            fillOpacity: 1,
-            borderColor: '#50545f',
-            borderWidth: null
-        },
-        silkscreen: {
-            visible: true,
-            fillColor: '#aeb3bd',
-            fillOpacity: 1,
-            borderColor: '#aeb3bd',
-            borderWidth: null
-        }
-    }
-}
-
-/**
  * Builds a KiCad-style side transform for the whole rendered scene.
  * @param {object} bounds
  * @param {'front' | 'back'} side
@@ -256,6 +196,7 @@ function renderDrawing(drawing, layerStyles) {
         : ''
     const base = [
         `class="pcb-drawing pcb-drawing--${style.name}"`,
+        ...drawingMetadataAttributeList(drawing),
         ...componentAttributeList(drawing.ownerId),
         `stroke="${stroke}"`,
         `stroke-width="${formatNumber(strokeWidth)}"`,
@@ -323,11 +264,12 @@ function renderSegment(segment, layerStyles) {
     const style = layerStyles.traces
     if (!style.visible) return ''
 
+    const metadata = drawingMetadataAttributeList(segment).join(' ')
     const strokeWidth = resolveStrokeWidth(
         style,
         Math.max(segment.strokeWidth || 0.2, 0.06)
     )
-    return `<line class="pcb-segment" stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" x1="${formatNumber(segment.start.x)}" y1="${formatNumber(segment.start.y)}" x2="${formatNumber(segment.end.x)}" y2="${formatNumber(segment.end.y)}"/>`
+    return `<line class="pcb-segment"${optionalAttribute(metadata)} stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" x1="${formatNumber(segment.start.x)}" y1="${formatNumber(segment.start.y)}" x2="${formatNumber(segment.end.x)}" y2="${formatNumber(segment.end.y)}"/>`
 }
 
 /**
@@ -340,11 +282,12 @@ function renderTrackArc(arc, layerStyles) {
     const style = layerStyles.traces
     if (!style.visible) return ''
 
+    const metadata = drawingMetadataAttributeList(arc).join(' ')
     const strokeWidth = resolveStrokeWidth(
         style,
         Math.max(arc.strokeWidth || 0.2, 0.06)
     )
-    return `<path class="pcb-arc" stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" d="${arcPath(arc)}" fill="none"/>`
+    return `<path class="pcb-arc"${optionalAttribute(metadata)} stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" d="${arcPath(arc)}" fill="none"/>`
 }
 
 /**
@@ -357,7 +300,8 @@ function renderVia(via, layerStyles) {
     const style = layerStyles.vias
     if (!style.visible) return ''
 
-    return `<circle class="pcb-via" cx="${formatNumber(via.x)}" cy="${formatNumber(via.y)}" r="${formatNumber(via.size / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))} stroke="${style.borderColor}" stroke-width="${formatNumber(resolveStrokeWidth(style, 0.06))}" vector-effect="non-scaling-stroke"/>`
+    const metadata = drawingMetadataAttributeList(via).join(' ')
+    return `<circle class="pcb-via"${optionalAttribute(metadata)} cx="${formatNumber(via.x)}" cy="${formatNumber(via.y)}" r="${formatNumber(via.size / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))} stroke="${style.borderColor}" stroke-width="${formatNumber(resolveStrokeWidth(style, 0.06))}" vector-effect="non-scaling-stroke"/>`
 }
 
 /**
@@ -370,7 +314,8 @@ function renderViaDrill(via, layerStyles) {
     const style = layerStyles.drills
     if (!style.visible) return ''
 
-    return `<circle class="pcb-via-drill" cx="${formatNumber(via.x)}" cy="${formatNumber(via.y)}" r="${formatNumber(via.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0)}/>`
+    const metadata = drawingMetadataAttributeList(via).join(' ')
+    return `<circle class="pcb-via-drill"${optionalAttribute(metadata)} cx="${formatNumber(via.x)}" cy="${formatNumber(via.y)}" r="${formatNumber(via.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0)}/>`
 }
 
 /**
@@ -383,7 +328,8 @@ function renderZone(zone, layerStyles) {
     const style = layerStyles.zones
     if (!style.visible) return ''
 
-    return `<path class="pcb-zone" d="${pathFromPoints(zone.points, true)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0)}/>`
+    const metadata = drawingMetadataAttributeList(zone).join(' ')
+    return `<path class="pcb-zone"${optionalAttribute(metadata)} d="${pathFromPoints(zone.points, true)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0)}/>`
 }
 
 /** @param {object} image @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
@@ -447,6 +393,7 @@ function renderPad(pad, layerStyles) {
 
     const attributes = [
         'class="pcb-pad"',
+        ...padMetadataAttributeList(pad),
         ...componentAttributeList(pad.footprintId),
         `fill="${fillValue(style)}"`,
         fillOpacityAttribute(style),
@@ -471,7 +418,11 @@ function renderPadDrill(pad, layerStyles) {
     const style = layerStyles.drills
     if (!style.visible) return ''
 
-    return `<circle class="pcb-pad-drill" ${componentAttributeList(pad.footprintId).join(' ')} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(pad.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0.08)} vector-effect="non-scaling-stroke"/>`
+    const metadata = [
+        ...padMetadataAttributeList(pad),
+        ...componentAttributeList(pad.footprintId)
+    ].join(' ')
+    return `<circle class="pcb-pad-drill"${optionalAttribute(metadata)} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(pad.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0.08)} vector-effect="non-scaling-stroke"/>`
 }
 
 /**
@@ -526,6 +477,7 @@ function renderText(text, layerStyles) {
     const strokeWidth = resolveStrokeWidth(style, textStrokeWidth(text))
     const attrs = [
         'class="pcb-label"',
+        ...drawingMetadataAttributeList(text),
         ...componentAttributeList(text.ownerId),
         `aria-label="${escapeAttribute(text.value)}"`,
         'fill="none"',

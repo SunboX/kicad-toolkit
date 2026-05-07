@@ -224,8 +224,15 @@ test('KicadParser parses .kicad_sch files into schematic document models', () =>
     assert.equal(document.fileType, 'kicad_sch')
     assert.equal(document.summary.title, 'Root Sheet')
     assert.equal(document.schematic.lines.length, 2)
+    assert.equal(
+        document.schematic.sheet.titleBlock.drawnBy,
+        'Fixture Author'
+    )
+    assert.equal(document.schematic.lines[0].sourceType, 'wire')
+    assert.equal(document.schematic.lines[1].sourceType, 'bus')
     assert.equal(document.schematic.components[0].designator, 'U1')
     assert.equal(document.schematic.pins.length, 2)
+    assert.equal(document.schematic.rectangles[0].fill, 'background')
     assert.equal(document.schematic.sheetSymbols.length, 1)
     assert.equal(document.schematic.sheetEntries[0].name, 'CHILD_SIG')
     assert.ok(
@@ -233,6 +240,47 @@ test('KicadParser parses .kicad_sch files into schematic document models', () =>
         'expected local label to name a recovered schematic net'
     )
     assert.deepEqual(document.bom[0].designators, ['U1'])
+})
+
+test('KicadParser mirrors symbol property justification and pin-number visibility', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'mirrored-symbol.kicad_sch',
+        bytesFor(mirroredSymbolTextSource())
+    )
+    const reference = document.schematic.texts.find(
+        (text) => text.propertyName === 'Reference'
+    )
+
+    assert.equal(reference.anchor, 'end')
+    assert.equal(document.schematic.pins[0].numberVisible, false)
+    assert.equal(document.schematic.pins[0].numberFontSize, 0)
+    assert.equal(document.schematic.pins[1].numberVisible, false)
+})
+
+test('KicadParser maps vertical library pins to their KiCad sheet side', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'vertical-pin-symbol.kicad_sch',
+        bytesFor(verticalPinSymbolSource())
+    )
+    const pin = document.schematic.pins[0]
+
+    assert.equal(pin.orientation, 'top')
+    assert.deepEqual(
+        {
+            x: pin.x,
+            y: pin.y,
+            length: pin.length
+        },
+        {
+            x: 50,
+            y: 45,
+            length: 5
+        }
+    )
+    assert.ok(
+        document.schematic.nets.some((net) => net.name === 'TOP_SIG'),
+        'expected the top-side symbol pin to connect to the vertical wire'
+    )
 })
 
 test('KicadParser parses KiCad schematic graphical and metadata item families', () => {
@@ -604,7 +652,13 @@ function rootSchematicSource() {
         (generator "eeschema")
         (uuid "root-uuid")
         (paper "A4")
-        (title_block (title "Root Sheet"))
+        (title_block
+            (title "Root Sheet")
+            (date "2026-01-02")
+            (rev "A")
+            (company "Fixture Org")
+            (comment 1 "Fixture Author")
+        )
         (lib_symbols
             (symbol "Device:R"
                 (pin passive line (at -2.54 0 0) (length 2.54)
@@ -617,7 +671,7 @@ function rootSchematicSource() {
                 )
                 (rectangle (start -1.27 -2.54) (end 1.27 2.54)
                     (stroke (width 0.15) (type solid))
-                    (fill (type none))
+                    (fill (type background))
                 )
             )
         )
@@ -651,6 +705,69 @@ function rootSchematicSource() {
                 (effects (font (size 1.27 1.27)) hide)
             )
             (uuid "symbol-uuid")
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with mirrored symbol text and hidden pin numbers.
+ * @returns {string}
+ */
+function mirroredSymbolTextSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (paper "A4")
+        (lib_symbols
+            (symbol "Test:MIRROR"
+                (pin passive line (at 0 2.54 270) (length 2.54)
+                    (name "~" (effects (font (size 0 0))))
+                    (number "1" (effects (font (size 0 0))))
+                )
+                (pin power_in line (at 2.54 0 180) (length 0)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                )
+            )
+        )
+        (symbol "Test:MIRROR"
+            (at 20 20 0)
+            (mirror y)
+            (property "Reference" "R1" (at 21 20 0)
+                (effects (font (size 1.27 1.27)) (justify left bottom))
+            )
+            (property "Value" "10k" (at 21 22 0)
+                (effects (font (size 1.27 1.27)) hide)
+            )
+            (uuid "mirrored-symbol")
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with a top-side library pin.
+ * @returns {string}
+ */
+function verticalPinSymbolSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (paper "A4")
+        (lib_symbols
+            (symbol "Test:VERTICAL"
+                (pin passive line (at 0 10 270) (length 5)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "1" (effects (font (size 1.27 1.27))))
+                )
+            )
+        )
+        (wire (pts (xy 50 40) (xy 50 35)) (stroke (width 0.15) (type solid)))
+        (label "TOP_SIG" (at 50 35 0)
+            (effects (font (size 1.27 1.27)) (justify left bottom))
+        )
+        (symbol "Test:VERTICAL"
+            (at 50 50 0)
+            (property "Reference" "U1" (at 50 47 0)
+                (effects (font (size 1.27 1.27)))
+            )
+            (uuid "vertical-symbol")
         )
     )`
 }
