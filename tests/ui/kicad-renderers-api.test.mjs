@@ -107,6 +107,14 @@ test('SchematicSvgRenderer emits deterministic schematic SVG markup', () => {
                     rotation: 180,
                     anchor: 'end',
                     vAlign: 'bottom'
+                },
+                {
+                    value: 'VCC',
+                    x: 9,
+                    y: 9,
+                    size: 2,
+                    rotation: 90,
+                    symbolKind: 'power'
                 }
             ],
             junctions: [{ x: 20, y: 2, diameter: 1 }]
@@ -143,6 +151,7 @@ test('SchematicSvgRenderer emits deterministic schematic SVG markup', () => {
     assert.match(markup, /class="schematic-pin-number"/)
     assert.match(markup, /font-size="0.85"/)
     assert.match(markup, /transform="rotate\(-90 5 5\)"/)
+    assert.match(markup, /transform="rotate\(90 9 9\)"/)
     assert.doesNotMatch(markup, /rotate\(180 8 7\)/)
     assert.match(markup, /dominant-baseline="alphabetic"/)
     assert.doesNotMatch(markup, /#1f2430/)

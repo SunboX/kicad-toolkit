@@ -449,7 +449,10 @@ function parseSchematicSymbol(node, index, librarySymbols) {
         transform,
         selection
     )
-    const texts = parseSymbolPropertyTexts(properties, uuid, { mirror })
+    const texts = parseSymbolPropertyTexts(properties, uuid, {
+        mirror,
+        powerSymbol: isPowerSymbol(librarySymbol, libId)
+    })
     const component = {
         ownerIndex: uuid,
         designator,
@@ -488,10 +491,23 @@ function symbolLibId(node) {
 }
 
 /**
+ * Checks whether a placed symbol is a KiCad power symbol.
+ * @param {Array | undefined} librarySymbol Library symbol node.
+ * @param {string} libId Library id.
+ * @returns {boolean}
+ */
+function isPowerSymbol(librarySymbol, libId) {
+    return (
+        String(libId || '').startsWith('power:') ||
+        hasChild(librarySymbol, 'power')
+    )
+}
+
+/**
  * Parses visible symbol property text.
  * @param {Map<string, object>} properties Symbol properties.
  * @param {string} ownerIndex Symbol owner id.
- * @param {{ mirror?: string }} transform Symbol placement transform.
+ * @param {{ mirror?: string, powerSymbol?: boolean }} transform Symbol placement transform.
  * @returns {object[]}
  */
 function parseSymbolPropertyTexts(properties, ownerIndex, transform = {}) {
@@ -509,7 +525,8 @@ function parseSymbolPropertyTexts(properties, ownerIndex, transform = {}) {
             font: property.font,
             rotation: property.rotation,
             anchor: mirrorTextAnchor(property.anchor, transform.mirror),
-            vAlign: mirrorTextVAlign(property.vAlign, transform.mirror)
+            vAlign: mirrorTextVAlign(property.vAlign, transform.mirror),
+            symbolKind: transform.powerSymbol ? 'power' : ''
         }))
 }
 

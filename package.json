@@ -1,6 +1,6 @@
 {
     "name": "@sunbox/kicad-toolkit",
-    "version": "0.2.10",
+    "version": "0.2.11",
     "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
     "keywords": [
         "kicad",

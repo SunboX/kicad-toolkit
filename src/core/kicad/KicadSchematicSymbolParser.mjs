@@ -393,14 +393,15 @@ function orientationFromBodyAndConnection(body, connection) {
  */
 function transformPoint(point, transform) {
     const mirrored = mirrorPoint(point, transform.mirror)
+    const local = { x: mirrored.x, y: -mirrored.y }
     const radians = -(Number(transform.rotation) || 0) * (Math.PI / 180)
     const cos = Math.cos(radians)
     const sin = Math.sin(radians)
-    const x = mirrored.x * cos - mirrored.y * sin
-    const y = mirrored.x * sin + mirrored.y * cos
+    const x = local.x * cos - local.y * sin
+    const y = local.x * sin + local.y * cos
     return {
         x: transform.x + x,
-        y: transform.y - y
+        y: transform.y + y
     }
 }
 

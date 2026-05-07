@@ -34,7 +34,7 @@ export class SchematicSvgRenderer {
         return [
             '<section class="svg-panel">',
             `<header class="svg-panel__header"><h3>${escapeHtml(title)}</h3><p>${lineCount} line segments, ${componentCount} components</p></header>`,
-            `<svg xmlns="http://www.w3.org/2000/svg" class="schematic-svg" viewBox="0 0 ${formatNumber(width)} ${formatNumber(height)}" style="--schematic-sheet-frame-stroke: ${frameColor}; --schematic-sheet-label-color: ${frameColor}; --schematic-node-fill: ${wireColor}" role="img" aria-label="${escapeAttribute(documentModel.summary?.title || documentModel.fileName || 'Schematic')}">`,
+            `<svg xmlns="http://www.w3.org/2000/svg" class="schematic-svg" viewBox="0 0 ${formatNumber(width)} ${formatNumber(height)}" role="img" aria-label="${escapeAttribute(documentModel.summary?.title || documentModel.fileName || 'Schematic')}">`,
             `<rect class="sheet-backdrop" x="0" y="0" width="${formatNumber(width)}" height="${formatNumber(height)}" rx="18"/>`,
             renderSheetChrome(sheet, width, height, documentModel?.fileName),
             `<g class="schematic-scene" transform="scale(${formatNumber(displayScale)})">`,
@@ -273,42 +273,69 @@ function renderTitleBlock(titleBlock, width, height, margin, options = {}) {
     const author = titleBlock.drawnBy || ''
     const fileName = basename(options.fileName || '')
     const paperSize = options.paperSize || ''
+    const headerY = y + blockHeight * 0.16
+    const titleRowY = y + blockHeight * 0.48
+    const labelRowY = y + blockHeight * 0.62
+    const valueRowY = y + blockHeight * 0.78
+    const footerDateY = y + blockHeight * 0.9
+    const footerFileY = y + blockHeight * 0.98
+    const line1Y = y + blockHeight * 0.18
+    const line2Y = y + blockHeight * 0.5
+    const line3Y = y + blockHeight * 0.66
+    const line4Y = y + blockHeight * 0.82
+    const numberX = x + blockWidth * 0.64
+    const revisionX = x + blockWidth * 0.84
+    const sizeX = x + blockWidth * 0.16
+    const sheetX = x + blockWidth * 0.67
+    const drawnByX = x + blockWidth * 0.82
+    const sheetValue = titleBlock.sheetTotal
+        ? `${titleBlock.sheetNumber || '1'} of ${titleBlock.sheetTotal}`
+        : titleBlock.sheetNumber || ''
+
     return [
         '<g class="sheet-title-block">',
         `<rect x="${formatNumber(x)}" y="${formatNumber(y)}" width="${formatNumber(blockWidth)}" height="${formatNumber(blockHeight)}"/>`,
-        `<line x1="${formatNumber(x)}" y1="${formatNumber(y + blockHeight * 0.42)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(y + blockHeight * 0.42)}"/>`,
-        `<line x1="${formatNumber(x)}" y1="${formatNumber(y + blockHeight * 0.62)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(y + blockHeight * 0.62)}"/>`,
-        `<line x1="${formatNumber(x)}" y1="${formatNumber(y + blockHeight * 0.8)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(y + blockHeight * 0.8)}"/>`,
-        `<line x1="${formatNumber(x + blockWidth * 0.22)}" y1="${formatNumber(y + blockHeight * 0.8)}" x2="${formatNumber(x + blockWidth * 0.22)}" y2="${formatNumber(y + blockHeight)}"/>`,
-        `<line x1="${formatNumber(x + blockWidth * 0.68)}" y1="${formatNumber(y + blockHeight * 0.8)}" x2="${formatNumber(x + blockWidth * 0.68)}" y2="${formatNumber(y + blockHeight)}"/>`,
-        renderTitlePair('', author, x + 10, y + blockHeight * 0.24),
-        renderTitlePair('', company, x + 10, y + blockHeight * 0.36),
-        renderTitlePair('File', fileName, x + 10, y + blockHeight * 0.56),
-        renderTitlePair('Title', title, x + 10, y + blockHeight * 0.74),
-        renderTitlePair('Size', paperSize, x + 10, y + blockHeight * 0.93),
-        renderTitlePair('Date', date, x + blockWidth * 0.25, y + blockHeight * 0.93),
-        renderTitlePair('Rev', revision, x + blockWidth * 0.72, y + blockHeight * 0.93),
+        `<line x1="${formatNumber(x)}" y1="${formatNumber(line1Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line1Y)}"/>`,
+        `<line x1="${formatNumber(x)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line2Y)}"/>`,
+        `<line x1="${formatNumber(x)}" y1="${formatNumber(line3Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line3Y)}"/>`,
+        `<line x1="${formatNumber(x)}" y1="${formatNumber(line4Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line4Y)}"/>`,
+        `<line x1="${formatNumber(numberX)}" y1="${formatNumber(y)}" x2="${formatNumber(numberX)}" y2="${formatNumber(line2Y)}"/>`,
+        `<line x1="${formatNumber(revisionX)}" y1="${formatNumber(y)}" x2="${formatNumber(revisionX)}" y2="${formatNumber(line2Y)}"/>`,
+        `<line x1="${formatNumber(sizeX)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(sizeX)}" y2="${formatNumber(y + blockHeight)}"/>`,
+        `<line x1="${formatNumber(sheetX)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(sheetX)}" y2="${formatNumber(line4Y)}"/>`,
+        `<line x1="${formatNumber(drawnByX)}" y1="${formatNumber(line4Y)}" x2="${formatNumber(drawnByX)}" y2="${formatNumber(y + blockHeight)}"/>`,
+        renderTitleText('sheet-title-label', x + blockWidth * 0.03, headerY, 'Title', labelColor, 'start'),
+        renderTitleText('sheet-title-label', numberX + blockWidth * 0.03, headerY, 'Number', labelColor, 'start'),
+        renderTitleText('sheet-title-label', revisionX + blockWidth * 0.02, headerY, 'Revision', labelColor, 'start'),
+        renderTitleText('sheet-title-label', x + blockWidth * 0.05, labelRowY, 'Size', labelColor, 'start'),
+        renderTitleText('sheet-title-label', sizeX + blockWidth * 0.05, labelRowY, 'Sheet', labelColor, 'start'),
+        renderTitleText('sheet-title-label', sizeX + 8, footerDateY, 'Date:', labelColor, 'start'),
+        renderTitleText('sheet-title-label', sizeX + 8, footerFileY, 'File:', labelColor, 'start'),
+        renderTitleText('sheet-title-label', drawnByX + 8, footerFileY, 'Drawn By:', labelColor, 'start'),
+        renderTitleText('sheet-title-value', x + blockWidth * 0.31, titleRowY, title, wireColor, 'middle'),
+        renderTitleText('sheet-title-value', x + blockWidth * 0.74, titleRowY, company, labelColor, 'middle'),
+        renderTitleText('sheet-title-value', x + blockWidth * 0.92, titleRowY, revision, wireColor, 'middle'),
+        renderTitleText('sheet-title-value', x + blockWidth * 0.08, valueRowY, paperSize, labelColor, 'middle'),
+        renderTitleText('sheet-title-value', x + blockWidth * 0.415, valueRowY, sheetValue, wireColor, 'middle'),
+        renderTitleText('sheet-title-value', sizeX + blockWidth * 0.08, footerDateY, date, labelColor, 'start'),
+        renderTitleText('sheet-title-value', sizeX + blockWidth * 0.08, footerFileY, fileName, labelColor, 'start'),
+        renderTitleText('sheet-title-value', x + blockWidth * 0.93, footerFileY, author, wireColor, 'middle'),
         '</g>'
     ].join('')
 }
 
 /**
- * Renders one title-block label/value pair.
- * @param {string} label Label.
- * @param {string} value Value.
+ * Renders one title-block text element.
+ * @param {string} className CSS class.
  * @param {number} x X coordinate.
  * @param {number} y Y coordinate.
+ * @param {string} value Text value.
+ * @param {string} fill Fill color.
+ * @param {string} anchor Text anchor.
  * @returns {string}
  */
-function renderTitlePair(label, value, x, y) {
-    const renderedLabel = label
-        ? `<text class="sheet-title-label" x="${formatNumber(x)}" y="${formatNumber(y)}" fill="${frameColor}">${escapeHtml(label)}</text>`
-        : ''
-    const valueX = label ? x + 54 : x
-    return [
-        renderedLabel,
-        `<text class="sheet-title-value" x="${formatNumber(valueX)}" y="${formatNumber(y)}" fill="${frameColor}">${escapeHtml(value)}</text>`
-    ].join('')
+function renderTitleText(className, x, y, value, fill, anchor) {
+    return `<text class="${className}" x="${formatNumber(x)}" y="${formatNumber(y)}" fill="${fill}" text-anchor="${anchor}">${escapeHtml(value)}</text>`
 }
 
 /**
@@ -433,9 +460,21 @@ function resolveTextFontSize(text) {
  * @returns {string}
  */
 function renderTextTransform(text) {
-    const rotation = -resolveReadableTextRotation(text)
+    const rotation = resolveRenderedTextRotation(text)
     if (Math.abs(rotation) < 0.001) return ''
     return ` transform="rotate(${formatNumber(rotation)} ${formatNumber(text.x)} ${formatNumber(text.y)})"`
+}
+
+/**
+ * Resolves the SVG rotation direction for one rendered text node.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function resolveRenderedTextRotation(text) {
+    const rotation = -resolveReadableTextRotation(text)
+    if (text?.symbolKind !== 'power') return rotation
+    if (Math.abs(Math.abs(rotation) - 90) > 0.001) return rotation
+    return rotation < 0 ? rotation + 180 : rotation - 180
 }
 
 /**
