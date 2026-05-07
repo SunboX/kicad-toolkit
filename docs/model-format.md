@@ -6,58 +6,90 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # Model Format
 
-`KicadPcbParser.parse()` returns a normalized board object optimized for
-assembly-style SVG rendering.
+The normalized model is intentionally stable with the ECAD Forge parser model.
+The parser returns one object per parsed native KiCad document.
 
-## Board
+## Common Fields
 
-The board object contains:
+- `schema`: normalized model schema id, currently
+  `urn:kicad-toolkit:normalized-model:a1`
+- `sourceFormat`: `kicad`
+- `kind`: `schematic` or `pcb`
+- `fileType`: `kicad_sch` or `kicad_pcb`
+- `fileName`: original file name passed to the parser
+- `summary`: compact document metadata and recovered item counts
+- `diagnostics`: parser warnings and recovery notes
+- `bom`: grouped component metadata where available
 
-- `fileName`: source file name passed through parser options
-- `title`: KiCad title block title, or an empty string
-- `revision`: KiCad title block revision, or an empty string
-- `outlines`: Edge.Cuts drawing primitives used for board shape rendering
-- `drawings`: non-outline drawing primitives, copper primitives, footprint
-  artwork, vias, and filled zones
-- `footprints`: parsed footprint placement models
-- `pads`: flattened pad list from all footprints
-- `texts`: flattened board and footprint text list
-- `bounds`: `{ minX, minY, maxX, maxY, width, height }`
-- `diagnostics`: reserved array for future parser diagnostics
+## Schema Contracts
 
-Coordinates are expressed in KiCad millimeters. Back-side rendering is handled
-by the renderer through a scene transform, so model coordinates remain in the
-board coordinate system.
+The current root model contract is published as a JSON Schema at
+[`docs/schemas/kicad_toolkit/normalized_model_a1.schema.json`](schemas/kicad_toolkit/normalized_model_a1.schema.json).
+Parser roots expose the same id through the top-level `schema` field, and
+library consumers can compare it with
+`NormalizedModelSchema.CURRENT_SCHEMA_ID`.
 
-## Footprints
+## Schematic Fields
 
-Footprint objects include `id`, `libraryName`, `reference`, `attributes`,
-`excludeFromPositionFiles`, `layer`, `side`, `x`, `y`, `rotation`, `pads`,
-`texts`, `drawings`, and `bounds`.
+Schematic documents include recovered `schematic` data with sheet metadata,
+symbol placements, component metadata, embedded symbol graphics, wires, buses,
+labels, hierarchical sheets, sheet entries, junctions, no-connect markers,
+graphical shapes, embedded file metadata, simple net metadata, and the raw
+KiCad S-expression AST as `kicadAst`. Coordinates remain in recovered KiCad
+sheet units until the SVG renderer maps them into SVG space.
 
-`side` is one of `front`, `back`, or `both`, derived from KiCad layer metadata.
+Component entries include designator, source library id, value, footprint,
+unit/convert selection, placement transform, mirror/orientation metadata,
+fields, properties, and BOM exclusion metadata when present.
 
-## Pads
+## PCB Fields
 
-Pad objects include `id`, `footprintId`, `footprintReference`, `number`, `type`,
-`shape`, `x`, `y`, `rotation`, `width`, `height`, `drill`,
-`roundrectRatio`, `layers`, `side`, and `netName`.
+PCB documents include recovered `pcb` data with board outline geometry, layer
+metadata, primitive layer metadata, net records, component placements, board
+polygons, routed tracks, routed arcs, vias, pads, text, empty compatibility
+arrays for Altium-style consumers, and the lower-level raw KiCad board model as
+`kicadBoard`. Summary fields expose component, layer, outline segment, BOM,
+net, polygon, track, arc, via, and board-size counts.
 
-Supported shapes include KiCad pad shapes such as `rect`, `circle`, `oval`,
-`roundrect`, and `custom`. Unknown shapes are preserved in the `shape` field and
-rendered with the nearest deterministic fallback.
+Coordinates projected into the public `pcb` model use mils to match the
+Altium-style renderer contract. The nested `pcb.kicadBoard` model keeps raw
+KiCad parser coordinates in millimeters for lower-level integrations.
 
-## Drawings
+Footprint-derived component placements include `componentIndex`, `designator`,
+`x`, `y`, `layer`, `pattern`, `rotation`, source/description fields, value,
+footprint name, properties, KiCad attribute flags, assembly/BOM exclusion
+flags, mount-style hints, and nullable height metadata.
 
-Drawing objects use `type` values such as `line`, `rect`, `circle`, `arc`,
-`polygon`, `segment`, `via`, and `zone`. They include layer, side, material,
-stroke, fill, point, and ownership metadata as needed by the primitive type.
+Pads preserve raw KiCad pad detail while also exposing Altium-style size, shape,
+drill, stack, mask, tenting, thermal relief, per-layer shape/offset, custom
+primitive, pin function/type, and net metadata. Supported shape names include
+KiCad pad shapes such as `rect`, `circle`, `oval`, `trapezoid`, `roundrect`,
+and `custom`; unknown names remain preserved on the raw pad fields and map to a
+deterministic fallback shape hint.
 
-## Text
+PCB drawing and copper objects use `type` values such as `line`, `circle`,
+`arc`, `curve`, `polygon`, `segment`, `via`, `zone`, `dimension`, `image`,
+`barcode`, `target`, and `point`. They include layer, side, material, stroke,
+fill, geometry, owner, group, generated-item, and net metadata as needed by the
+primitive type.
 
-Text objects include `id`, optional `ownerId`, optional `propertyName`, `value`,
-`x`, `y`, `rotation`, `layer`, `side`, `mirrored`, `hAlign`, `vAlign`, `sizeX`,
-`sizeY`, `thickness`, `visible`, and `excludeFromPositionFiles`.
+Text entries preserve value, transform, layer, side, mirroring, alignment, font
+size, stroke thickness, visibility, and position-file exclusion metadata.
+Multi-line text is preserved and rendered by the SVG renderer using the KiCad
+stroke font helper.
 
-Multi-line text is preserved in `value` and rendered by the SVG renderer using
-the KiCad stroke font helper.
+## Project Loading Fields
+
+`KicadProjectLoader` returns a loader container rather than a normalized parser
+root. Direct board loads include the lower-level `board`, wrapped `documents`,
+a compact `project` summary, companion `assets`, `diagnostics`,
+`sourceFileName`, and `sourceText`. Full project ZIP loads include parsed
+schematic and PCB `documents`, a `project` summary with document counts,
+project-level net references, grouped BOM rows, companion 3D `assets`, and
+diagnostics for missing hierarchical sheets.
+
+## Compatibility Rule
+
+Consumers should treat unknown fields as additive within the same schema id.
+Parser fixes may add detail, but existing field names and shapes should stay
+compatible unless a new schema id explicitly documents a model migration.

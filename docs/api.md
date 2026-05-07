@@ -8,7 +8,7 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 ## Entrypoints
 
-`kicad-toolkit` exports the supported KiCad parser, renderer, and 3D
+`kicad-toolkit` exports the supported parser, renderer, and 3D
 scene-description classes from one entrypoint.
 
 Specialized entrypoints are also available:
@@ -28,10 +28,22 @@ const documentModel = KicadParser.parseArrayBuffer(fileName, arrayBuffer)
 ```
 
 `fileName` is used to infer schematic or PCB parsing from the extension. The
-parser accepts `.kicad_sch` and `.kicad_pcb` bytes as an `ArrayBuffer` and
-returns the normalized model described in [Model Format](model-format.md). Every
-parser root includes a top-level `schema` id for the emitted normalized model
-contract.
+parser accepts native `.kicad_sch` and `.kicad_pcb` bytes as an `ArrayBuffer`
+and returns the normalized model described in [Model Format](model-format.md).
+Every parser root includes a top-level `schema` id for the emitted normalized
+model contract.
+
+PCB parsing reads KiCad S-expression board data, including layer declarations,
+net declarations, footprints, pads, graphical primitives, copper tracks, routed
+arcs, vias, zones, groups, generated items, and title-block metadata. The
+wrapped normalized PCB model keeps the raw KiCad board parser output available
+as `pcb.kicadBoard` while projecting commonly used placement, pad, copper, BOM,
+outline, and summary fields into the Altium-style public model.
+
+Schematic parsing reads KiCad S-expression sheet data, including sheet
+metadata, symbols, embedded library graphics, labels, hierarchical sheets,
+junctions, no-connect markers, graphical items, embedded file metadata, simple
+net recovery, and grouped BOM rows.
 
 ```js
 import { NormalizedModelSchema } from 'kicad-toolkit/parser'
@@ -42,23 +54,26 @@ if (documentModel.schema !== NormalizedModelSchema.CURRENT_SCHEMA_ID) {
 ```
 
 `KicadPcbParser.parse(source, options)` accepts KiCad `.kicad_pcb` source text
-and returns the normalized board model described in
-[Model Format](model-format.md). `options.fileName` is copied into the model for
-host metadata and accessible renderer labels.
+and returns the lower-level board model that is wrapped by
+`KicadParser.parseArrayBuffer()`. `options.fileName` is copied into the model
+for host metadata and accessible renderer labels.
 
 `KicadProjectLoader.loadFiles(files)` accepts browser `FileList` or `File[]`
 values. `KicadProjectLoader.loadEntries(entries)` accepts named byte entries in
-the shape `{ name, bytes }`. Both methods return `{ board, sourceFileName,
-sourceText }` and support direct `.kicad_pcb` files plus ZIP files containing a
-KiCad board.
-
-`SExpressionParser.parse(source)` returns the raw nested S-expression tree used
-by the KiCad parser.
+the shape `{ name, bytes }`. Both methods support direct `.kicad_pcb` files and
+ZIP archives containing `.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, and companion
+3D asset files. Direct board loads return the raw board, wrapped documents,
+project summary, assets, diagnostics, source file name, and source text. Full
+project loads return parsed documents, a project summary, companion assets, and
+diagnostics.
 
 Specialized parser helpers are exported for lower-level integrations, including
-`KicadArcGeometry`, `KicadNetResolver`, `KicadPcbDrawingParser`,
-`KicadPcbPadParser`, `KicadSchematicGraphicParser`, and
-`KicadSchematicSymbolParser`.
+`Geometry`, `KicadArcGeometry`, `KicadLayerResolver`, `KicadNetResolver`,
+`KicadPcbDrawingParser`, `KicadPcbPadParser`,
+`KicadSchematicGraphicParser`, and `KicadSchematicSymbolParser`. The layer,
+net, drawing, pad, and schematic helpers expose the same normalization used by
+`.kicad_pcb` and `.kicad_sch` parsing. `SExpressionParser.parse(source)`
+returns the raw nested S-expression tree used by the KiCad parsers.
 
 ## Renderers
 
@@ -77,14 +92,16 @@ import {
   Passing `null` renders the empty drop prompt SVG.
 - `PcbSideResolvedRenderModel.resolve(documentModel, { side })` and
   `preparePcbSideResolvedRenderModel(documentModel, { side })` return a
-  side-specific PCB render model. Use `side: 'back'` to render the back side
-  with the same top-oriented renderer usage as Altium Toolkit.
+  side-specific PCB render model for top-oriented renderers. Use
+  `side: 'back'` to project bottom components, documentation layers, copper
+  primitives, vias, pad geometry, and KiCad stroke text into the top-facing
+  render surface.
 - `BomTableRenderer.render(rows)` returns grouped BOM table markup.
 - `KicadStrokeFont` exposes the stroke-font metrics and path construction used
   by the SVG renderer.
 
 Renderer output is deterministic string markup. The library does not attach DOM
-events, mutate a host document, or perform downloads.
+events or mutate a host document.
 
 ## 3D Scene Data
 
@@ -99,7 +116,7 @@ import {
 ```
 
 - `PcbScene3dBuilder.build(documentModel, options)` returns procedural board,
-  placement, copper, and external-model scene-description data.
+  placement, copper, text, zone, and external-model scene-description data.
 - `PcbScene3dModelRegistry` resolves companion 3D model candidates for KiCad
   component placements.
 - `PcbScene3dPackages.resolve(component, padSpan)` resolves procedural package

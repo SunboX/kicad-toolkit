@@ -8,6 +8,7 @@ import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { ExampleServer } from '../examples/server.mjs'
+import { NormalizedModelSchema } from '../src/parser.mjs'
 
 const root = new URL('../', import.meta.url)
 
@@ -43,6 +44,7 @@ test('required project files exist', async () => {
         'spec/library-scope.md',
         'docs/api.md',
         'docs/model-format.md',
+        'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json',
         'docs/testing.md',
         'examples/server.mjs',
         'examples/rp2040-minimal-design/index.html',
@@ -256,6 +258,44 @@ test('API docs describe Altium-style KiCad entrypoints', async () => {
     assert.match(apiDocs, /NormalizedModelSchema/)
     assert.match(apiDocs, /preparePcbSideResolvedRenderModel/)
     assert.match(apiDocs, /PcbScene3dPackages/)
+})
+
+/**
+ * Verifies the normalized model schema is documented like Altium Toolkit.
+ */
+test('model docs publish the normalized model JSON schema contract', async () => {
+    const readme = await readFile(new URL('README.md', root), 'utf8')
+    const modelDocs = await readFile(
+        new URL('docs/model-format.md', root),
+        'utf8'
+    )
+    const packageConfig = JSON.parse(
+        await readFile(new URL('package.json', root), 'utf8')
+    )
+    const schema = JSON.parse(
+        await readFile(
+            new URL(
+                'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json',
+                root
+            ),
+            'utf8'
+        )
+    )
+
+    assert.match(readme, /Normalized Model Schema/)
+    assert.match(modelDocs, /Schema Contracts/)
+    assert.equal(schema.$id, NormalizedModelSchema.CURRENT_SCHEMA_ID)
+    assert.equal(schema.properties.schema.const, schema.$id)
+    assert.deepEqual(schema.properties.kind.enum, ['schematic', 'pcb'])
+    assert.deepEqual(schema.properties.fileType.enum, [
+        'kicad_sch',
+        'kicad_pcb'
+    ])
+    assert.ok(
+        packageConfig.files.includes(
+            'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json'
+        )
+    )
 })
 
 /**

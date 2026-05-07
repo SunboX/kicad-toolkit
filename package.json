@@ -1,6 +1,6 @@
 {
     "name": "@sunbox/kicad-toolkit",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
     "keywords": [
         "kicad",
@@ -35,6 +35,7 @@
         "src",
         "docs/api.md",
         "docs/model-format.md",
+        "docs/schemas/kicad_toolkit/normalized_model_a1.schema.json",
         "docs/testing.md",
         "examples",
         "spec",

@@ -1,0 +1,948 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:kicad-toolkit:normalized-model:a1",
+    "$comment": "SPDX-FileCopyrightText: 2026 André Fiedler; SPDX-License-Identifier: CC-BY-SA-4.0",
+    "title": "KiCad Toolkit Normalized Model A1",
+    "description": "Root contract for normalized models emitted by KiCad Toolkit parser entrypoints.",
+    "type": "object",
+    "required": [
+        "schema",
+        "sourceFormat",
+        "kind",
+        "fileType",
+        "fileName",
+        "summary",
+        "diagnostics",
+        "bom"
+    ],
+    "properties": {
+        "schema": {
+            "const": "urn:kicad-toolkit:normalized-model:a1"
+        },
+        "sourceFormat": {
+            "const": "kicad"
+        },
+        "kind": {
+            "enum": ["schematic", "pcb"]
+        },
+        "fileType": {
+            "enum": ["kicad_sch", "kicad_pcb"]
+        },
+        "fileName": {
+            "type": "string"
+        },
+        "summary": {
+            "type": "object",
+            "additionalProperties": {
+                "type": ["number", "string", "boolean", "null"]
+            }
+        },
+        "diagnostics": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/diagnostic"
+            }
+        },
+        "schematic": {
+            "type": "object",
+            "properties": {
+                "sheet": {
+                    "type": "object"
+                },
+                "lines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/schematicLine"
+                    }
+                },
+                "polygons": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "rectangles": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "ellipses": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "arcs": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "beziers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "directives": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "texts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/schematicText"
+                    }
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/schematicComponent"
+                    }
+                },
+                "pins": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "ports": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "crosses": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "sheetSymbols": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "sheetEntries": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "junctions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "busEntries": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "busAliases": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "textBoxes": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "tables": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "images": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "sheetInstances": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "symbolInstances": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "embeddedFonts": {
+                    "type": "boolean"
+                },
+                "embeddedFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "nets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "kicadAst": {
+                    "type": "array"
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcb": {
+            "type": "object",
+            "properties": {
+                "boardOutline": {
+                    "$ref": "#/$defs/boardOutline"
+                },
+                "layers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/layer"
+                    }
+                },
+                "primitiveLayers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/primitiveLayer"
+                    }
+                },
+                "nets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbNet"
+                    }
+                },
+                "classes": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbComponent"
+                    }
+                },
+                "polygons": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbPolygon"
+                    }
+                },
+                "fills": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "tracks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbTrack"
+                    }
+                },
+                "arcs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbArc"
+                    }
+                },
+                "vias": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbVia"
+                    }
+                },
+                "pads": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbPad"
+                    }
+                },
+                "regions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "shapeBasedRegions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "boardRegions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "texts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbText"
+                    }
+                },
+                "embeddedModels": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "componentBodies": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "componentPrimitiveGroups": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "kicadBoard": {
+                    "$ref": "#/$defs/kicadBoard"
+                }
+            },
+            "additionalProperties": true
+        },
+        "bom": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/bomRow"
+            }
+        }
+    },
+    "oneOf": [
+        {
+            "required": ["schematic"],
+            "properties": {
+                "kind": {
+                    "const": "schematic"
+                },
+                "fileType": {
+                    "const": "kicad_sch"
+                }
+            }
+        },
+        {
+            "required": ["pcb"],
+            "properties": {
+                "kind": {
+                    "const": "pcb"
+                },
+                "fileType": {
+                    "const": "kicad_pcb"
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "diagnostic": {
+            "type": "object",
+            "required": ["severity", "message"],
+            "properties": {
+                "severity": {
+                    "enum": ["info", "warning"]
+                },
+                "message": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "point": {
+            "type": "object",
+            "required": ["x", "y"],
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "segment": {
+            "type": "object",
+            "required": ["type", "x1", "y1", "x2", "y2"],
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "x1": {
+                    "type": "number"
+                },
+                "y1": {
+                    "type": "number"
+                },
+                "x2": {
+                    "type": "number"
+                },
+                "y2": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "bomRow": {
+            "type": "object",
+            "required": [
+                "designators",
+                "quantity",
+                "pattern",
+                "source",
+                "value"
+            ],
+            "properties": {
+                "designators": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "quantity": {
+                    "type": "number"
+                },
+                "pattern": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "schematicLine": {
+            "type": "object",
+            "required": ["x1", "y1", "x2", "y2"],
+            "properties": {
+                "x1": {
+                    "type": "number"
+                },
+                "y1": {
+                    "type": "number"
+                },
+                "x2": {
+                    "type": "number"
+                },
+                "y2": {
+                    "type": "number"
+                },
+                "isBus": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true
+        },
+        "schematicText": {
+            "type": "object",
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "labelKind": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "schematicComponent": {
+            "type": "object",
+            "required": ["designator"],
+            "properties": {
+                "designator": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "pattern": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "object"
+                },
+                "properties": {
+                    "type": "object"
+                }
+            },
+            "additionalProperties": true
+        },
+        "boardOutline": {
+            "type": "object",
+            "required": ["widthMil", "heightMil", "minX", "minY", "segments"],
+            "properties": {
+                "widthMil": {
+                    "type": "number"
+                },
+                "heightMil": {
+                    "type": "number"
+                },
+                "minX": {
+                    "type": "number"
+                },
+                "minY": {
+                    "type": "number"
+                },
+                "segments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/segment"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "layer": {
+            "type": "object",
+            "required": ["index", "name", "layerId"],
+            "properties": {
+                "index": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "layerId": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "primitiveLayer": {
+            "type": "object",
+            "required": ["name", "layerId"],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "layerId": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbNet": {
+            "type": "object",
+            "required": ["netIndex", "name"],
+            "properties": {
+                "netIndex": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "uniqueId": {
+                    "type": "string"
+                },
+                "visible": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbComponent": {
+            "type": "object",
+            "required": [
+                "componentIndex",
+                "designator",
+                "x",
+                "y",
+                "layer",
+                "pattern",
+                "rotation"
+            ],
+            "properties": {
+                "componentIndex": {
+                    "type": "number"
+                },
+                "designator": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "layer": {
+                    "enum": ["TOP", "BOTTOM"]
+                },
+                "pattern": {
+                    "type": "string"
+                },
+                "rotation": {
+                    "type": "number"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "footprintName": {
+                    "type": "string"
+                },
+                "properties": {
+                    "type": "object"
+                },
+                "attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "height": {
+                    "type": ["number", "null"]
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbPolygon": {
+            "type": "object",
+            "required": ["segments"],
+            "properties": {
+                "layer": {
+                    "type": "string"
+                },
+                "netIndex": {
+                    "type": "number"
+                },
+                "netName": {
+                    "type": "string"
+                },
+                "segments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/segment"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbTrack": {
+            "type": "object",
+            "required": ["x1", "y1", "x2", "y2", "width", "layerId"],
+            "properties": {
+                "x1": {
+                    "type": "number"
+                },
+                "y1": {
+                    "type": "number"
+                },
+                "x2": {
+                    "type": "number"
+                },
+                "y2": {
+                    "type": "number"
+                },
+                "width": {
+                    "type": "number"
+                },
+                "layerId": {
+                    "type": "number"
+                },
+                "netIndex": {
+                    "type": "number"
+                },
+                "netName": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbArc": {
+            "type": "object",
+            "required": ["x", "y", "radius", "startAngle", "endAngle", "width"],
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "radius": {
+                    "type": "number"
+                },
+                "startAngle": {
+                    "type": "number"
+                },
+                "endAngle": {
+                    "type": "number"
+                },
+                "width": {
+                    "type": "number"
+                },
+                "netIndex": {
+                    "type": "number"
+                },
+                "netName": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbVia": {
+            "type": "object",
+            "required": ["x", "y", "diameter", "holeDiameter"],
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "diameter": {
+                    "type": "number"
+                },
+                "holeDiameter": {
+                    "type": "number"
+                },
+                "netIndex": {
+                    "type": "number"
+                },
+                "netName": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbPad": {
+            "type": "object",
+            "required": [
+                "id",
+                "footprintId",
+                "footprintReference",
+                "number",
+                "type",
+                "shape",
+                "x",
+                "y",
+                "rotation",
+                "sizeTopX",
+                "sizeTopY",
+                "sizeMidX",
+                "sizeMidY",
+                "sizeBottomX",
+                "sizeBottomY"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "footprintId": {
+                    "type": "string"
+                },
+                "footprintReference": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "shape": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "rotation": {
+                    "type": "number"
+                },
+                "sizeTopX": {
+                    "type": "number"
+                },
+                "sizeTopY": {
+                    "type": "number"
+                },
+                "sizeMidX": {
+                    "type": "number"
+                },
+                "sizeMidY": {
+                    "type": "number"
+                },
+                "sizeBottomX": {
+                    "type": "number"
+                },
+                "sizeBottomY": {
+                    "type": "number"
+                },
+                "shapeTop": {
+                    "type": "number"
+                },
+                "shapeMid": {
+                    "type": "number"
+                },
+                "shapeBottom": {
+                    "type": "number"
+                },
+                "holeDiameter": {
+                    "type": "number"
+                },
+                "netIndex": {
+                    "type": "number"
+                },
+                "netName": {
+                    "type": "string"
+                },
+                "customPrimitives": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "kicadPad": {
+                    "type": "object"
+                }
+            },
+            "additionalProperties": true
+        },
+        "pcbText": {
+            "type": "object",
+            "properties": {
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "text": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                },
+                "rotation": {
+                    "type": "number"
+                },
+                "layer": {
+                    "type": "string"
+                },
+                "side": {
+                    "enum": ["front", "back", "both", ""]
+                }
+            },
+            "additionalProperties": true
+        },
+        "kicadBoard": {
+            "type": "object",
+            "required": [
+                "fileName",
+                "title",
+                "revision",
+                "nets",
+                "outlines",
+                "drawings",
+                "footprints",
+                "pads",
+                "texts",
+                "bounds",
+                "diagnostics"
+            ],
+            "properties": {
+                "fileName": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "revision": {
+                    "type": "string"
+                },
+                "nets": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/pcbNet"
+                    }
+                },
+                "outlines": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "drawings": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "footprints": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "pads": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "texts": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "bounds": {
+                    "type": "object"
+                },
+                "diagnostics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/diagnostic"
+                    }
+                }
+            },
+            "additionalProperties": true
+        }
+    }
+}

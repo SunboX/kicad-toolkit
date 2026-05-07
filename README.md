@@ -6,31 +6,32 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # KiCad Toolkit
 
-KiCad Toolkit is an ESM JavaScript library for parsing KiCad PCB files and
-rendering deterministic, non-interactive SVG output from the recovered board
-model.
+KiCad Toolkit is an ESM JavaScript library for parsing native KiCad schematic
+and PCB documents and rendering deterministic, non-interactive outputs from the
+recovered model.
 
-The package was extracted from PCB Styler so KiCad parser behavior, normalized
-model shape, ZIP board loading, and base renderer output can be reused by other
-browser or Node-based tools.
-
-It is used in the public [PCB Styler](https://pcb-styler.app/) app for local
-KiCad board/project loading and base SVG rendering.
+The package was extracted from [PCB Styler](https://pcb-styler.app/), where it
+is used for browser-based KiCad board/project loading and deterministic render
+output. Its parser behavior, normalized model shape, project ZIP loading, and
+renderer output can be reused by other browser or Node-based tools.
 
 ## Features
 
-- Parse standalone `.kicad_pcb` files from source text
+- Parse standalone native `.kicad_sch` and `.kicad_pcb` files from
+  `ArrayBuffer`
 - Load browser `File` objects or named byte entries from KiCad board files and
-  ZIP archives
-- Recover board outlines, footprints, pads, copper segments, vias, zones,
-  drawings, text, layer side metadata, and board bounds
-- Emit versioned normalized model roots with the same schema-id pattern as the
-  Altium Toolkit API
-- Render schematic SVG, PCB SVG, and grouped BOM HTML with deterministic markup
+  project ZIP archives
+- Recover schematic symbols, sheet symbols, labels, nets, graphical items,
+  embedded schematic metadata, board outlines, footprints, pads, copper
+  segments, vias, zones, drawings, text, layer side metadata, and board bounds
+- Preserve raw KiCad board detail through the wrapped `pcb.kicadBoard` model so
+  lower-level KiCad parser output remains inspectable
+- Emit versioned normalized model roots with a machine-readable JSON Schema
+  contract
+- Render schematic SVG, PCB SVG, and grouped BOM HTML
 - Build non-interactive PCB 3D scene-description data for host applications
-- Render KiCad stroke text and static 3D board summaries
+- Render KiCad stroke text and a static 3D board summary
 - Run entirely with local input data; no network calls are made by the parser
-  or renderer
 
 ## Install
 
@@ -74,6 +75,7 @@ import 'kicad-toolkit/styles/kicad-renderers.css'
 
 - [API](docs/api.md)
 - [Model Format](docs/model-format.md)
+- [Normalized Model Schema](docs/schemas/kicad_toolkit/normalized_model_a1.schema.json)
 - [Testing](docs/testing.md)
 - [Scope](spec/library-scope.md)
 
