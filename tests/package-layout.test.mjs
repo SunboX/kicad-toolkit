@@ -10,6 +10,7 @@ import test from 'node:test'
 import * as packageApi from '../src/index.mjs'
 import * as parserApi from '../src/parser.mjs'
 import * as rendererApi from '../src/renderers.mjs'
+import * as scene3dApi from '../src/scene3d.mjs'
 
 test('package exposes Altium-style parser and renderer entrypoints', async () => {
     const packageConfig = JSON.parse(
@@ -19,6 +20,11 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
     assert.equal(packageConfig.exports['.'], './src/index.mjs')
     assert.equal(packageConfig.exports['./parser'], './src/parser.mjs')
     assert.equal(packageConfig.exports['./renderers'], './src/renderers.mjs')
+    assert.equal(packageConfig.exports['./scene3d'], './src/scene3d.mjs')
+    assert.equal(
+        packageConfig.exports['./workers/kicad-parser.worker.mjs'],
+        './src/workers/kicad-parser.worker.mjs'
+    )
     assert.equal(
         packageConfig.exports['./styles/kicad-renderers.css'],
         './src/styles/kicad-renderers.css'
@@ -26,12 +32,36 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
 
     assertPublicApi(parserApi, [
         'Geometry',
+        'KicadArcGeometry',
         'KicadLayerResolver',
+        'KicadNetResolver',
+        'KicadParser',
+        'KicadPcbDrawingParser',
+        'KicadPcbPadParser',
         'KicadPcbParser',
         'KicadProjectLoader',
+        'KicadSchematicGraphicParser',
+        'KicadSchematicParser',
+        'KicadSchematicSymbolParser',
+        'NormalizedModelSchema',
         'SExpressionParser'
     ])
-    assertPublicApi(rendererApi, ['KicadStrokeFont', 'PcbSvgRenderer'])
+    assertPublicApi(rendererApi, [
+        'BomTableRenderer',
+        'KicadStrokeFont',
+        'PcbSideResolvedRenderModel',
+        'PcbSvgRenderer',
+        'SchematicSvgRenderer',
+        'isCopperPrimitive',
+        'preparePcbSideResolvedRenderModel'
+    ])
+    assertPublicApi(scene3dApi, [
+        'PcbScene3dBuilder',
+        'PcbScene3dModelRegistry',
+        'PcbScene3dPackages',
+        'PcbScene3dScenePreparator',
+        'PcbScene3dSummaryRenderer'
+    ])
 
     for (const exportName of Object.keys(parserApi)) {
         assert.equal(packageApi[exportName], parserApi[exportName])
@@ -40,14 +70,30 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
     for (const exportName of Object.keys(rendererApi)) {
         assert.equal(packageApi[exportName], rendererApi[exportName])
     }
+
+    for (const exportName of Object.keys(scene3dApi)) {
+        assert.equal(packageApi[exportName], scene3dApi[exportName])
+    }
 })
 
 test('package keeps KiCad parser internals in a format-specific core folder', async () => {
     await assertFileExists('../src/core/kicad/Geometry.mjs')
+    await assertFileExists('../src/core/kicad/KicadArcGeometry.mjs')
+    await assertFileExists('../src/core/kicad/KicadParser.mjs')
     await assertFileExists('../src/core/kicad/KicadLayerResolver.mjs')
+    await assertFileExists('../src/core/kicad/KicadNetResolver.mjs')
+    await assertFileExists('../src/core/kicad/KicadPcbDrawingParser.mjs')
+    await assertFileExists('../src/core/kicad/KicadPcbPadParser.mjs')
     await assertFileExists('../src/core/kicad/KicadPcbParser.mjs')
     await assertFileExists('../src/core/kicad/KicadProjectLoader.mjs')
+    await assertFileExists('../src/core/kicad/KicadSchematicGraphicParser.mjs')
+    await assertFileExists('../src/core/kicad/KicadSchematicParser.mjs')
+    await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
+    await assertFileExists('../src/core/kicad/NormalizedModelSchema.mjs')
     await assertFileExists('../src/core/kicad/SExpressionParser.mjs')
+    await assertFileExists('../src/ui/PcbSideResolvedRenderModel.mjs')
+    await assertFileExists('../src/scene3d.mjs')
+    await assertFileExists('../src/workers/kicad-parser.worker.mjs')
     await assertFileMissing('../src/ui/BadgeRenderer.mjs')
     await assertFileMissing('../src/ui/BadgeStyle.mjs')
     await assertFileMissing('../src/ui/ComponentHighlight.mjs')

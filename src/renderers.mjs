@@ -2,5 +2,12 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+export { BomTableRenderer } from './ui/BomTableRenderer.mjs'
 export { KicadStrokeFont } from './ui/KicadStrokeFont.mjs'
+export {
+    PcbSideResolvedRenderModel,
+    isCopperPrimitive,
+    preparePcbSideResolvedRenderModel
+} from './ui/PcbSideResolvedRenderModel.mjs'
 export { PcbSvgRenderer } from './ui/PcbSvgRenderer.mjs'
+export { SchematicSvgRenderer } from './ui/SchematicSvgRenderer.mjs'

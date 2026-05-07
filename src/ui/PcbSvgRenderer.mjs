@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { Geometry } from '../core/kicad/Geometry.mjs'
+import { KicadArcGeometry } from '../core/kicad/KicadArcGeometry.mjs'
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
 
 const kicadTextLineSpacingRatio = 1.61
 const kicadFirstLineHeightRatio = 1.17
 const kicadStrokeBaselineFudgeRatio = 0.052
-const circleEpsilon = 1e-9
-const fullCircleRadians = Math.PI * 2
 const defaultPadStrokeWidth = 0.16
 const roundedStrokeAttributes = 'stroke-linecap="round" stroke-linejoin="round"'
 
@@ -23,21 +22,24 @@ export class PcbSvgRenderer {
      * @returns {string}
      */
     static render(board, options = {}) {
-        if (!board) return PcbSvgRenderer.renderEmpty()
+        const renderBoardModel = PcbSvgRenderer.resolveBoardModel(board)
+        if (!renderBoardModel) return PcbSvgRenderer.renderEmpty()
 
-        const side = options.side || 'front'
+        const side =
+            options.side ||
+            PcbSvgRenderer.resolveRenderSide(board, renderBoardModel)
         const layerStyles = defaultLayerStyles()
-        const viewBounds = Geometry.expandBounds(board.bounds, 4)
-        const visiblePads = board.pads.filter((pad) =>
+        const viewBounds = Geometry.expandBounds(renderBoardModel.bounds, 4)
+        const visiblePads = renderBoardModel.pads.filter((pad) =>
             isVisibleOnSide(pad, side)
         )
-        const visibleDrawings = board.drawings.filter((drawing) => {
+        const visibleDrawings = renderBoardModel.drawings.filter((drawing) => {
             return (
                 isVisibleOnSide(drawing, side) &&
                 isRenderableBoardLayer(drawing)
             )
         })
-        const visibleTexts = board.texts.filter((text) => {
+        const visibleTexts = renderBoardModel.texts.filter((text) => {
             return (
                 isVisibleOnSide(text, side) &&
                 isVisibleText(text) &&
@@ -50,9 +52,9 @@ export class PcbSvgRenderer {
         })
 
         return [
-            `<svg xmlns="http://www.w3.org/2000/svg" class="pcb-svg" viewBox="${formatNumber(viewBounds.minX)} ${formatNumber(viewBounds.minY)} ${formatNumber(viewBounds.width)} ${formatNumber(viewBounds.height)}" role="img" aria-label="${escapeAttribute(board.title || board.fileName || 'PCB')}">`,
-            `<g class="pcb-scene"${sceneTransformAttribute(board.bounds, side)}>`,
-            renderBoard(board, viewBounds, layerStyles),
+            `<svg xmlns="http://www.w3.org/2000/svg" class="pcb-svg" viewBox="${formatNumber(viewBounds.minX)} ${formatNumber(viewBounds.minY)} ${formatNumber(viewBounds.width)} ${formatNumber(viewBounds.height)}" role="img" aria-label="${escapeAttribute(renderBoardModel.title || renderBoardModel.fileName || 'PCB')}">`,
+            `<g class="pcb-scene"${sceneTransformAttribute(renderBoardModel.bounds, side)}>`,
+            renderBoard(renderBoardModel, viewBounds, layerStyles),
             visibleDrawings
                 .sort(compareDrawingOrder)
                 .map((drawing) => renderDrawing(drawing, layerStyles))
@@ -66,6 +68,30 @@ export class PcbSvgRenderer {
             '</g>',
             '</svg>'
         ].join('')
+    }
+
+    /**
+     * Resolves a raw KiCad board from either raw or wrapped document models.
+     * @param {object | null} value Input board or document model.
+     * @returns {object | null}
+     */
+    static resolveBoardModel(value) {
+        if (!value) return null
+        if (value?.pcb?.kicadBoard) return value.pcb.kicadBoard
+        return value
+    }
+
+    /**
+     * Resolves the side requested by either options or a side-resolved model.
+     * @param {object | null} value Original renderer input.
+     * @param {object | null} board Resolved raw board model.
+     * @returns {'front' | 'back'}
+     */
+    static resolveRenderSide(value, board) {
+        if (value?.renderSide === 'back' || board?.renderSide === 'back') {
+            return 'back'
+        }
+        return 'front'
     }
 
     /**
@@ -212,6 +238,10 @@ function renderDrawing(drawing, layerStyles) {
         return renderZone(drawing, layerStyles)
     }
 
+    if (drawing.type === 'arc' && drawing.sourceType === 'arc') {
+        return renderTrackArc(drawing, layerStyles)
+    }
+
     const style = drawingStyle(drawing, layerStyles)
     if (!style) return ''
 
@@ -252,8 +282,32 @@ function renderDrawing(drawing, layerStyles) {
         return `<path ${base} d="${arcPath(drawing)}" fill="none"/>`
     }
 
+    if (drawing.type === 'curve') {
+        return `<path ${base} d="${curvePath(drawing)}" fill="none"/>`
+    }
+
+    if (drawing.type === 'dimension') {
+        return `<path ${base} d="${pathFromPoints(drawing.points, false)}" fill="none"/>`
+    }
+
     if (drawing.type === 'polygon') {
         return `<path ${base} d="${pathFromPoints(drawing.points, true)}" fill="${fill}"${fillOpacity}/>`
+    }
+
+    if (drawing.type === 'image') {
+        return renderImagePlaceholder(drawing, style)
+    }
+
+    if (drawing.type === 'barcode') {
+        return renderBarcode(drawing, style)
+    }
+
+    if (drawing.type === 'target') {
+        return renderTarget(drawing, style)
+    }
+
+    if (drawing.type === 'point') {
+        return renderPoint(drawing, style)
     }
 
     return ''
@@ -274,6 +328,23 @@ function renderSegment(segment, layerStyles) {
         Math.max(segment.strokeWidth || 0.2, 0.06)
     )
     return `<line class="pcb-segment" stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" x1="${formatNumber(segment.start.x)}" y1="${formatNumber(segment.start.y)}" x2="${formatNumber(segment.end.x)}" y2="${formatNumber(segment.end.y)}"/>`
+}
+
+/**
+ * Renders one routed copper track arc.
+ * @param {object} arc
+ * @param {Record<string, object>} layerStyles
+ * @returns {string}
+ */
+function renderTrackArc(arc, layerStyles) {
+    const style = layerStyles.traces
+    if (!style.visible) return ''
+
+    const strokeWidth = resolveStrokeWidth(
+        style,
+        Math.max(arc.strokeWidth || 0.2, 0.06)
+    )
+    return `<path class="pcb-arc" stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" d="${arcPath(arc)}" fill="none"/>`
 }
 
 /**
@@ -313,6 +384,55 @@ function renderZone(zone, layerStyles) {
     if (!style.visible) return ''
 
     return `<path class="pcb-zone" d="${pathFromPoints(zone.points, true)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0)}/>`
+}
+
+/** @param {object} image @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
+function renderImagePlaceholder(image, style) {
+    return `<rect class="pcb-image" x="${formatNumber(image.x)}" y="${formatNumber(image.y)}" width="${formatNumber(image.width)}" height="${formatNumber(image.height)}" fill="none" stroke="${style.stroke}" stroke-width="${formatNumber(resolveStrokeWidth(style.layerStyle, 0.1))}" stroke-dasharray="0.4 0.25"/>`
+}
+
+/** @param {object} barcode @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
+function renderBarcode(barcode, style) {
+    const transform = `rotate(${formatNumber(barcode.rotation || 0)} ${formatNumber(barcode.x)} ${formatNumber(barcode.y)})`
+    return `<rect class="pcb-barcode" aria-label="${escapeAttribute(barcode.text || barcode.barcodeType || 'barcode')}" x="${formatNumber(barcode.x)}" y="${formatNumber(barcode.y)}" width="${formatNumber(barcode.width)}" height="${formatNumber(barcode.height)}" fill="none" stroke="${style.stroke}" stroke-width="${formatNumber(resolveStrokeWidth(style.layerStyle, 0.1))}" transform="${transform}"/>`
+}
+
+/** @param {object} target @param {{ stroke: string, layerStyle: object }} style @returns {string} */
+function renderTarget(target, style) {
+    const half = target.size / 2
+    const strokeWidth = formatNumber(
+        resolveStrokeWidth(style.layerStyle, target.strokeWidth || 0.1)
+    )
+    const lines =
+        target.shape === 'x'
+            ? [
+                  [
+                      target.x - half,
+                      target.y - half,
+                      target.x + half,
+                      target.y + half
+                  ],
+                  [
+                      target.x - half,
+                      target.y + half,
+                      target.x + half,
+                      target.y - half
+                  ]
+              ]
+            : [
+                  [target.x - half, target.y, target.x + half, target.y],
+                  [target.x, target.y - half, target.x, target.y + half]
+              ]
+    return `<g class="pcb-target" stroke="${style.stroke}" stroke-width="${strokeWidth}" ${roundedStrokeAttributes}>${lines
+        .map((line) => {
+            return `<line x1="${formatNumber(line[0])}" y1="${formatNumber(line[1])}" x2="${formatNumber(line[2])}" y2="${formatNumber(line[3])}"/>`
+        })
+        .join('')}</g>`
+}
+
+/** @param {object} point @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
+function renderPoint(point, style) {
+    return `<circle class="pcb-point" cx="${formatNumber(point.x)}" cy="${formatNumber(point.y)}" r="${formatNumber(point.size / 2)}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${formatNumber(resolveStrokeWidth(style.layerStyle, 0.08))}"/>`
 }
 
 /**
@@ -460,7 +580,7 @@ function renderTextStroke(points) {
  * @returns {string}
  */
 function arcPath(drawing) {
-    const arc = circularArcFromThreePoints(
+    const arc = KicadArcGeometry.fromThreePoints(
         drawing.start,
         drawing.mid,
         drawing.end
@@ -485,69 +605,28 @@ function arcPath(drawing) {
 }
 
 /**
- * Resolves SVG arc flags from KiCad's three-point circular arc.
- * @param {{ x: number, y: number }} start
- * @param {{ x: number, y: number }} mid
- * @param {{ x: number, y: number }} end
- * @returns {{ radius: number, largeArc: boolean, sweep: boolean } | null}
+ * Converts a cubic curve to SVG path syntax.
+ * @param {{ points: object[] }} drawing
+ * @returns {string}
  */
-function circularArcFromThreePoints(start, mid, end) {
-    const center = circleCenterFromThreePoints(start, mid, end)
-    if (!center) return null
-
-    const startAngle = Math.atan2(start.y - center.y, start.x - center.x)
-    const midAngle = Math.atan2(mid.y - center.y, mid.x - center.x)
-    const endAngle = Math.atan2(end.y - center.y, end.x - center.x)
-    const clockwiseEnd = normalizeRadians(endAngle - startAngle)
-    const clockwiseMid = normalizeRadians(midAngle - startAngle)
-    const sweep = clockwiseMid <= clockwiseEnd + circleEpsilon
-    const arcAngle = sweep ? clockwiseEnd : fullCircleRadians - clockwiseEnd
-
-    return {
-        radius: Geometry.distance(center, start),
-        largeArc: arcAngle > Math.PI,
-        sweep
+function curvePath(drawing) {
+    const [start, firstControl, secondControl, end] = drawing.points || []
+    if (!start || !firstControl || !secondControl || !end) {
+        return pathFromPoints(drawing.points || [], false)
     }
-}
 
-/**
- * Calculates a circle center through three points.
- * @param {{ x: number, y: number }} a
- * @param {{ x: number, y: number }} b
- * @param {{ x: number, y: number }} c
- * @returns {{ x: number, y: number } | null}
- */
-function circleCenterFromThreePoints(a, b, c) {
-    const divisor =
-        2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y))
-    if (Math.abs(divisor) < circleEpsilon) return null
-
-    const aSquared = a.x * a.x + a.y * a.y
-    const bSquared = b.x * b.x + b.y * b.y
-    const cSquared = c.x * c.x + c.y * c.y
-
-    return {
-        x:
-            (aSquared * (b.y - c.y) +
-                bSquared * (c.y - a.y) +
-                cSquared * (a.y - b.y)) /
-            divisor,
-        y:
-            (aSquared * (c.x - b.x) +
-                bSquared * (a.x - c.x) +
-                cSquared * (b.x - a.x)) /
-            divisor
-    }
-}
-
-/**
- * Normalizes radians to [0, 2PI).
- * @param {number} value
- * @returns {number}
- */
-function normalizeRadians(value) {
-    const result = value % fullCircleRadians
-    return result < 0 ? result + fullCircleRadians : result
+    return [
+        'M',
+        formatNumber(start.x),
+        formatNumber(start.y),
+        'C',
+        formatNumber(firstControl.x),
+        formatNumber(firstControl.y),
+        formatNumber(secondControl.x),
+        formatNumber(secondControl.y),
+        formatNumber(end.x),
+        formatNumber(end.y)
+    ].join(' ')
 }
 
 /**

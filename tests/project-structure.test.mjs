@@ -213,7 +213,7 @@ test('package declares GPL and commercial licensing notices', async () => {
         'utf8'
     )
 
-    assert.equal(pkg.name, 'kicad-toolkit')
+    assert.equal(pkg.name, '@sunbox/kicad-toolkit')
     assert.equal(pkg.license, 'GPL-3.0-or-later')
     assert.match(readme, /GPL-3\.0-or-later/)
     assert.match(readme, /CC-BY-SA-4\.0/)
@@ -234,10 +234,28 @@ test('package exposes root parser renderer and style entrypoints', async () => {
     assert.equal(pkg.exports['.'], './src/index.mjs')
     assert.equal(pkg.exports['./parser'], './src/parser.mjs')
     assert.equal(pkg.exports['./renderers'], './src/renderers.mjs')
+    assert.equal(pkg.exports['./scene3d'], './src/scene3d.mjs')
+    assert.equal(
+        pkg.exports['./workers/kicad-parser.worker.mjs'],
+        './src/workers/kicad-parser.worker.mjs'
+    )
     assert.equal(
         pkg.exports['./styles/kicad-renderers.css'],
         './src/styles/kicad-renderers.css'
     )
+})
+
+/**
+ * Verifies the public API docs describe the Altium-style entrypoint usage.
+ */
+test('API docs describe Altium-style KiCad entrypoints', async () => {
+    const apiDocs = await readFile(new URL('docs/api.md', root), 'utf8')
+
+    assert.match(apiDocs, /kicad-toolkit\/scene3d/)
+    assert.match(apiDocs, /kicad-toolkit\/workers\/kicad-parser\.worker\.mjs/)
+    assert.match(apiDocs, /NormalizedModelSchema/)
+    assert.match(apiDocs, /preparePcbSideResolvedRenderModel/)
+    assert.match(apiDocs, /PcbScene3dPackages/)
 })
 
 /**

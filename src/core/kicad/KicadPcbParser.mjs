@@ -3,20 +3,10 @@
 
 import { Geometry } from './Geometry.mjs'
 import { KicadLayerResolver } from './KicadLayerResolver.mjs'
+import { KicadNetResolver } from './KicadNetResolver.mjs'
+import { KicadPcbDrawingParser } from './KicadPcbDrawingParser.mjs'
+import { KicadPcbPadParser } from './KicadPcbPadParser.mjs'
 import { SExpressionParser } from './SExpressionParser.mjs'
-
-const drawingNodeNames = new Set([
-    'gr_line',
-    'gr_rect',
-    'gr_circle',
-    'gr_arc',
-    'gr_poly',
-    'fp_line',
-    'fp_rect',
-    'fp_circle',
-    'fp_arc',
-    'fp_poly'
-])
 
 /**
  * Converts KiCad PCB S-expressions into a small assembly-rendering model.
@@ -35,8 +25,13 @@ export class KicadPcbParser {
         }
 
         const titleBlock = child(root, 'title_block')
+        const netResolver = KicadNetResolver.fromNodes(children(root, 'net'))
+        const boardGraphicItems = KicadPcbDrawingParser.parseBoardItems(
+            root,
+            netResolver
+        )
         const footprints = children(root, 'footprint').map((node, index) => {
-            return parseFootprint(node, index)
+            return parseFootprint(node, index, netResolver)
         })
         const pads = footprints.flatMap((footprint) => footprint.pads)
         const footprintTexts = footprints.flatMap(
@@ -46,12 +41,15 @@ export class KicadPcbParser {
             (footprint) => footprint.drawings
         )
         const boardDrawings = [
-            ...parseBoardDrawings(root),
-            ...parseCopperDrawings(root)
+            ...boardGraphicItems.drawings,
+            ...KicadPcbDrawingParser.parseCopperDrawings(root, netResolver)
         ]
-        const boardTexts = children(root, 'gr_text').map((node, index) => {
-            return parseBoardText(node, index)
-        })
+        const boardTexts = [
+            ...children(root, 'gr_text').map((node, index) => {
+                return parseBoardText(node, index)
+            }),
+            ...boardGraphicItems.texts
+        ]
         const outlines = boardDrawings.filter(
             (drawing) => drawing.layer === 'Edge.Cuts'
         )
@@ -71,11 +69,20 @@ export class KicadPcbParser {
             fileName: String(options.fileName || ''),
             title: textValue(child(titleBlock, 'title')) || '',
             revision: textValue(child(titleBlock, 'rev')) || '',
+            nets: netResolver.records(),
             outlines,
             drawings,
             footprints,
             pads,
             texts,
+            groups: [
+                ...boardGraphicItems.groups,
+                ...footprints.flatMap((footprint) => footprint.groups)
+            ],
+            generatedItems: [
+                ...boardGraphicItems.generatedItems,
+                ...footprints.flatMap((footprint) => footprint.generatedItems)
+            ],
             bounds,
             diagnostics: []
         }
@@ -86,10 +93,13 @@ export class KicadPcbParser {
  * Parses one footprint node.
  * @param {Array} node
  * @param {number} index
+ * @param {KicadNetResolver} netResolver Net resolver.
  * @returns {object}
  */
-function parseFootprint(node, index) {
-    const referenceProperty = children(node, 'property').find((entry) => {
+function parseFootprint(node, index, netResolver) {
+    const propertyNodes = children(node, 'property')
+    const properties = parseFootprintProperties(propertyNodes)
+    const referenceProperty = propertyNodes.find((entry) => {
         return String(entry[1] || '') === 'Reference'
     })
     const referenceText = children(node, 'fp_text').find((entry) => {
@@ -102,24 +112,30 @@ function parseFootprint(node, index) {
     const layer = textValue(child(node, 'layer')) || ''
     const side = KicadLayerResolver.sideFromLayer(layer)
     const attributes = parseFootprintAttributes(child(node, 'attr'))
-    const excludeFromPositionFiles = attributes.includes(
-        'exclude_from_pos_files'
-    )
+    const attributeFlags = parseFootprintAttributeFlags(attributes)
+    const excludeFromPositionFiles = attributeFlags.excludeFromPositionFiles
     const transform = {
         ...parseAt(child(node, 'at')),
         side
     }
     const pads = children(node, 'pad').map((padNode, padIndex) => {
-        return parsePad(padNode, {
+        return KicadPcbPadParser.parsePad(padNode, {
             footprintId: id,
             footprintReference: reference,
             footprintIndex: index,
             padIndex,
-            transform
+            transform,
+            netResolver
         })
     })
+    const graphicItems = KicadPcbDrawingParser.parseFootprintItems(node, {
+        ownerId: id,
+        transform,
+        fallbackSide: side,
+        netResolver
+    })
     const texts = [
-        ...children(node, 'property').map((propertyNode, propertyIndex) => {
+        ...propertyNodes.map((propertyNode, propertyIndex) => {
             return parseFootprintPropertyText(
                 propertyNode,
                 propertyIndex,
@@ -139,19 +155,13 @@ function parseFootprint(node, index) {
                 side,
                 excludeFromPositionFiles
             )
-        })
+        }),
+        ...graphicItems.texts
     ].filter(Boolean)
-    const drawings = children(node).flatMap((entry, drawingIndex) => {
-        if (!drawingNodeNames.has(String(entry[0] || ''))) return []
-        return parseDrawing(entry, drawingIndex, {
-            ownerId: id,
-            transform,
-            fallbackSide: side
-        })
-    })
+    const drawings = graphicItems.drawings
     const bounds = Geometry.boundsFromPoints([
-        ...pads.flatMap(pointsForPad),
-        ...drawings.flatMap(pointsForDrawing),
+        ...pads.flatMap(KicadPcbPadParser.pointsForPad),
+        ...drawings.flatMap(KicadPcbDrawingParser.pointsForDrawing),
         ...texts
             .filter(isVisibleTextModel)
             .map((text) => ({ x: text.x, y: text.y }))
@@ -161,8 +171,12 @@ function parseFootprint(node, index) {
         id,
         libraryName: String(node[1] || ''),
         reference,
+        value: propertyText(properties, 'Value'),
+        footprintName:
+            propertyText(properties, 'Footprint') || String(node[1] || ''),
+        properties,
         attributes,
-        excludeFromPositionFiles,
+        ...attributeFlags,
         layer,
         side,
         x: transform.x,
@@ -171,241 +185,10 @@ function parseFootprint(node, index) {
         pads,
         texts,
         drawings,
+        groups: graphicItems.groups,
+        generatedItems: graphicItems.generatedItems,
         bounds
     }
-}
-
-/**
- * Parses one pad.
- * @param {Array} node
- * @param {object} context
- * @returns {object}
- */
-function parsePad(node, context) {
-    const localAt = parseAt(child(node, 'at'))
-    const position = transformLocalPoint(localAt, context.transform)
-    const size = child(node, 'size') || ['size', 1, 1]
-    const layerResolution = KicadLayerResolver.resolvePadLayers(
-        (child(node, 'layers') || []).slice(1).map(String),
-        context.transform
-    )
-    const layers = layerResolution.layers
-    const net = child(node, 'net')
-    const side = KicadLayerResolver.sideFromLayers(layers)
-    const id = `pad:${context.footprintReference}:${String(node[1] || '')}:${context.footprintIndex}:${context.padIndex}`
-
-    return {
-        id,
-        footprintId: context.footprintId,
-        footprintReference: context.footprintReference,
-        number: String(node[1] || ''),
-        type: String(node[2] || ''),
-        shape: String(node[3] || 'rect'),
-        x: position.x,
-        y: position.y,
-        rotation: transformPrimitiveRotation(
-            localAt.rotation,
-            context.transform,
-            layerResolution.preserveLocalRotation
-        ),
-        width: numberValue(size[1], 1),
-        height: numberValue(size[2], numberValue(size[1], 1)),
-        drill: parseDrill(child(node, 'drill')),
-        roundrectRatio: numberValue(child(node, 'roundrect_rratio')?.[1], 0.25),
-        layers,
-        side,
-        netName: String(net?.[2] || '')
-    }
-}
-
-/**
- * Parses board-level graphic nodes.
- * @param {Array} root
- * @returns {object[]}
- */
-function parseBoardDrawings(root) {
-    return children(root).flatMap((entry, index) => {
-        if (!String(entry[0] || '').startsWith('gr_')) return []
-        if (entry[0] === 'gr_text') return []
-        return parseDrawing(entry, index, {
-            ownerId: 'board',
-            transform: { x: 0, y: 0, rotation: 0 },
-            fallbackSide: 'both'
-        })
-    })
-}
-
-/**
- * Parses one supported drawing node.
- * @param {Array} node
- * @param {number} index
- * @param {{ ownerId: string, transform: { x: number, y: number, rotation: number }, fallbackSide: string }} context
- * @returns {object[]}
- */
-function parseDrawing(node, index, context) {
-    const layer = textValue(child(node, 'layer')) || ''
-    const side = KicadLayerResolver.sideFromLayer(layer) || context.fallbackSide
-    const strokeWidth = numberValue(
-        child(child(node, 'stroke'), 'width')?.[1],
-        0.12
-    )
-    const fillMode = textValue(child(node, 'fill')) || 'no'
-    const id = `${context.ownerId}:drawing:${index}`
-    const base = {
-        id,
-        ownerId: context.ownerId,
-        sourceType: String(node[0] || ''),
-        layer,
-        side,
-        material: layer.includes('.Cu') ? 'copper' : 'silk',
-        strokeWidth,
-        fill: fillMode === 'yes'
-    }
-
-    if (node[0] === 'gr_line' || node[0] === 'fp_line') {
-        return [
-            {
-                ...base,
-                type: 'line',
-                start: point(node, 'start', context),
-                end: point(node, 'end', context)
-            }
-        ]
-    }
-
-    if (node[0] === 'gr_rect' || node[0] === 'fp_rect') {
-        return [{ ...base, type: 'polygon', points: rectPoints(node, context) }]
-    }
-
-    if (node[0] === 'gr_circle' || node[0] === 'fp_circle') {
-        const center = point(node, 'center', context)
-        const end = point(node, 'end', context)
-        return [
-            {
-                ...base,
-                type: 'circle',
-                center,
-                radius: Geometry.distance(center, end)
-            }
-        ]
-    }
-
-    if (node[0] === 'gr_arc' || node[0] === 'fp_arc') {
-        return [
-            {
-                ...base,
-                type: 'arc',
-                start: point(node, 'start', context),
-                mid: point(node, 'mid', context),
-                end: point(node, 'end', context)
-            }
-        ]
-    }
-
-    if (node[0] === 'gr_poly' || node[0] === 'fp_poly') {
-        const points = parsePoints(child(node, 'pts'), context.transform)
-        return [{ ...base, type: 'polygon', points }]
-    }
-
-    return []
-}
-
-/**
- * Parses routed copper primitives.
- * @param {Array} root
- * @returns {object[]}
- */
-function parseCopperDrawings(root) {
-    return [
-        ...children(root, 'zone').flatMap(parseZone),
-        ...children(root, 'segment').map(parseSegment),
-        ...children(root, 'via').map(parseVia)
-    ]
-}
-
-/**
- * Parses one copper track segment.
- * @param {Array} node
- * @param {number} index
- * @returns {object}
- */
-function parseSegment(node, index) {
-    const layer = textValue(child(node, 'layer')) || ''
-    return {
-        id: `board:segment:${index}`,
-        ownerId: 'board',
-        sourceType: 'segment',
-        type: 'segment',
-        material: 'copper',
-        layer,
-        side: KicadLayerResolver.sideFromLayer(layer),
-        strokeWidth: numberValue(child(node, 'width')?.[1], 0.2),
-        fill: false,
-        start: point(node, 'start', {
-            transform: { x: 0, y: 0, rotation: 0 }
-        }),
-        end: point(node, 'end', {
-            transform: { x: 0, y: 0, rotation: 0 }
-        })
-    }
-}
-
-/**
- * Parses one copper via.
- * @param {Array} node
- * @param {number} index
- * @returns {object}
- */
-function parseVia(node, index) {
-    const at = parseAt(child(node, 'at'))
-    const layers = (child(node, 'layers') || []).slice(1).map(String)
-    const size = numberValue(child(node, 'size')?.[1], 0.6)
-    return {
-        id: `board:via:${index}`,
-        ownerId: 'board',
-        sourceType: 'via',
-        type: 'via',
-        material: 'copper',
-        layer: layers.join(','),
-        side: KicadLayerResolver.sideFromLayers(layers),
-        x: at.x,
-        y: at.y,
-        size,
-        drill: parseDrill(child(node, 'drill')),
-        strokeWidth: 0.08,
-        fill: true
-    }
-}
-
-/**
- * Parses one copper zone from filled polygons.
- * @param {Array} node
- * @param {number} zoneIndex
- * @returns {object[]}
- */
-function parseZone(node, zoneIndex) {
-    const zoneLayer = textValue(child(node, 'layer')) || ''
-    return children(node, 'filled_polygon')
-        .map((polygonNode, polygonIndex) => {
-            const layer = textValue(child(polygonNode, 'layer')) || zoneLayer
-            return {
-                id: `board:zone:${zoneIndex}:${polygonIndex}`,
-                ownerId: 'board',
-                sourceType: 'zone',
-                type: 'zone',
-                material: 'copper',
-                layer,
-                side: KicadLayerResolver.sideFromLayer(layer),
-                strokeWidth: 0,
-                fill: true,
-                points: parsePoints(child(polygonNode, 'pts'), {
-                    x: 0,
-                    y: 0,
-                    rotation: 0
-                })
-            }
-        })
-        .filter((zone) => zone.points.length > 0)
 }
 
 /**
@@ -546,80 +329,68 @@ function parseFootprintAttributes(node) {
 }
 
 /**
+ * Parses footprint property nodes into a name/value map.
+ * @param {Array[]} nodes Property nodes.
+ * @returns {Record<string, string>}
+ */
+function parseFootprintProperties(nodes) {
+    const properties = {}
+    for (const node of nodes || []) {
+        const name = String(node[1] || '')
+        if (!name) continue
+        properties[name] = String(node[2] || '')
+    }
+    return properties
+}
+
+/**
+ * Resolves one footprint property by canonical KiCad name.
+ * @param {Record<string, string>} properties Footprint properties.
+ * @param {string} name Property name.
+ * @returns {string}
+ */
+function propertyText(properties, name) {
+    if (properties[name] !== undefined) return properties[name]
+
+    const normalized = name.toLowerCase()
+    const matchedKey = Object.keys(properties).find((key) => {
+        return key.toLowerCase() === normalized
+    })
+    return matchedKey ? properties[matchedKey] : ''
+}
+
+/**
+ * Converts KiCad footprint attr tokens into explicit boolean fields.
+ * @param {string[]} attributes Attribute tokens.
+ * @returns {object}
+ */
+function parseFootprintAttributeFlags(attributes) {
+    const tokens = new Set(attributes || [])
+    const isVirtual = tokens.has('virtual')
+
+    return {
+        isThroughHole: tokens.has('through_hole'),
+        isSmd: tokens.has('smd'),
+        isVirtual,
+        boardOnly: tokens.has('board_only'),
+        excludeFromPositionFiles:
+            isVirtual || tokens.has('exclude_from_pos_files'),
+        excludeFromBom: isVirtual || tokens.has('exclude_from_bom'),
+        doNotPopulate: tokens.has('dnp'),
+        allowMissingCourtyard: tokens.has('allow_missing_courtyard'),
+        allowSolderMaskBridges:
+            tokens.has('allow_soldermask_bridges') ||
+            tokens.has('allow_solder_mask_bridges')
+    }
+}
+
+/**
  * Checks parsed text visibility.
  * @param {{ visible?: boolean }} text
  * @returns {boolean}
  */
 function isVisibleTextModel(text) {
     return text.visible !== false
-}
-
-/**
- * Parses one named point node.
- * @param {Array} node
- * @param {string} name
- * @param {{ transform: { x: number, y: number, rotation: number } }} context
- * @returns {{ x: number, y: number }}
- */
-function point(node, name, context) {
-    const pointNode = child(node, name) || [name, 0, 0]
-    return transformLocalPoint(
-        {
-            x: numberValue(pointNode[1], 0),
-            y: numberValue(pointNode[2], 0)
-        },
-        context.transform
-    )
-}
-
-/**
- * Parses transformed rectangle corners.
- * @param {Array} node
- * @param {{ transform: { x: number, y: number, rotation: number } }} context
- * @returns {{ x: number, y: number }[]}
- */
-function rectPoints(node, context) {
-    const start = localPoint(child(node, 'start'))
-    const end = localPoint(child(node, 'end'))
-    return [
-        { x: start.x, y: start.y },
-        { x: end.x, y: start.y },
-        { x: end.x, y: end.y },
-        { x: start.x, y: end.y }
-    ].map((pointValue) => {
-        return transformLocalPoint(pointValue, context.transform)
-    })
-}
-
-/**
- * Parses a local point node without applying transforms.
- * @param {Array | undefined} node
- * @returns {{ x: number, y: number }}
- */
-function localPoint(node) {
-    return {
-        x: numberValue(node?.[1], 0),
-        y: numberValue(node?.[2], 0)
-    }
-}
-
-/**
- * Parses a KiCad pts node.
- * @param {Array | undefined} node
- * @param {{ x: number, y: number, rotation: number }} transform
- * @returns {{ x: number, y: number }[]}
- */
-function parsePoints(node, transform) {
-    if (!node) return []
-    return children(node, 'xy').map((entry) => {
-        return transformLocalPoint(
-            {
-                x: numberValue(entry[1], 0),
-                y: numberValue(entry[2], 0)
-            },
-            transform
-        )
-    })
 }
 
 /**
@@ -642,25 +413,6 @@ function transformLocalPoint(pointValue, transform) {
  */
 function footprintCoordinateRotation(transform) {
     return -transform.rotation
-}
-
-/**
- * Transforms pad and primitive rotation into board coordinates.
- * @param {number} localRotation
- * @param {{ rotation: number, side?: string }} transform
- * @param {boolean} [preserveLocalRotation]
- * @returns {number}
- */
-function transformPrimitiveRotation(
-    localRotation,
-    transform,
-    preserveLocalRotation = false
-) {
-    if (preserveLocalRotation) return normalizeRotation(localRotation)
-
-    return normalizeRotation(
-        localRotation + footprintCoordinateRotation(transform)
-    )
 }
 
 /**
@@ -710,17 +462,6 @@ function parseAt(node) {
 }
 
 /**
- * Parses a drill node.
- * @param {Array | undefined} node
- * @returns {number}
- */
-function parseDrill(node) {
-    if (!node) return 0
-    const direct = node.slice(1).find((value) => typeof value === 'number')
-    return numberValue(direct, 0)
-}
-
-/**
  * Computes drawing and pad bounds.
  * @param {object[]} outlines
  * @param {object[]} pads
@@ -729,64 +470,18 @@ function parseDrill(node) {
  * @returns {object}
  */
 function computeBoardBounds(outlines, pads, drawings, texts) {
-    const outlinePoints = outlines.flatMap(pointsForDrawing)
+    const outlinePoints = outlines.flatMap(
+        KicadPcbDrawingParser.pointsForDrawing
+    )
     const allPoints = [
         ...outlinePoints,
-        ...pads.flatMap(pointsForPad),
-        ...drawings.flatMap(pointsForDrawing),
+        ...pads.flatMap(KicadPcbPadParser.pointsForPad),
+        ...drawings.flatMap(KicadPcbDrawingParser.pointsForDrawing),
         ...texts.map((text) => ({ x: text.x, y: text.y }))
     ]
     return Geometry.boundsFromPoints(
         outlinePoints.length > 0 ? outlinePoints : allPoints
     )
-}
-
-/**
- * Returns representative points for a pad.
- * @param {object} pad
- * @returns {{ x: number, y: number }[]}
- */
-function pointsForPad(pad) {
-    const halfWidth = pad.width / 2
-    const halfHeight = pad.height / 2
-    return [
-        { x: pad.x - halfWidth, y: pad.y - halfHeight },
-        { x: pad.x + halfWidth, y: pad.y + halfHeight }
-    ]
-}
-
-/**
- * Returns representative points for a drawing.
- * @param {object} drawing
- * @returns {{ x: number, y: number }[]}
- */
-function pointsForDrawing(drawing) {
-    if (drawing.type === 'polygon') return drawing.points
-    if (drawing.type === 'zone') return drawing.points
-    if (drawing.type === 'line') return [drawing.start, drawing.end]
-    if (drawing.type === 'segment') return [drawing.start, drawing.end]
-    if (drawing.type === 'rect') return [drawing.start, drawing.end]
-    if (drawing.type === 'arc') return [drawing.start, drawing.mid, drawing.end]
-    if (drawing.type === 'via') {
-        const radius = drawing.size / 2
-        return [
-            { x: drawing.x - radius, y: drawing.y - radius },
-            { x: drawing.x + radius, y: drawing.y + radius }
-        ]
-    }
-    if (drawing.type === 'circle') {
-        return [
-            {
-                x: drawing.center.x - drawing.radius,
-                y: drawing.center.y - drawing.radius
-            },
-            {
-                x: drawing.center.x + drawing.radius,
-                y: drawing.center.y + drawing.radius
-            }
-        ]
-    }
-    return []
 }
 
 /**

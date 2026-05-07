@@ -24,8 +24,11 @@ KiCad board/project loading and base SVG rendering.
   ZIP archives
 - Recover board outlines, footprints, pads, copper segments, vias, zones,
   drawings, text, layer side metadata, and board bounds
-- Render front or back PCB SVG with deterministic markup
-- Render KiCad stroke text
+- Emit versioned normalized model roots with the same schema-id pattern as the
+  Altium Toolkit API
+- Render schematic SVG, PCB SVG, and grouped BOM HTML with deterministic markup
+- Build non-interactive PCB 3D scene-description data for host applications
+- Render KiCad stroke text and static 3D board summaries
 - Run entirely with local input data; no network calls are made by the parser
   or renderer
 
@@ -42,20 +45,23 @@ npm install kicad-toolkit
 
 ```js
 import {
-    KicadPcbParser,
-    KicadProjectLoader,
-    PcbSvgRenderer
+    KicadParser,
+    SchematicSvgRenderer,
+    PcbSvgRenderer,
+    preparePcbSideResolvedRenderModel,
+    BomTableRenderer,
+    PcbScene3dBuilder
 } from 'kicad-toolkit'
 
-const board = KicadPcbParser.parse(kicadPcbSource, {
-    fileName: 'board.kicad_pcb'
+const documentModel = KicadParser.parseArrayBuffer(file.name, arrayBuffer)
+const backRenderModel = preparePcbSideResolvedRenderModel(documentModel, {
+    side: 'back'
 })
 
-const svg = PcbSvgRenderer.render(board, {
-    side: 'front'
-})
-
-const loaded = await KicadProjectLoader.loadFiles(fileInput.files)
+const schematicMarkup = SchematicSvgRenderer.render(documentModel)
+const pcbMarkup = PcbSvgRenderer.render(backRenderModel)
+const bomMarkup = BomTableRenderer.render(documentModel.bom || [])
+const sceneDescription = PcbScene3dBuilder.build(documentModel)
 ```
 
 Optional renderer CSS is available through:

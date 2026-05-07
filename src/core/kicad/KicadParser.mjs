@@ -1,0 +1,812 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import { strFromU8 } from 'fflate'
+import { KicadArcGeometry } from './KicadArcGeometry.mjs'
+import { KicadPcbParser } from './KicadPcbParser.mjs'
+import { KicadSchematicParser } from './KicadSchematicParser.mjs'
+import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
+
+const milsPerMillimeter = 1000 / 25.4
+
+/**
+ * Altium-style parser facade for KiCad documents.
+ */
+export class KicadParser {
+    /**
+     * Parses a KiCad document buffer into an ECAD Forge model.
+     * @param {string} fileName Source file name.
+     * @param {ArrayBuffer | Uint8Array} arrayBuffer Source bytes.
+     * @param {object} [options] Parser options.
+     * @returns {object}
+     */
+    static parseArrayBuffer(fileName, arrayBuffer, options = {}) {
+        const normalizedName = String(fileName || 'document')
+        const source = decodeSource(arrayBuffer)
+
+        if (/\.kicad_sch$/i.test(normalizedName)) {
+            return KicadSchematicParser.parse(source, {
+                ...options,
+                fileName: normalizedName
+            })
+        }
+
+        if (/\.kicad_pcb$/i.test(normalizedName)) {
+            return KicadParser.wrapBoard(
+                KicadPcbParser.parse(source, {
+                    ...options,
+                    fileName: normalizedName
+                }),
+                normalizedName
+            )
+        }
+
+        throw new Error('Unsupported KiCad file type: ' + normalizedName)
+    }
+
+    /**
+     * Wraps a raw KiCad board in the shared ECAD Forge document shape.
+     * @param {object} board Raw KiCad board model.
+     * @param {string} fileName Source file name.
+     * @returns {object}
+     */
+    static wrapBoard(board, fileName = '') {
+        const nets = board.nets || []
+        const components = (board.footprints || []).map((footprint) => ({
+            componentIndex: Number(
+                String(footprint.id || '')
+                    .split(':')
+                    .at(-1) || 0
+            ),
+            designator: footprint.reference,
+            x: toMil(footprint.x),
+            y: toMil(footprint.y),
+            layer: footprint.side === 'back' ? 'BOTTOM' : 'TOP',
+            pattern: footprint.libraryName,
+            rotation: footprint.rotation,
+            source: footprint.libraryName,
+            description: footprint.libraryName,
+            value: footprint.value || '',
+            footprintName: footprint.footprintName || footprint.libraryName,
+            properties: footprint.properties || {},
+            attributes: footprint.attributes || [],
+            excludeFromPositionFiles:
+                footprint.excludeFromPositionFiles === true,
+            excludeFromBom: footprint.excludeFromBom === true,
+            doNotPopulate: footprint.doNotPopulate === true,
+            boardOnly: footprint.boardOnly === true,
+            isThroughHole: footprint.isThroughHole === true,
+            isSmd: footprint.isSmd === true,
+            isVirtual: footprint.isVirtual === true,
+            allowMissingCourtyard: footprint.allowMissingCourtyard === true,
+            allowSolderMaskBridges: footprint.allowSolderMaskBridges === true,
+            height: null
+        }))
+        const pads = (board.pads || []).map((pad) =>
+            normalizePad(pad, board.footprints)
+        )
+        const tracks = (board.drawings || [])
+            .filter((drawing) => drawing.type === 'segment')
+            .map((drawing) => ({
+                x1: toMil(drawing.start.x),
+                y1: toMil(drawing.start.y),
+                x2: toMil(drawing.end.x),
+                y2: toMil(drawing.end.y),
+                width: toMil(drawing.strokeWidth || 0.2),
+                layerCode: 1,
+                layerId: layerIdForName(drawing.layer),
+                ...optionalNetIndex(drawing.netIndex),
+                netName: drawing.netName || ''
+            }))
+        const vias = (board.drawings || [])
+            .filter((drawing) => drawing.type === 'via')
+            .map((drawing) => ({
+                x: toMil(drawing.x),
+                y: toMil(drawing.y),
+                diameter: toMil(drawing.size),
+                holeDiameter: toMil(drawing.drill || 0),
+                ...optionalNetIndex(drawing.netIndex),
+                netName: drawing.netName || ''
+            }))
+        const arcs = (board.drawings || [])
+            .filter((drawing) => {
+                return drawing.type === 'arc' && drawing.sourceType === 'arc'
+            })
+            .map((drawing) => {
+                const metrics = KicadArcGeometry.fromThreePoints(
+                    drawing.start,
+                    drawing.mid,
+                    drawing.end
+                )
+                return {
+                    x: toMil(metrics?.center.x || 0),
+                    y: toMil(metrics?.center.y || 0),
+                    radius: toMil(metrics?.radius || 0),
+                    startAngle: metrics?.startAngle || 0,
+                    endAngle: metrics?.endAngle || 0,
+                    width: toMil(drawing.strokeWidth || 0.2),
+                    componentIndex: null,
+                    layerCode: 1,
+                    layerId: layerIdForName(drawing.layer),
+                    polygonIndex: null,
+                    ...optionalNetIndex(drawing.netIndex),
+                    netName: drawing.netName || ''
+                }
+            })
+        const polygons = [
+            ...board.outlines.map((outline) => ({
+                layer: outline.layer || 'Edge.Cuts',
+                segments: segmentsFromPoints(outline.points || [])
+            })),
+            ...(board.drawings || [])
+                .filter((drawing) => drawing.type === 'zone')
+                .map((zone) => ({
+                    layer: zone.layer,
+                    ...optionalNetIndex(zone.netIndex),
+                    netName: zone.netName || '',
+                    segments: segmentsFromPoints(zone.points || [])
+                }))
+        ].filter((polygon) => polygon.segments.length > 0)
+        const boardOutline = boardOutlineFromBoard(board)
+        const bom = groupBoardBomRows(board.footprints || [])
+        const primitiveLayers = primitiveLayersFromBoard(board)
+
+        return NormalizedModelSchema.attach({
+            sourceFormat: 'kicad',
+            kind: 'pcb',
+            fileType: 'kicad_pcb',
+            fileName: fileName || board.fileName || '',
+            summary: {
+                title:
+                    board.title || stripExtension(fileName || board.fileName),
+                componentCount: components.length,
+                layerCount: primitiveLayers.length,
+                outlineSegmentCount: boardOutline.segments.length,
+                bomRowCount: bom.length,
+                netCount: nets.length,
+                classCount: 0,
+                ruleCount: 0,
+                polygonCount: polygons.length,
+                trackCount: tracks.length,
+                arcCount: arcs.length,
+                viaCount: vias.length,
+                boardWidthMil: Math.round(boardOutline.widthMil),
+                boardHeightMil: Math.round(boardOutline.heightMil)
+            },
+            diagnostics: [
+                {
+                    severity: 'info',
+                    message:
+                        'Recovered ' +
+                        components.length +
+                        ' KiCad PCB component placements.'
+                }
+            ],
+            pcb: {
+                boardOutline,
+                layers: primitiveLayers.map((layer, index) => ({
+                    index,
+                    name: layer.name,
+                    layerId: layer.layerId
+                })),
+                primitiveLayers,
+                nets,
+                classes: [],
+                rules: [],
+                components,
+                polygons,
+                fills: [],
+                tracks,
+                arcs,
+                vias,
+                pads,
+                regions: [],
+                shapeBasedRegions: [],
+                boardRegions: [],
+                texts: (board.texts || []).map(normalizeBoardText),
+                embeddedModels: [],
+                componentBodies: [],
+                componentPrimitiveGroups: [],
+                kicadBoard: board
+            },
+            bom
+        })
+    }
+}
+
+/**
+ * Decodes bytes to UTF-8 text.
+ * @param {ArrayBuffer | Uint8Array} bytes Bytes.
+ * @returns {string}
+ */
+function decodeSource(bytes) {
+    if (bytes instanceof Uint8Array) {
+        return strFromU8(bytes)
+    }
+    return strFromU8(new Uint8Array(bytes))
+}
+
+/**
+ * Converts millimeters to mils.
+ * @param {number} value Millimeters.
+ * @returns {number}
+ */
+function toMil(value) {
+    return Number(value || 0) * milsPerMillimeter
+}
+
+/**
+ * Normalizes a KiCad pad into the Altium-style primitive shape.
+ * @param {object} pad KiCad pad.
+ * @param {object[]} footprints Board footprints.
+ * @returns {object}
+ */
+function normalizePad(pad, footprints) {
+    const layers = padLayerSummary(pad)
+    const drill = drillSummary(pad)
+    const padProperties = pad.padProperties || []
+    const topTenting = firstDefined(
+        pad.tenting?.front,
+        layers.top.tenting?.front
+    )
+    const bottomTenting = firstDefined(
+        pad.tenting?.back,
+        layers.bottom.tenting?.back
+    )
+
+    return {
+        kicadPad: pad,
+        ...pad,
+        x: toMil(pad.x),
+        y: toMil(pad.y),
+        sizeTopX: toMil(layers.top.size.width),
+        sizeTopY: toMil(layers.top.size.height),
+        sizeMidX: toMil(layers.mid.size.width),
+        sizeMidY: toMil(layers.mid.size.height),
+        sizeBottomX: toMil(layers.bottom.size.width),
+        sizeBottomY: toMil(layers.bottom.size.height),
+        holeDiameter: toMil(pad.drill || 0),
+        holeShape: drill.shape,
+        holeSlotLength: drill.slotLength,
+        holeRotation: drill.rotation,
+        shapeTop: padShapeCode(layers.top.shape),
+        shapeMid: padShapeCode(layers.mid.shape),
+        shapeBottom: padShapeCode(layers.bottom.shape),
+        rotation: pad.rotation,
+        isPlated: pad.type === 'thru_hole',
+        componentIndex: componentIndexForFootprint(footprints, pad.footprintId),
+        offsetTopX: toMil(layers.top.offset.x),
+        offsetTopY: toMil(layers.top.offset.y),
+        offsetBottomX: toMil(layers.bottom.offset.x),
+        offsetBottomY: toMil(layers.bottom.offset.y),
+        padMode: padModeCode(pad.padstack?.mode),
+        planeConnectionStyle: firstDefined(
+            pad.zoneConnect,
+            layers.top.zoneConnect,
+            0
+        ),
+        thermalReliefConductorWidth: toMil(
+            firstDefined(
+                pad.thermalBridgeWidth,
+                layers.top.thermalBridgeWidth,
+                0
+            )
+        ),
+        thermalReliefAirGap: toMil(
+            firstDefined(pad.thermalGap, layers.top.thermalGap, 0)
+        ),
+        powerPlaneClearance: toMil(
+            firstDefined(pad.clearance, layers.top.clearance, 0)
+        ),
+        pasteMaskExpansion: toMil(firstDefined(pad.solderPasteMargin, 0)),
+        solderMaskExpansion: toMil(firstDefined(pad.solderMaskMargin, 0)),
+        pasteMaskExpansionMode:
+            pad.solderPasteMargin === undefined &&
+            pad.solderPasteMarginRatio === undefined
+                ? 0
+                : 1,
+        solderMaskExpansionMode: pad.solderMaskMargin === undefined ? 0 : 1,
+        hasRoundedRect: hasRoundedRectPad(pad, layers),
+        roundedRectShapeTop: padShapeCode(layers.top.shape),
+        cornerRadiusTop: cornerRadiusPercent(layers.top.roundrectRatio),
+        innerLayerSizes: innerLayerSizes(layers.stack),
+        innerLayerShapes: innerLayerShapes(layers.stack),
+        layerOffsets: layerOffsets(layers.stack),
+        layerShapes: layerShapes(layers.stack),
+        cornerRadiusByLayer: cornerRadiusByLayer(layers.stack),
+        fullStackLayerEntries: fullStackLayerEntries(layers.stack),
+        isTestFabTop: padProperties.includes('pad_prop_testpoint') || undefined,
+        isTestFabBottom:
+            padProperties.includes('pad_prop_testpoint') || undefined,
+        isTentingTop:
+            topTenting === undefined ? undefined : Boolean(topTenting),
+        isTentingBottom:
+            bottomTenting === undefined ? undefined : Boolean(bottomTenting),
+        ...optionalNetIndex(pad.netIndex),
+        netName: pad.netName || ''
+    }
+}
+
+/**
+ * Builds top, middle, bottom, and full-stack pad layer detail.
+ * @param {object} pad KiCad pad.
+ * @returns {{ top: object, mid: object, bottom: object, stack: object[] }}
+ */
+function padLayerSummary(pad) {
+    const base = basePadLayer(pad)
+    const stack = normalizedPadstackLayers(pad, base)
+    const top = findLayerEntry(stack, 'F.Cu') || base
+    const mid =
+        findLayerEntry(stack, 'Inner') ||
+        stack.find((layer) => {
+            const name = layer.layer || ''
+            return name !== 'F.Cu' && name !== 'B.Cu'
+        }) ||
+        base
+    const bottom = findLayerEntry(stack, 'B.Cu') || base
+
+    return { top, mid, bottom, stack }
+}
+
+/**
+ * Creates the implicit single-layer pad data used before a padstack override.
+ * @param {object} pad KiCad pad.
+ * @returns {object}
+ */
+function basePadLayer(pad) {
+    return {
+        layer: '',
+        shape: pad.shape || 'rect',
+        size: { width: pad.width || 0, height: pad.height || 0 },
+        offset: { x: 0, y: 0 },
+        rectDelta: pad.rectDelta || { x: 0, y: 0 },
+        roundrectRatio: pad.roundrectRatio,
+        chamferRatio: pad.chamferRatio,
+        thermalBridgeWidth: pad.thermalBridgeWidth,
+        thermalGap: pad.thermalGap,
+        thermalBridgeAngle: pad.thermalBridgeAngle,
+        zoneConnect: pad.zoneConnect,
+        clearance: pad.clearance,
+        tenting: pad.tenting
+    }
+}
+
+/**
+ * Builds normalized padstack layer entries with base fallback fields.
+ * @param {object} pad KiCad pad.
+ * @param {object} base Base pad layer.
+ * @returns {object[]}
+ */
+function normalizedPadstackLayers(pad, base) {
+    return (pad.padstack?.layers || []).map((layer) => ({
+        ...base,
+        ...layer,
+        layer: layer.layer || '',
+        shape: layer.shape || base.shape,
+        size: sizeOrFallback(layer.size, base.size),
+        offset: vectorOrFallback(layer.offset, base.offset),
+        rectDelta: vectorOrFallback(layer.rectDelta, base.rectDelta)
+    }))
+}
+
+/**
+ * Finds a padstack entry by KiCad layer name.
+ * @param {object[]} stack Padstack entries.
+ * @param {string} layerName KiCad layer name.
+ * @returns {object | undefined}
+ */
+function findLayerEntry(stack, layerName) {
+    return stack.find((layer) => layer.layer === layerName)
+}
+
+/**
+ * Returns a size object, using fallback dimensions when absent.
+ * @param {object | undefined} size Size value.
+ * @param {{ width: number, height: number }} fallback Fallback size.
+ * @returns {{ width: number, height: number }}
+ */
+function sizeOrFallback(size, fallback) {
+    return {
+        width: firstDefined(size?.width, fallback.width, 0),
+        height: firstDefined(size?.height, fallback.height, 0)
+    }
+}
+
+/**
+ * Returns a vector object, using fallback coordinates when absent.
+ * @param {object | undefined} vector Vector value.
+ * @param {{ x: number, y: number }} fallback Fallback vector.
+ * @returns {{ x: number, y: number }}
+ */
+function vectorOrFallback(vector, fallback) {
+    return {
+        x: firstDefined(vector?.x, fallback.x, 0),
+        y: firstDefined(vector?.y, fallback.y, 0)
+    }
+}
+
+/**
+ * Builds Altium-style drill slot metadata.
+ * @param {object} pad KiCad pad.
+ * @returns {{ shape: number | null, slotLength: number | null, rotation: number | null }}
+ */
+function drillSummary(pad) {
+    if (pad.drillShape !== 'oval') {
+        return { shape: null, slotLength: null, rotation: null }
+    }
+
+    const width = Number(pad.drillWidth || pad.drill || 0)
+    const height = Number(pad.drillHeight || pad.drill || 0)
+    return {
+        shape: 2,
+        slotLength: toMil(Math.max(width, height)),
+        rotation: height > width ? 90 : 0
+    }
+}
+
+/**
+ * Maps KiCad padstack modes to Altium-style mode hints.
+ * @param {string} mode KiCad padstack mode.
+ * @returns {number}
+ */
+function padModeCode(mode) {
+    const normalized = String(mode || '').toLowerCase()
+    if (normalized === 'custom') return 2
+    if (normalized === 'front_inner_back') return 1
+    return 0
+}
+
+/**
+ * Maps KiCad pad shape names to stable numeric shape hints.
+ * @param {string} shape Shape name.
+ * @returns {number}
+ */
+function padShapeCode(shape) {
+    const normalized = String(shape || '').toLowerCase()
+    if (normalized === 'circle') return 1
+    if (normalized === 'oval') return 2
+    if (normalized === 'trapezoid') return 3
+    if (normalized === 'roundrect') return 4
+    if (normalized === 'custom') return 9
+    return 0
+}
+
+/**
+ * Returns whether any pad layer carries rounded rectangle data.
+ * @param {object} pad KiCad pad.
+ * @param {{ stack: object[] }} layers Layer summary.
+ * @returns {boolean}
+ */
+function hasRoundedRectPad(pad, layers) {
+    return (
+        pad.shape === 'roundrect' ||
+        Boolean(pad.roundrectRatio) ||
+        layers.stack.some((layer) => {
+            return layer.shape === 'roundrect' || Boolean(layer.roundrectRatio)
+        })
+    )
+}
+
+/**
+ * Converts a KiCad roundrect ratio to a percentage-style value.
+ * @param {number | undefined} ratio KiCad rounded rectangle ratio.
+ * @returns {number | null}
+ */
+function cornerRadiusPercent(ratio) {
+    if (ratio === undefined || ratio === null) return null
+    return Math.round(Number(ratio || 0) * 100)
+}
+
+/**
+ * Builds non-empty inner-layer size entries.
+ * @param {object[]} stack Padstack entries.
+ * @returns {{ layerNumber: number, width: number, height: number }[]}
+ */
+function innerLayerSizes(stack) {
+    return stack
+        .map((layer) => ({
+            layerNumber: layerNumberForName(layer.layer),
+            width: toMil(layer.size.width),
+            height: toMil(layer.size.height)
+        }))
+        .filter((entry) => {
+            return entry.layerNumber > 1 && entry.layerNumber < 32
+        })
+}
+
+/**
+ * Builds non-empty inner-layer shape entries.
+ * @param {object[]} stack Padstack entries.
+ * @returns {{ layerNumber: number, shape: number }[]}
+ */
+function innerLayerShapes(stack) {
+    return stack
+        .map((layer) => ({
+            layerNumber: layerNumberForName(layer.layer),
+            shape: padShapeCode(layer.shape)
+        }))
+        .filter((entry) => {
+            return entry.layerNumber > 1 && entry.layerNumber < 32
+        })
+}
+
+/**
+ * Builds non-empty per-layer offset entries.
+ * @param {object[]} stack Padstack entries.
+ * @returns {{ layerNumber: number, x: number, y: number }[]}
+ */
+function layerOffsets(stack) {
+    return stack
+        .map((layer) => ({
+            layerNumber: layerNumberForName(layer.layer),
+            x: toMil(layer.offset.x),
+            y: toMil(layer.offset.y)
+        }))
+        .filter((entry) => entry.x || entry.y)
+}
+
+/**
+ * Builds non-empty per-layer shape entries.
+ * @param {object[]} stack Padstack entries.
+ * @returns {{ layerNumber: number, shape: number }[]}
+ */
+function layerShapes(stack) {
+    return stack
+        .map((layer) => ({
+            layerNumber: layerNumberForName(layer.layer),
+            shape: padShapeCode(layer.shape)
+        }))
+        .filter((entry) => entry.shape)
+}
+
+/**
+ * Builds non-empty per-layer corner radius entries.
+ * @param {object[]} stack Padstack entries.
+ * @returns {{ layerNumber: number, cornerRadius: number }[]}
+ */
+function cornerRadiusByLayer(stack) {
+    return stack
+        .map((layer) => ({
+            layerNumber: layerNumberForName(layer.layer),
+            cornerRadius: cornerRadiusPercent(layer.roundrectRatio)
+        }))
+        .filter((entry) => entry.cornerRadius)
+}
+
+/**
+ * Builds full-stack layer entries that mirror Altium's extension table shape.
+ * @param {object[]} stack Padstack entries.
+ * @returns {{ layerCode: number, modeFlags: number, enabled: boolean, sizeX: number, sizeY: number, cornerRadius: number }[]}
+ */
+function fullStackLayerEntries(stack) {
+    return stack.map((layer) => ({
+        layerCode: layerNumberForName(layer.layer),
+        modeFlags: 0,
+        enabled: true,
+        sizeX: toMil(layer.size.width),
+        sizeY: toMil(layer.size.height),
+        cornerRadius: cornerRadiusPercent(layer.roundrectRatio) || 0
+    }))
+}
+
+/**
+ * Maps KiCad layer names to Altium physical layer numbers.
+ * @param {string} layer KiCad layer name.
+ * @returns {number}
+ */
+function layerNumberForName(layer) {
+    const normalized = String(layer || '')
+    if (normalized === 'F.Cu') return 1
+    if (normalized === 'B.Cu') return 32
+    if (normalized === 'Inner') return 2
+
+    const innerMatch = normalized.match(/^In(\d+)\.Cu$/)
+    if (innerMatch) return Number(innerMatch[1]) + 1
+
+    return layerIdForName(normalized)
+}
+
+/**
+ * Returns the first defined value.
+ * @param {...unknown} values Candidate values.
+ * @returns {unknown}
+ */
+function firstDefined(...values) {
+    return values.find((value) => value !== undefined && value !== null)
+}
+
+/**
+ * Resolves a component index by footprint id.
+ * @param {object[]} footprints Footprints.
+ * @param {string} footprintId Footprint id.
+ * @returns {number | null}
+ */
+function componentIndexForFootprint(footprints, footprintId) {
+    const index = (footprints || []).findIndex(
+        (footprint) => footprint.id === footprintId
+    )
+    return index >= 0 ? index : null
+}
+
+/**
+ * Resolves a rough layer id from a KiCad layer name.
+ * @param {string} layer Layer name.
+ * @returns {number}
+ */
+function layerIdForName(layer) {
+    const normalized = String(layer || '')
+    if (normalized.startsWith('B.')) return 32
+    if (normalized === 'Edge.Cuts') return 44
+    return 1
+}
+
+/**
+ * Builds mil segments from KiCad points.
+ * @param {{ x: number, y: number }[]} points Points.
+ * @returns {object[]}
+ */
+function segmentsFromPoints(points) {
+    const segments = []
+    for (let index = 0; index < points.length; index += 1) {
+        const start = points[index]
+        const end = points[(index + 1) % points.length]
+        if (!start || !end) continue
+        segments.push({
+            type: 'line',
+            x1: toMil(start.x),
+            y1: toMil(start.y),
+            x2: toMil(end.x),
+            y2: toMil(end.y)
+        })
+    }
+    return segments
+}
+
+/**
+ * Builds a normalized board outline.
+ * @param {object} board KiCad board.
+ * @returns {object}
+ */
+function boardOutlineFromBoard(board) {
+    const outline = (board.outlines || [])[0]
+    const points = outline?.points?.length
+        ? outline.points
+        : boundsPoints(board.bounds)
+    const bounds = board.bounds || {
+        minX: 0,
+        minY: 0,
+        width: 1,
+        height: 1
+    }
+    return {
+        widthMil: toMil(bounds.width),
+        heightMil: toMil(bounds.height),
+        minX: toMil(bounds.minX),
+        minY: toMil(bounds.minY),
+        segments: segmentsFromPoints(points)
+    }
+}
+
+/**
+ * Returns rectangle points from bounds.
+ * @param {object} bounds Bounds.
+ * @returns {{ x: number, y: number }[]}
+ */
+function boundsPoints(bounds) {
+    const minX = Number(bounds?.minX || 0)
+    const minY = Number(bounds?.minY || 0)
+    const maxX = Number(bounds?.maxX || minX + 1)
+    const maxY = Number(bounds?.maxY || minY + 1)
+    return [
+        { x: minX, y: minY },
+        { x: maxX, y: minY },
+        { x: maxX, y: maxY },
+        { x: minX, y: maxY }
+    ]
+}
+
+/**
+ * Builds board BOM rows from footprints.
+ * @param {object[]} footprints Footprints.
+ * @returns {object[]}
+ */
+function groupBoardBomRows(footprints) {
+    const groups = new Map()
+
+    for (const footprint of footprints || []) {
+        if (footprint.excludeFromBom) continue
+
+        const entry = {
+            designator: footprint.reference,
+            pattern: footprint.libraryName,
+            source: footprint.libraryName,
+            value: footprint.value || ''
+        }
+        const key = [entry.pattern, entry.source, entry.value].join('::')
+
+        if (!groups.has(key)) {
+            groups.set(key, {
+                designators: [],
+                quantity: 0,
+                pattern: entry.pattern,
+                source: entry.source,
+                value: entry.value
+            })
+        }
+
+        const row = groups.get(key)
+        row.designators.push(entry.designator)
+        row.quantity += 1
+    }
+
+    return [...groups.values()]
+        .map((row) => ({
+            ...row,
+            designators: row.designators.sort((left, right) =>
+                left.localeCompare(right, undefined, { numeric: true })
+            )
+        }))
+        .sort((left, right) =>
+            left.designators[0].localeCompare(right.designators[0], undefined, {
+                numeric: true
+            })
+        )
+}
+
+/**
+ * Builds primitive layer metadata from parsed board content.
+ * @param {object} board Board.
+ * @returns {{ layerId: number, name: string }[]}
+ */
+function primitiveLayersFromBoard(board) {
+    const names = new Set()
+    for (const drawing of board.drawings || []) names.add(drawing.layer)
+    for (const outline of board.outlines || []) names.add(outline.layer)
+    for (const pad of board.pads || []) {
+        for (const layer of pad.layers || []) names.add(layer)
+    }
+    return [...names]
+        .filter(Boolean)
+        .sort()
+        .map((name) => ({
+            layerId: layerIdForName(name),
+            name
+        }))
+}
+
+/**
+ * Normalizes board text into shared PCB text shape.
+ * @param {object} text KiCad text.
+ * @returns {object}
+ */
+function normalizeBoardText(text) {
+    return {
+        x: toMil(text.x),
+        y: toMil(text.y),
+        text: text.value,
+        value: text.value,
+        rotation: text.rotation,
+        layer: text.layer,
+        side: text.side,
+        ownerIndex: text.ownerId || undefined
+    }
+}
+
+/**
+ * Returns an optional primitive net index field.
+ * @param {unknown} value Net index.
+ * @returns {{ netIndex: number } | object}
+ */
+function optionalNetIndex(value) {
+    const netIndex = Number(value)
+    return Number.isInteger(netIndex) ? { netIndex } : {}
+}
+
+/**
+ * Removes a file extension.
+ * @param {string} fileName File name.
+ * @returns {string}
+ */
+function stripExtension(fileName) {
+    return String(fileName || '').replace(/\.[^.]+$/, '')
+}

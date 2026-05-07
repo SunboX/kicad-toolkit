@@ -1,0 +1,829 @@
+// SPDX-FileCopyrightText: 2026 André Fiedler
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { KicadParser, NormalizedModelSchema } from '../../src/parser.mjs'
+
+test('KicadParser wraps .kicad_pcb files in the ECAD Forge document model', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'panel.kicad_pcb',
+        bytesFor(minimalPcbSource())
+    )
+
+    assert.equal(document.sourceFormat, 'kicad')
+    assert.equal(document.schema, NormalizedModelSchema.CURRENT_SCHEMA_ID)
+    assert.equal(document.kind, 'pcb')
+    assert.equal(document.fileType, 'kicad_pcb')
+    assert.equal(document.fileName, 'panel.kicad_pcb')
+    assert.equal(document.summary.componentCount, 1)
+    assert.equal(document.summary.boardWidthMil, 1181)
+    assert.equal(document.pcb.kicadBoard.title, 'Panel')
+    assert.equal(document.pcb.components[0].designator, 'U1')
+    assert.equal(document.pcb.pads.length, 1)
+    assert.deepEqual(document.bom[0].designators, ['U1'])
+})
+
+test('KicadParser exposes Altium-style PCB nets and primitive net names', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'nets.kicad_pcb',
+        bytesFor(netPcbSource())
+    )
+
+    assert.equal(document.summary.netCount, 3)
+    assert.deepEqual(
+        document.pcb.nets.map((net) => ({
+            netIndex: net.netIndex,
+            name: net.name
+        })),
+        [
+            { netIndex: 1, name: 'GND' },
+            { netIndex: 2, name: '+3V3' },
+            { netIndex: 3, name: 'SENSE' }
+        ]
+    )
+    assert.equal(document.pcb.tracks[0].netName, 'GND')
+    assert.equal(document.pcb.tracks[0].netIndex, 1)
+    assert.equal(document.pcb.vias[0].netName, 'SENSE')
+    assert.equal(document.pcb.pads[0].netName, '+3V3')
+    assert.equal(document.pcb.pads[0].netIndex, 2)
+    assert.equal(document.pcb.pads[1].netName, 'GND')
+    assert.equal(document.pcb.polygons[1].netName, 'GND')
+})
+
+test('KicadParser exposes routed copper arcs in the Altium-style PCB model', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'arcs.kicad_pcb',
+        bytesFor(copperArcPcbSource())
+    )
+
+    assert.equal(document.summary.arcCount, 1)
+    assert.equal(document.pcb.arcs.length, 1)
+    assert.deepEqual(
+        {
+            x: Math.round(document.pcb.arcs[0].x),
+            y: Math.round(document.pcb.arcs[0].y),
+            radius: Math.round(document.pcb.arcs[0].radius),
+            width: Math.round(document.pcb.arcs[0].width),
+            netIndex: document.pcb.arcs[0].netIndex,
+            netName: document.pcb.arcs[0].netName
+        },
+        {
+            x: 118,
+            y: 39,
+            radius: 79,
+            width: 10,
+            netIndex: 1,
+            netName: 'GND'
+        }
+    )
+})
+
+test('KicadParser exposes detailed KiCad pads in the Altium-style PCB model', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'pad-details.kicad_pcb',
+        bytesFor(padDetailPcbSource())
+    )
+    const pad = document.pcb.pads[0]
+
+    assert.deepEqual(
+        {
+            sizeTopX: Math.round(pad.sizeTopX),
+            sizeTopY: Math.round(pad.sizeTopY),
+            sizeMidX: Math.round(pad.sizeMidX),
+            sizeMidY: Math.round(pad.sizeMidY),
+            sizeBottomX: Math.round(pad.sizeBottomX),
+            sizeBottomY: Math.round(pad.sizeBottomY),
+            shapeTop: pad.shapeTop,
+            shapeMid: pad.shapeMid,
+            shapeBottom: pad.shapeBottom,
+            holeDiameter: Math.round(pad.holeDiameter),
+            holeShape: pad.holeShape,
+            holeSlotLength: Math.round(pad.holeSlotLength),
+            holeRotation: pad.holeRotation,
+            offsetTopX: Math.round(pad.offsetTopX),
+            offsetTopY: Math.round(pad.offsetTopY),
+            padMode: pad.padMode,
+            planeConnectionStyle: pad.planeConnectionStyle
+        },
+        {
+            sizeTopX: 71,
+            sizeTopY: 43,
+            sizeMidX: 59,
+            sizeMidY: 39,
+            sizeBottomX: 47,
+            sizeBottomY: 31,
+            shapeTop: 4,
+            shapeMid: 1,
+            shapeBottom: 2,
+            holeDiameter: 18,
+            holeShape: 2,
+            holeSlotLength: 35,
+            holeRotation: 90,
+            offsetTopX: 2,
+            offsetTopY: 2,
+            padMode: 2,
+            planeConnectionStyle: 2
+        }
+    )
+    assert.equal(Math.round(pad.thermalReliefConductorWidth), 14)
+    assert.equal(Math.round(pad.thermalReliefAirGap), 9)
+    assert.equal(Math.round(pad.powerPlaneClearance), 6)
+    assert.equal(Math.round(pad.solderMaskExpansion), 2)
+    assert.equal(Math.round(pad.pasteMaskExpansion), -1)
+    assert.equal(Math.round(pad.x), 236)
+    assert.equal(Math.round(pad.y), 157)
+    assert.equal(pad.pinFunction, 'GPIO0')
+    assert.equal(pad.pinType, 'bidirectional')
+    assert.equal(pad.isTestFabTop, true)
+    assert.deepEqual(pad.layerShapes, [
+        { layerNumber: 1, shape: 4 },
+        { layerNumber: 2, shape: 1 },
+        { layerNumber: 32, shape: 2 }
+    ])
+    assert.deepEqual(pad.innerLayerSizes, [
+        { layerNumber: 2, width: 59.05511811023622, height: 39.37007874015748 }
+    ])
+    assert.equal(pad.customPrimitives.length, 2)
+})
+
+test('KicadParser builds BOM rows from KiCad footprint BOM attributes', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'footprint-attributes.kicad_pcb',
+        bytesFor(footprintAttributePcbSource())
+    )
+    const componentByDesignator = new Map(
+        document.pcb.components.map((component) => [
+            component.designator,
+            component
+        ])
+    )
+
+    assert.deepEqual(
+        document.bom.map((row) => ({
+            designators: row.designators,
+            pattern: row.pattern,
+            source: row.source,
+            value: row.value
+        })),
+        [
+            {
+                designators: ['C1'],
+                pattern: 'Capacitor_SMD:C_0603',
+                source: 'Capacitor_SMD:C_0603',
+                value: '100n'
+            },
+            {
+                designators: ['D1'],
+                pattern: 'LED_SMD:LED_0603',
+                source: 'LED_SMD:LED_0603',
+                value: 'RED'
+            },
+            {
+                designators: ['J1'],
+                pattern: 'Connector:Pin_1x02',
+                source: 'Connector:Pin_1x02',
+                value: ''
+            },
+            {
+                designators: ['R1'],
+                pattern: 'Resistor_SMD:R_0603',
+                source: 'Resistor_SMD:R_0603',
+                value: '10k'
+            },
+            {
+                designators: ['TP1'],
+                pattern: 'TestPoint:Pad_1mm',
+                source: 'TestPoint:Pad_1mm',
+                value: 'TEST'
+            }
+        ]
+    )
+    assert.equal(document.summary.bomRowCount, 5)
+    assert.equal(componentByDesignator.get('C1').excludeFromPositionFiles, true)
+    assert.equal(componentByDesignator.get('U2').excludeFromBom, true)
+    assert.equal(componentByDesignator.get('D1').doNotPopulate, true)
+    assert.equal(componentByDesignator.get('TP1').boardOnly, true)
+    assert.equal(componentByDesignator.get('R1').value, '10k')
+    assert.equal(componentByDesignator.get('J1').value, '')
+    assert.equal(
+        componentByDesignator.get('R1').properties.Manufacturer,
+        'Example Parts'
+    )
+})
+
+test('KicadParser parses .kicad_sch files into schematic document models', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'root.kicad_sch',
+        bytesFor(rootSchematicSource())
+    )
+
+    assert.equal(document.sourceFormat, 'kicad')
+    assert.equal(document.schema, NormalizedModelSchema.CURRENT_SCHEMA_ID)
+    assert.equal(document.kind, 'schematic')
+    assert.equal(document.fileType, 'kicad_sch')
+    assert.equal(document.summary.title, 'Root Sheet')
+    assert.equal(document.schematic.lines.length, 2)
+    assert.equal(document.schematic.components[0].designator, 'U1')
+    assert.equal(document.schematic.pins.length, 2)
+    assert.equal(document.schematic.sheetSymbols.length, 1)
+    assert.equal(document.schematic.sheetEntries[0].name, 'CHILD_SIG')
+    assert.ok(
+        document.schematic.nets.some((net) => net.name === 'ROOT_SIG'),
+        'expected local label to name a recovered schematic net'
+    )
+    assert.deepEqual(document.bom[0].designators, ['U1'])
+})
+
+test('KicadParser parses KiCad schematic graphical and metadata item families', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'schematic-gaps.kicad_sch',
+        bytesFor(schematicGapsSource())
+    )
+    const schematic = document.schematic
+
+    assert.equal(schematic.images.length, 1)
+    assert.deepEqual(
+        {
+            x: schematic.images[0].x,
+            y: schematic.images[0].y,
+            scale: schematic.images[0].scale,
+            data: schematic.images[0].data
+        },
+        { x: 20, y: 20, scale: 0.5, data: 'ZmFrZQ==' }
+    )
+    assert.deepEqual(schematic.busAliases, [
+        { name: 'ADDR', members: ['A0', 'A1'] }
+    ])
+    assert.deepEqual(
+        schematic.busEntries.map((entry) => ({
+            x1: entry.x1,
+            y1: entry.y1,
+            x2: entry.x2,
+            y2: entry.y2
+        })),
+        [{ x1: 15, y1: 15, x2: 17.54, y2: 12.46 }]
+    )
+    assert.equal(schematic.directives.length, 1)
+    assert.equal(schematic.directives[0].text, 'NO_ERC')
+    assert.equal(schematic.textBoxes.length, 1)
+    assert.equal(schematic.textBoxes[0].text, 'Keep traces short')
+    assert.equal(schematic.textBoxes[0].font.bold, true)
+    assert.equal(schematic.tables.length, 1)
+    assert.deepEqual(
+        schematic.tables[0].cells.map((cell) => cell.text),
+        ['Name', 'Value']
+    )
+    assert.equal(
+        schematic.arcs.some((arc) => arc.sourceType === 'arc'),
+        true
+    )
+    assert.equal(
+        schematic.ellipses.some((item) => item.sourceType === 'circle'),
+        true
+    )
+    assert.equal(
+        schematic.rectangles.some((item) => item.sourceType === 'rectangle'),
+        true
+    )
+    assert.equal(schematic.beziers.length, 1)
+    assert.equal(schematic.regions.length, 1)
+    assert.equal(schematic.sheetInstances.length, 1)
+    assert.equal(schematic.symbolInstances.length, 1)
+    assert.equal(schematic.embeddedFonts, true)
+    assert.deepEqual(schematic.embeddedFiles, [
+        { name: 'font.ttf', data: 'Zm9udA==' }
+    ])
+})
+
+test('KicadParser honors KiCad schematic symbol unit and convert selection', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'schematic-unit-selection.kicad_sch',
+        bytesFor(schematicUnitSelectionSource())
+    )
+    const schematic = document.schematic
+
+    assert.deepEqual(
+        schematic.pins.map((pin) => pin.designator),
+        ['2']
+    )
+    assert.equal(
+        schematic.pins.some((pin) => pin.designator === '1'),
+        false
+    )
+    assert.equal(
+        schematic.pins.some((pin) => pin.designator === 'ALT'),
+        false
+    )
+    assert.equal(
+        schematic.rectangles.filter(
+            (rectangle) => rectangle.ownerIndex === 'placed-opamp'
+        ).length,
+        2
+    )
+    assert.equal(schematic.components[0].unit, 2)
+    assert.equal(schematic.components[0].convert, 1)
+    assert.equal(schematic.components[0].mirror, 'x')
+})
+
+/**
+ * Encodes source text as an ArrayBuffer.
+ * @param {string} source Source text.
+ * @returns {ArrayBuffer}
+ */
+function bytesFor(source) {
+    const buffer = Buffer.from(source, 'utf8')
+    return buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength
+    )
+}
+
+/**
+ * Builds a minimal board fixture.
+ * @returns {string}
+ */
+function minimalPcbSource() {
+    return `(kicad_pcb
+        (version 20241229)
+        (title_block (title "Panel"))
+        (gr_poly
+            (pts (xy 0 0) (xy 30 0) (xy 30 20) (xy 0 20))
+            (stroke (width 0.15) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (footprint "Package_SO:SOIC-8"
+            (layer "F.Cu")
+            (at 10 10 0)
+            (property "Reference" "U1"
+                (at 0 -3 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (property "Value" "MCU"
+                (at 0 3 0)
+                (layer "F.Fab")
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (pad "1" smd rect
+                (at 0 0 0)
+                (size 1 1)
+                (layers "F.Cu" "F.Mask" "F.Paste")
+                (net 1 "GND")
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a minimal board fixture with footprint BOM attributes.
+ * @returns {string}
+ */
+function footprintAttributePcbSource() {
+    return `(kicad_pcb
+        (version 20250101)
+        (gr_rect
+            (start 0 0)
+            (end 50 20)
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        ${attributeFootprint('R1', 'Resistor_SMD:R_0603', 'smd', '10k', '(property "Manufacturer" "Example Parts" (at 0 2 0) (layer "F.Fab") (effects (font (size 1 1))))')}
+        ${attributeFootprint('J1', 'Connector:Pin_1x02', 'through_hole', '')}
+        ${attributeFootprint('C1', 'Capacitor_SMD:C_0603', 'smd exclude_from_pos_files', '100n')}
+        ${attributeFootprint('U2', 'Package_QFN:QFN-32', 'smd exclude_from_bom', 'MCU')}
+        ${attributeFootprint('D1', 'LED_SMD:LED_0603', 'smd dnp', 'RED')}
+        ${attributeFootprint('TP1', 'TestPoint:Pad_1mm', 'board_only', 'TEST')}
+        ${attributeFootprint('LOGO1', 'Symbol:Logo', 'virtual', 'LOGO')}
+    )`
+}
+
+/**
+ * Builds one fake footprint with common properties.
+ * @param {string} reference Reference.
+ * @param {string} footprintName Footprint library ID.
+ * @param {string} attrs Attribute tokens.
+ * @param {string} value Value property text.
+ * @param {string} [extraProperties] Extra property nodes.
+ * @returns {string}
+ */
+function attributeFootprint(
+    reference,
+    footprintName,
+    attrs,
+    value,
+    extraProperties = ''
+) {
+    const valueProperty = value
+        ? `(property "Value" "${value}" (at 0 1 0) (layer "F.Fab") (effects (font (size 1 1))))`
+        : ''
+
+    return `(footprint "${footprintName}"
+        (layer "F.Cu")
+        (at 5 5 0)
+        (attr ${attrs})
+        (property "Reference" "${reference}" (at 0 0 0) (layer "F.SilkS") (effects (font (size 1 1))))
+        ${valueProperty}
+        (property "Footprint" "${footprintName}" (at 0 3 0) (layer "F.Fab") (effects (font (size 1 1))))
+        ${extraProperties}
+    )`
+}
+
+/**
+ * Builds a minimal board fixture with declared and named nets.
+ * @returns {string}
+ */
+function netPcbSource() {
+    return `(kicad_pcb
+        (version 20241229)
+        (net 0 "")
+        (net 1 "GND")
+        (net 2 "+3V3")
+        (gr_poly
+            (pts (xy 0 0) (xy 20 0) (xy 20 12) (xy 0 12))
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (segment
+            (start 1 1)
+            (end 8 1)
+            (width 0.25)
+            (layer "F.Cu")
+            (net 1)
+        )
+        (via
+            (at 8 6)
+            (size 1)
+            (drill 0.4)
+            (layers "F.Cu" "B.Cu")
+            (net "SENSE")
+        )
+        (zone
+            (net 1)
+            (net_name "GND")
+            (layer "B.Cu")
+            (filled_polygon
+                (layer "B.Cu")
+                (pts (xy 2 3) (xy 7 3) (xy 7 6) (xy 2 6))
+            )
+        )
+        (footprint "Package:NetPart"
+            (layer "F.Cu")
+            (at 10 6 0)
+            (property "Reference" "U1"
+                (at 0 -2 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (pad "1" smd rect
+                (at -1 0 0)
+                (size 1 1)
+                (layers "F.Cu" "F.Mask" "F.Paste")
+                (net 2 "+3V3")
+            )
+            (pad "2" smd rect
+                (at 1 0 0)
+                (size 1 1)
+                (layers "F.Cu" "F.Mask" "F.Paste")
+                (net "GND")
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a minimal board fixture with a routed copper arc.
+ * @returns {string}
+ */
+function copperArcPcbSource() {
+    return `(kicad_pcb
+        (version 20250101)
+        (net 1 "GND")
+        (gr_poly
+            (pts (xy 0 0) (xy 8 0) (xy 8 6) (xy 0 6))
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (arc
+            (start 1 1)
+            (mid 3 3)
+            (end 5 1)
+            (width 0.25)
+            (layer "F.Cu")
+            (net 1)
+        )
+    )`
+}
+
+/**
+ * Builds a minimal board fixture with a detailed pad.
+ * @returns {string}
+ */
+function padDetailPcbSource() {
+    return `(kicad_pcb
+        (version 20250101)
+        (net 1 "GPIO0")
+        (gr_poly
+            (pts (xy 0 0) (xy 12 0) (xy 12 8) (xy 0 8))
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (footprint "Package:PadDetail"
+            (layer "F.Cu")
+            (at 6 4 0)
+            (property "Reference" "U1"
+                (at 0 -2 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (pad "1" thru_hole custom
+                (at 0 0 30)
+                (size 1.6 1.2)
+                (drill oval 0.45 0.9 (offset 0.1 -0.05))
+                (layers "F.Cu" "In1.Cu" "B.Cu" "F.Mask" "B.Mask")
+                (net 1 "GPIO0")
+                (pinfunction "GPIO0")
+                (pintype "bidirectional")
+                (solder_mask_margin 0.05)
+                (solder_paste_margin -0.02)
+                (clearance 0.15)
+                (zone_connect 2)
+                (thermal_bridge_width 0.35)
+                (thermal_gap 0.22)
+                (property pad_prop_testpoint)
+                (primitives
+                    (gr_line
+                        (start -0.4 0)
+                        (end 0.4 0)
+                        (stroke (width 0.1) (type solid))
+                        (layer "F.Cu")
+                    )
+                    (gr_circle
+                        (center 0 0)
+                        (end 0.2 0)
+                        (stroke (width 0.05) (type solid))
+                        (fill no)
+                        (layer "F.Cu")
+                    )
+                )
+                (padstack
+                    (mode custom)
+                    (layer "F.Cu"
+                        (shape roundrect)
+                        (size 1.8 1.1)
+                        (offset 0.04 0.05)
+                        (roundrect_rratio 0.2)
+                    )
+                    (layer "Inner"
+                        (shape circle)
+                        (size 1.5 1.0)
+                    )
+                    (layer "B.Cu"
+                        (shape oval)
+                        (size 1.2 0.8)
+                        (offset -0.03 0.02)
+                    )
+                )
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with embedded symbol and sheet content.
+ * @returns {string}
+ */
+function rootSchematicSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (generator "eeschema")
+        (uuid "root-uuid")
+        (paper "A4")
+        (title_block (title "Root Sheet"))
+        (lib_symbols
+            (symbol "Device:R"
+                (pin passive line (at -2.54 0 0) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "1" (effects (font (size 1.27 1.27))))
+                )
+                (pin passive line (at 2.54 0 180) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "2" (effects (font (size 1.27 1.27))))
+                )
+                (rectangle (start -1.27 -2.54) (end 1.27 2.54)
+                    (stroke (width 0.15) (type solid))
+                    (fill (type none))
+                )
+            )
+        )
+        (wire (pts (xy 7.46 20) (xy 20 20)) (stroke (width 0.15) (type solid)))
+        (bus (pts (xy 20 24) (xy 40 24)) (stroke (width 0.15) (type solid)))
+        (label "ROOT_SIG" (at 14 20 0)
+            (effects (font (size 1.27 1.27)) (justify left bottom))
+        )
+        (junction (at 20 20) (diameter 0.9))
+        (sheet (at 30 30) (size 20 12)
+            (property "Sheet name" "Child" (at 30 28 0)
+                (effects (font (size 1.27 1.27)))
+            )
+            (property "Sheet file" "child.kicad_sch" (at 30 44 0)
+                (effects (font (size 1.27 1.27)))
+            )
+            (pin "CHILD_SIG" input (at 30 36 180)
+                (effects (font (size 1.27 1.27)))
+                (uuid "sheet-pin")
+            )
+            (uuid "sheet-uuid")
+        )
+        (symbol "Device:R" (at 5 20 0) (unit 1)
+            (property "Reference" "U1" (at 5 16 0)
+                (effects (font (size 1.27 1.27)))
+            )
+            (property "Value" "10k" (at 5 24 0)
+                (effects (font (size 1.27 1.27)))
+            )
+            (property "Footprint" "Resistor_SMD:R_0603" (at 5 26 0)
+                (effects (font (size 1.27 1.27)) hide)
+            )
+            (uuid "symbol-uuid")
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with currently unsupported KiCad item families.
+ * @returns {string}
+ */
+function schematicGapsSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (paper "A4")
+        (title_block (title "Schematic Gaps"))
+        (bus_alias "ADDR" (members "A0" "A1"))
+        (bus_entry
+            (at 15 15)
+            (size 2.54 -2.54)
+            (stroke (width 0.15) (type solid))
+            (uuid "bus-entry")
+        )
+        (image
+            (at 20 20)
+            (scale 0.5)
+            (uuid "image-uuid")
+            (data "ZmFrZQ==")
+        )
+        (directive_label "NO_ERC"
+            (at 30 20 0)
+            (length 2.54)
+            (effects
+                (font (face "Inter") (size 1.27 1.27) bold italic)
+                (justify left top)
+            )
+            (uuid "directive-uuid")
+        )
+        (text_box "Keep traces short"
+            (at 10 30 0)
+            (size 30 8)
+            (margins 1 1 1 1)
+            (stroke (width 0.1) (type solid))
+            (fill (type none))
+            (effects (font (size 1.2 1.2) bold) (justify left top))
+            (uuid "text-box-uuid")
+        )
+        (table
+            (column_count 2)
+            (column_widths 20 30)
+            (row_heights 6)
+            (cells
+                (table_cell "Name"
+                    (at 5 50 0)
+                    (size 20 6)
+                    (effects (font (size 1 1)))
+                    (uuid "cell-a")
+                )
+                (table_cell "Value"
+                    (at 25 50 0)
+                    (size 30 6)
+                    (effects (font (size 1 1)))
+                    (uuid "cell-b")
+                )
+            )
+            (uuid "table-uuid")
+        )
+        (polyline
+            (pts (xy 5 70) (xy 15 70))
+            (stroke (width 0.1) (type solid))
+            (uuid "line-uuid")
+        )
+        (arc
+            (start 20 70)
+            (mid 25 65)
+            (end 30 70)
+            (stroke (width 0.1) (type solid))
+            (fill (type none))
+            (uuid "arc-uuid")
+        )
+        (circle
+            (center 40 70)
+            (radius 3)
+            (stroke (width 0.1) (type solid))
+            (fill (type none))
+            (uuid "circle-uuid")
+        )
+        (rectangle
+            (start 50 65)
+            (end 60 75)
+            (stroke (width 0.1) (type solid))
+            (fill (type background))
+            (uuid "rectangle-uuid")
+        )
+        (bezier
+            (pts (xy 65 70) (xy 68 65) (xy 72 75) (xy 75 70))
+            (stroke (width 0.1) (type solid))
+            (fill (type none))
+            (uuid "bezier-uuid")
+        )
+        (rule_area
+            (polyline
+                (pts (xy 80 65) (xy 90 65) (xy 90 75) (xy 80 75))
+                (stroke (width 0.1) (type solid))
+                (fill (type none))
+                (uuid "rule-poly")
+            )
+            (exclude_from_sim yes)
+            (dnp yes)
+            (uuid "rule-uuid")
+        )
+        (sheet_instances
+            (path "/" (page "1"))
+        )
+        (symbol_instances
+            (path "/placed" (reference "U1") (unit 1) (value "Logic") (footprint "Package:SOIC"))
+        )
+        (embedded_fonts yes)
+        (embedded_files
+            (file "font.ttf" (data "Zm9udA=="))
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with multiple symbol units and body styles.
+ * @returns {string}
+ */
+function schematicUnitSelectionSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (paper "A4")
+        (lib_symbols
+            (symbol "Test:DUAL"
+                (symbol "DUAL_0_1"
+                    (rectangle (start -1 -1) (end 1 1)
+                        (stroke (width 0.1) (type solid))
+                        (fill (type none))
+                    )
+                )
+                (symbol "DUAL_1_1"
+                    (pin input line (at -5 0 0) (length 2.54)
+                        (name "IN1" (effects (font (size 1 1))))
+                        (number "1" (effects (font (size 1 1))))
+                    )
+                    (rectangle (start -2 -2) (end 2 2)
+                        (stroke (width 0.1) (type solid))
+                        (fill (type none))
+                    )
+                )
+                (symbol "DUAL_1_2"
+                    (pin input line (at -5 5 0) (length 2.54)
+                        (name "ALT" (effects (font (size 1 1))))
+                        (number "ALT" (effects (font (size 1 1))))
+                    )
+                )
+                (symbol "DUAL_2_1"
+                    (pin output line (at 5 0 180) (length 2.54)
+                        (name "OUT2" (effects (font (size 1 1))))
+                        (number "2" (effects (font (size 1 1))))
+                    )
+                    (rectangle (start 3 -2) (end 7 2)
+                        (stroke (width 0.1) (type solid))
+                        (fill (type none))
+                    )
+                )
+            )
+        )
+        (symbol "Test:DUAL"
+            (at 50 50 0)
+            (unit 2)
+            (convert 1)
+            (mirror x)
+            (property "Reference" "U1" (at 50 45 0) (effects (font (size 1 1))))
+            (property "Value" "DUAL" (at 50 55 0) (effects (font (size 1 1))))
+            (uuid "placed-opamp")
+        )
+    )`
+}

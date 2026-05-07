@@ -1,6 +1,6 @@
 {
-    "name": "kicad-toolkit",
-    "version": "0.1.2",
+    "name": "@sunbox/kicad-toolkit",
+    "version": "0.2.1",
     "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
     "keywords": [
         "kicad",
@@ -27,6 +27,8 @@
         ".": "./src/index.mjs",
         "./parser": "./src/parser.mjs",
         "./renderers": "./src/renderers.mjs",
+        "./scene3d": "./src/scene3d.mjs",
+        "./workers/kicad-parser.worker.mjs": "./src/workers/kicad-parser.worker.mjs",
         "./styles/kicad-renderers.css": "./src/styles/kicad-renderers.css"
     },
     "files": [
