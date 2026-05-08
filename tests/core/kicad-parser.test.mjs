@@ -273,6 +273,19 @@ test('KicadParser applies rotated symbol orientation to unrotated property field
     assert.equal(value.rotation, 90)
 })
 
+test('KicadParser centers schematic text when vertical justification is omitted', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'implicit-center-field.kicad_sch',
+        bytesFor(implicitCenterFieldSource())
+    )
+    const reference = document.schematic.texts.find(
+        (text) => text.propertyName === 'Reference'
+    )
+
+    assert.equal(reference.anchor, 'end')
+    assert.equal(reference.vAlign, 'center')
+})
+
 test('KicadParser only marks generic connector pins for endpoint circles', () => {
     const document = KicadParser.parseArrayBuffer(
         'pin-endpoint-markers.kicad_sch',
@@ -813,6 +826,36 @@ function rotatedSymbolFieldSource() {
                 (effects (font (size 1.27 1.27)) (justify center bottom))
             )
             (uuid "rotated-symbol-field")
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with a field that omits vertical justification.
+ * @returns {string}
+ */
+function implicitCenterFieldSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (paper "A4")
+        (lib_symbols
+            (symbol "Device:D"
+                (pin passive line (at 0 -2.54 90) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "1" (effects (font (size 1.27 1.27))))
+                )
+                (pin passive line (at 0 2.54 270) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "2" (effects (font (size 1.27 1.27))))
+                )
+            )
+        )
+        (symbol "Device:D"
+            (at 50 50 90)
+            (property "Reference" "D1" (at 51 52 0)
+                (effects (font (size 1.27 1.27)) (justify right))
+            )
+            (uuid "implicit-center-field")
         )
     )`
 }

@@ -809,7 +809,7 @@ function parseTextFont(node) {
         width,
         height,
         hAlign: firstJustify(justify, ['left', 'center', 'right']) || 'left',
-        vAlign: firstJustify(justify, ['top', 'center', 'bottom']) || 'bottom'
+        vAlign: firstJustify(justify, ['top', 'center', 'bottom']) || 'center'
     }
 }
 
