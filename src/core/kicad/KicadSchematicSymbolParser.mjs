@@ -85,6 +85,7 @@ export class KicadSchematicSymbolParser {
                 color: defaultInkColor,
                 labelColor: defaultInkColor,
                 labelMode: 'number-only',
+                endpointVisible: Boolean(transform.endpointVisible),
                 ownerIndex
             }
         })

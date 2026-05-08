@@ -446,11 +446,15 @@ function parseSchematicSymbol(node, index, librarySymbols) {
     const pins = KicadSchematicSymbolParser.parsePins(
         librarySymbol,
         uuid,
-        transform,
+        {
+            ...transform,
+            endpointVisible: hasConnectorPinEndpointMarkers(libId)
+        },
         selection
     )
     const texts = parseSymbolPropertyTexts(properties, uuid, {
         mirror,
+        rotation: at.rotation,
         powerSymbol: isPowerSymbol(librarySymbol, libId)
     })
     const component = {
@@ -504,10 +508,19 @@ function isPowerSymbol(librarySymbol, libId) {
 }
 
 /**
+ * Checks whether a symbol family displays circular connector pin endpoints.
+ * @param {string} libId Symbol library id.
+ * @returns {boolean}
+ */
+function hasConnectorPinEndpointMarkers(libId) {
+    return /^Connector_Generic:Conn_/u.test(String(libId || ''))
+}
+
+/**
  * Parses visible symbol property text.
  * @param {Map<string, object>} properties Symbol properties.
  * @param {string} ownerIndex Symbol owner id.
- * @param {{ mirror?: string, powerSymbol?: boolean }} transform Symbol placement transform.
+ * @param {{ mirror?: string, rotation?: number, powerSymbol?: boolean }} transform Symbol placement transform.
  * @returns {object[]}
  */
 function parseSymbolPropertyTexts(properties, ownerIndex, transform = {}) {
@@ -523,11 +536,28 @@ function parseSymbolPropertyTexts(properties, ownerIndex, transform = {}) {
             color: defaultInkColor,
             fontSize: property.fontSize,
             font: property.font,
-            rotation: property.rotation,
+            rotation: symbolPropertyTextRotation(property, transform),
             anchor: mirrorTextAnchor(property.anchor, transform.mirror),
             vAlign: mirrorTextVAlign(property.vAlign, transform.mirror),
             symbolKind: transform.powerSymbol ? 'power' : ''
         }))
+}
+
+/**
+ * Resolves visible field rotation for placed symbol properties.
+ * @param {object} property Symbol property.
+ * @param {{ rotation?: number }} transform Symbol placement transform.
+ * @returns {number}
+ */
+function symbolPropertyTextRotation(property, transform) {
+    const propertyRotation = numberValue(property?.rotation, 0)
+    if (Math.abs(propertyRotation) > 0.001) return propertyRotation
+
+    const symbolRotation = numberValue(transform?.rotation, 0)
+    const normalized = ((symbolRotation % 360) + 360) % 360
+    if (Math.abs(normalized - 90) < 0.001) return 90
+    if (Math.abs(normalized - 270) < 0.001) return 270
+    return propertyRotation
 }
 
 /**
@@ -749,7 +779,12 @@ function parseProperties(node) {
             rotation: at.rotation,
             fontSize: font.size,
             font,
-            anchor: font.hAlign === 'right' ? 'end' : font.hAlign === 'center' ? 'middle' : 'start',
+            anchor:
+                font.hAlign === 'right'
+                    ? 'end'
+                    : font.hAlign === 'center'
+                      ? 'middle'
+                      : 'start',
             vAlign: font.vAlign,
             visible: !hasHiddenEffect(property)
         })
@@ -760,15 +795,19 @@ function parseProperties(node) {
 /**
  * Parses text font information.
  * @param {Array} node Text node.
- * @returns {{ size: number }}
+ * @returns {{ size: number, width: number, height: number, hAlign: string, vAlign: string }}
  */
 function parseTextFont(node) {
     const effects = child(node, 'effects')
     const font = child(effects, 'font')
     const size = child(font, 'size') || ['size', 1.27, 1.27]
     const justify = child(effects, 'justify') || []
+    const width = numberValue(size[1], 1.27)
+    const height = numberValue(size[2], width)
     return {
-        size: numberValue(size[2], numberValue(size[1], 1.27)),
+        size: height,
+        width,
+        height,
         hAlign: firstJustify(justify, ['left', 'center', 'right']) || 'left',
         vAlign: firstJustify(justify, ['top', 'center', 'bottom']) || 'bottom'
     }
@@ -781,7 +820,9 @@ function parseTextFont(node) {
  * @returns {string}
  */
 function firstJustify(justify, options) {
-    return justify.slice(1).find((token) => options.includes(String(token))) || ''
+    return (
+        justify.slice(1).find((token) => options.includes(String(token))) || ''
+    )
 }
 
 /**

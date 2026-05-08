@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+
 const displayScale = 10
+const kicadTextLineSpacingRatio = 1.61
+const kicadFirstLineHeightRatio = 1.17
+const kicadStrokeBaselineFudgeRatio = 0.052
 const wireColor = 'var(--schematic-default-ink-color)'
 const symbolColor = 'var(--schematic-power-color)'
 const sheetGraphicColor = 'var(--schematic-accent-ink-color)'
@@ -9,6 +14,7 @@ const labelColor = 'var(--schematic-text-color)'
 const globalLabelColor = 'var(--schematic-alert-color)'
 const frameColor = 'var(--schematic-sheet-frame-stroke)'
 const symbolFillColor = 'var(--schematic-fill-color)'
+const pinMarkerFillColor = 'var(--schematic-pin-marker-fill)'
 
 /**
  * Renders normalized KiCad schematic documents to deterministic SVG.
@@ -28,7 +34,10 @@ export class SchematicSvgRenderer {
         const sourceHeight = Number(sheet.height || 80)
         const width = sourceWidth * displayScale
         const height = sourceHeight * displayScale
-        const title = documentModel.summary?.title || documentModel.fileName || 'Schematic'
+        const title =
+            documentModel.summary?.title ||
+            documentModel.fileName ||
+            'Schematic'
         const lineCount = (schematic.lines || []).length
         const componentCount = (schematic.components || []).length
         return [
@@ -116,6 +125,7 @@ function renderPins(pins) {
             const end = pinConnectionPoint(pin)
             return [
                 `<line class="schematic-pin-line" x1="${formatNumber(pin.x)}" y1="${formatNumber(pin.y)}" x2="${formatNumber(end.x)}" y2="${formatNumber(end.y)}" stroke="${symbolColor}" stroke-width="0.08"/>`,
+                renderPinEndpoint(pin),
                 renderPinNumber(pin)
             ].join('')
         })
@@ -129,9 +139,19 @@ function renderPins(pins) {
  */
 function renderTexts(texts) {
     return texts
-        .map(
-            (text) =>
-                `<text class="${resolveSchematicTextClass(text)}" x="${formatNumber(text.x)}" y="${formatNumber(text.y)}" fill="${resolveSchematicTextColor(text)}" font-size="${formatNumber(resolveTextFontSize(text))}" text-anchor="${resolveTextAnchor(text)}" dominant-baseline="${resolveTextBaseline(text)}"${renderTextTransform(text)}>${escapeHtml(text.text || text.value || '')}</text>`
+        .map((text) =>
+            renderStrokeText({
+                className: resolveSchematicTextClass(text),
+                x: text.x,
+                y: text.y,
+                value: text.text || text.value || '',
+                color: resolveSchematicTextColor(text),
+                sizeX: resolveTextWidth(text),
+                sizeY: resolveTextHeight(text),
+                hAlign: resolveTextHAlign(text),
+                vAlign: resolveTextVAlign(text),
+                rotation: resolveRenderedTextRotation(text)
+            })
         )
         .join('')
 }
@@ -304,22 +324,134 @@ function renderTitleBlock(titleBlock, width, height, margin, options = {}) {
         `<line x1="${formatNumber(sizeX)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(sizeX)}" y2="${formatNumber(y + blockHeight)}"/>`,
         `<line x1="${formatNumber(sheetX)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(sheetX)}" y2="${formatNumber(line4Y)}"/>`,
         `<line x1="${formatNumber(drawnByX)}" y1="${formatNumber(line4Y)}" x2="${formatNumber(drawnByX)}" y2="${formatNumber(y + blockHeight)}"/>`,
-        renderTitleText('sheet-title-label', x + blockWidth * 0.03, headerY, 'Title', labelColor, 'start'),
-        renderTitleText('sheet-title-label', numberX + blockWidth * 0.03, headerY, 'Number', labelColor, 'start'),
-        renderTitleText('sheet-title-label', revisionX + blockWidth * 0.02, headerY, 'Revision', labelColor, 'start'),
-        renderTitleText('sheet-title-label', x + blockWidth * 0.05, labelRowY, 'Size', labelColor, 'start'),
-        renderTitleText('sheet-title-label', sizeX + blockWidth * 0.05, labelRowY, 'Sheet', labelColor, 'start'),
-        renderTitleText('sheet-title-label', sizeX + 8, footerDateY, 'Date:', labelColor, 'start'),
-        renderTitleText('sheet-title-label', sizeX + 8, footerFileY, 'File:', labelColor, 'start'),
-        renderTitleText('sheet-title-label', drawnByX + 8, footerFileY, 'Drawn By:', labelColor, 'start'),
-        renderTitleText('sheet-title-value', x + blockWidth * 0.31, titleRowY, title, wireColor, 'middle'),
-        renderTitleText('sheet-title-value', x + blockWidth * 0.74, titleRowY, company, labelColor, 'middle'),
-        renderTitleText('sheet-title-value', x + blockWidth * 0.92, titleRowY, revision, wireColor, 'middle'),
-        renderTitleText('sheet-title-value', x + blockWidth * 0.08, valueRowY, paperSize, labelColor, 'middle'),
-        renderTitleText('sheet-title-value', x + blockWidth * 0.415, valueRowY, sheetValue, wireColor, 'middle'),
-        renderTitleText('sheet-title-value', sizeX + blockWidth * 0.08, footerDateY, date, labelColor, 'start'),
-        renderTitleText('sheet-title-value', sizeX + blockWidth * 0.08, footerFileY, fileName, labelColor, 'start'),
-        renderTitleText('sheet-title-value', x + blockWidth * 0.93, footerFileY, author, wireColor, 'middle'),
+        renderTitleText(
+            'sheet-title-label',
+            x + blockWidth * 0.03,
+            headerY,
+            'Title',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-label',
+            numberX + blockWidth * 0.03,
+            headerY,
+            'Number',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-label',
+            revisionX + blockWidth * 0.02,
+            headerY,
+            'Revision',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-label',
+            x + blockWidth * 0.05,
+            labelRowY,
+            'Size',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-label',
+            sizeX + blockWidth * 0.05,
+            labelRowY,
+            'Sheet',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-label',
+            sizeX + 8,
+            footerDateY,
+            'Date:',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-label',
+            sizeX + 8,
+            footerFileY,
+            'File:',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-label',
+            drawnByX + 8,
+            footerFileY,
+            'Drawn By:',
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            x + blockWidth * 0.31,
+            titleRowY,
+            title,
+            wireColor,
+            'middle'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            x + blockWidth * 0.74,
+            titleRowY,
+            company,
+            labelColor,
+            'middle'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            x + blockWidth * 0.92,
+            titleRowY,
+            revision,
+            wireColor,
+            'middle'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            x + blockWidth * 0.08,
+            valueRowY,
+            paperSize,
+            labelColor,
+            'middle'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            x + blockWidth * 0.415,
+            valueRowY,
+            sheetValue,
+            wireColor,
+            'middle'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            sizeX + blockWidth * 0.08,
+            footerDateY,
+            date,
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            sizeX + blockWidth * 0.08,
+            footerFileY,
+            fileName,
+            labelColor,
+            'start'
+        ),
+        renderTitleText(
+            'sheet-title-value',
+            x + blockWidth * 0.93,
+            footerFileY,
+            author,
+            wireColor,
+            'middle'
+        ),
         '</g>'
     ].join('')
 }
@@ -339,6 +471,16 @@ function renderTitleText(className, x, y, value, fill, anchor) {
 }
 
 /**
+ * Renders one visible KiCad pin endpoint at the symbol body.
+ * @param {object} pin Pin.
+ * @returns {string}
+ */
+function renderPinEndpoint(pin) {
+    if (!pin.endpointVisible) return ''
+    return `<circle class="schematic-pin-endpoint" cx="${formatNumber(pin.x)}" cy="${formatNumber(pin.y)}" r="0.42" fill="${pinMarkerFillColor}" stroke="${symbolColor}" stroke-width="0.12"/>`
+}
+
+/**
  * Renders one KiCad pin number near the symbol body.
  * @param {object} pin Pin.
  * @returns {string}
@@ -350,18 +492,33 @@ function renderPinNumber(pin) {
     const fontSize = Number(pin.numberFontSize || 0.85)
     const x =
         pin.orientation === 'left'
-            ? pin.x + offset
+            ? pin.x - offset
             : pin.orientation === 'right'
-              ? pin.x - offset
+              ? pin.x + offset
               : pin.x + offset
     const y =
         pin.orientation === 'top'
-            ? pin.y - offset
+            ? pin.y + offset
             : pin.orientation === 'bottom'
-              ? pin.y + offset
+              ? pin.y - offset
               : pin.y - offset
-    const anchor = pin.orientation === 'right' ? 'end' : 'start'
-    return `<text class="schematic-pin-number" x="${formatNumber(x)}" y="${formatNumber(y)}" fill="${symbolColor}" font-size="${formatNumber(fontSize)}" text-anchor="${anchor}" dominant-baseline="central">${escapeHtml(label)}</text>`
+    return renderStrokeText({
+        className: 'schematic-pin-number',
+        x,
+        y,
+        value: label,
+        color: symbolColor,
+        sizeX: fontSize,
+        sizeY: fontSize,
+        hAlign: pin.orientation === 'left' ? 'right' : 'left',
+        vAlign:
+            pin.orientation === 'top'
+                ? 'top'
+                : pin.orientation === 'bottom'
+                  ? 'bottom'
+                  : 'center',
+        rotation: 0
+    })
 }
 
 /**
@@ -421,48 +578,128 @@ function resolveSchematicTextColor(text) {
 }
 
 /**
- * Resolves SVG text-anchor from parsed KiCad justification.
- * @param {object} text Text primitive.
- * @returns {'start' | 'middle' | 'end'}
+ * Renders one KiCad stroke-font text item.
+ * @param {{ className: string, x: number, y: number, value: string, color: string, sizeX: number, sizeY: number, hAlign: string, vAlign: string, rotation: number }} text Text item.
+ * @returns {string}
  */
-function resolveTextAnchor(text) {
-    if (['start', 'middle', 'end'].includes(text?.anchor)) return text.anchor
-    const hAlign = text?.font?.hAlign
-    if (hAlign === 'right') return 'end'
-    if (hAlign === 'center') return 'middle'
-    return 'start'
+function renderStrokeText(text) {
+    const lines = String(text.value || '').split('\n')
+    const lineSpacing = textLineSpacing(text)
+    const strokeWidth = textStrokeWidth(text)
+    const attrs = [
+        `class="${text.className}"`,
+        `aria-label="${escapeAttribute(text.value)}"`,
+        'fill="none"',
+        `stroke="${text.color}"`,
+        `stroke-width="${formatNumber(strokeWidth)}"`,
+        'stroke-linecap="round"',
+        'stroke-linejoin="round"',
+        renderStrokeTextTransform(text)
+    ].join(' ')
+
+    return `<g ${attrs}>${lines.map((line, index) => renderStrokeTextLine(text, line, index, lines.length, lineSpacing)).join('')}</g>`
 }
 
 /**
- * Resolves SVG baseline from parsed KiCad justification.
+ * Renders one KiCad stroke-font text line.
+ * @param {object} text Text item.
+ * @param {string} line Line value.
+ * @param {number} index Line index.
+ * @param {number} lineCount Total line count.
+ * @param {number} lineSpacing Line spacing.
+ * @returns {string}
+ */
+function renderStrokeTextLine(text, line, index, lineCount, lineSpacing) {
+    const sizeX = textWidth(text)
+    const sizeY = textHeight(text)
+    const lineWidth = KicadStrokeFont.measureLine(line, sizeX)
+    const x = textLineX(text, lineWidth)
+    const y = textLineY(text, index, lineCount, lineSpacing)
+    const strokes = KicadStrokeFont.strokeLine(line, { x, y, sizeX, sizeY })
+    const attrs = [
+        'class="schematic-text-line"',
+        `data-line="${escapeAttribute(line)}"`,
+        `data-x="${formatNumber(x)}"`,
+        `data-y="${formatNumber(y)}"`
+    ].join(' ')
+
+    return `<g ${attrs}>${strokes.map(renderStrokeTextStroke).join('')}</g>`
+}
+
+/**
+ * Renders one KiCad stroke-font stroke.
+ * @param {{ x: number, y: number }[]} points Stroke points.
+ * @returns {string}
+ */
+function renderStrokeTextStroke(points) {
+    return `<path class="schematic-text-stroke" d="${pathFromPoints(points)}"/>`
+}
+
+/**
+ * Resolves KiCad's horizontal text justification.
+ * @param {object} text Text primitive.
+ * @returns {'left' | 'center' | 'right'}
+ */
+function resolveTextHAlign(text) {
+    if (text?.symbolKind === 'power') return 'center'
+    if (text?.anchor === 'end') return 'right'
+    if (text?.anchor === 'middle') return 'center'
+    const hAlign = text?.font?.hAlign
+    if (hAlign === 'right') return 'right'
+    if (hAlign === 'center') return 'center'
+    return 'left'
+}
+
+/**
+ * Resolves KiCad's vertical text justification.
  * @param {object} text Text primitive.
  * @returns {string}
  */
-function resolveTextBaseline(text) {
+function resolveTextVAlign(text) {
     const vAlign = text?.vAlign || text?.font?.vAlign
-    if (vAlign === 'top') return 'hanging'
-    if (vAlign === 'center') return 'central'
-    return 'alphabetic'
+    if (vAlign === 'top') return 'top'
+    if (vAlign === 'center') return 'center'
+    return 'bottom'
 }
 
 /**
- * Resolves browser font size from KiCad stroke-font height.
+ * Resolves KiCad's horizontal stroke size.
  * @param {object} text Text primitive.
  * @returns {number}
  */
-function resolveTextFontSize(text) {
-    return Number(text?.fontSize || text?.size || 2.2) * (4 / 3)
+function resolveTextWidth(text) {
+    return positiveTextSize(text?.font?.width, text?.fontSize || text?.size)
 }
 
 /**
- * Renders a rotation transform for KiCad text.
+ * Resolves KiCad's vertical stroke size.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function resolveTextHeight(text) {
+    return positiveTextSize(text?.font?.height, text?.fontSize || text?.size)
+}
+
+/**
+ * Resolves a KiCad stroke-font size.
+ * @param {number | undefined} primary Primary value.
+ * @param {number | undefined} secondary Secondary value.
+ * @returns {number}
+ */
+function positiveTextSize(primary, secondary) {
+    const value = Number(primary) || Number(secondary) || 1
+    return Math.max(value, 0.001)
+}
+
+/**
+ * Renders a rotation transform for KiCad stroke text.
  * @param {object} text Text primitive.
  * @returns {string}
  */
-function renderTextTransform(text) {
-    const rotation = resolveRenderedTextRotation(text)
+function renderStrokeTextTransform(text) {
+    const rotation = Number(text.rotation || 0)
     if (Math.abs(rotation) < 0.001) return ''
-    return ` transform="rotate(${formatNumber(rotation)} ${formatNumber(text.x)} ${formatNumber(text.y)})"`
+    return `transform="rotate(${formatNumber(rotation)} ${formatNumber(text.x)} ${formatNumber(text.y)})"`
 }
 
 /**
@@ -504,15 +741,112 @@ function pinConnectionPoint(pin) {
 }
 
 /**
+ * Calculates KiCad-like baseline spacing for multiline text.
+ * @param {object} text Text item.
+ * @returns {number}
+ */
+function textLineSpacing(text) {
+    return textHeight(text) * kicadTextLineSpacingRatio
+}
+
+/**
+ * Resolves KiCad's vertical stroke size for font and baseline metrics.
+ * @param {object} text Text item.
+ * @returns {number}
+ */
+function textHeight(text) {
+    return positiveTextSize(text.sizeY, text.sizeX)
+}
+
+/**
+ * Resolves KiCad's horizontal stroke size for glyph scaling.
+ * @param {object} text Text item.
+ * @returns {number}
+ */
+function textWidth(text) {
+    return positiveTextSize(text.sizeX, text.sizeY)
+}
+
+/**
+ * Calculates line origin from KiCad horizontal justification.
+ * @param {object} text Text item.
+ * @param {number} lineWidth Line width.
+ * @returns {number}
+ */
+function textLineX(text, lineWidth) {
+    if (text.hAlign === 'left') return text.x
+    if (text.hAlign === 'right') return text.x - lineWidth
+    return text.x - lineWidth / 2
+}
+
+/**
+ * Calculates one line baseline from KiCad vertical justification.
+ * @param {object} text Text item.
+ * @param {number} index Line index.
+ * @param {number} lineCount Total line count.
+ * @param {number} lineSpacing Line spacing.
+ * @returns {number}
+ */
+function textLineY(text, index, lineCount, lineSpacing) {
+    const height = textHeight(text)
+    const blockHeight =
+        height * kicadFirstLineHeightRatio + lineSpacing * (lineCount - 1)
+    let baseline = text.y + height - textStrokeBaselineFudge(text)
+
+    if (text.vAlign === 'bottom') {
+        baseline -= blockHeight
+    } else if (text.vAlign === 'center') {
+        baseline -= blockHeight / 2
+    }
+
+    return baseline + lineSpacing * index
+}
+
+/**
+ * Mirrors KiCad's small stroke-font baseline adjustment.
+ * @param {object} text Text item.
+ * @returns {number}
+ */
+function textStrokeBaselineFudge(text) {
+    return textStrokeWidth(text) * kicadStrokeBaselineFudgeRatio
+}
+
+/**
+ * Resolves KiCad text stroke width.
+ * @param {object} text Text item.
+ * @returns {number}
+ */
+function textStrokeWidth(text) {
+    return Math.max(Number(text.thickness) || 0.12, 0.01)
+}
+
+/**
+ * Converts points to an SVG path.
+ * @param {{ x: number, y: number }[]} points Points.
+ * @returns {string}
+ */
+function pathFromPoints(points) {
+    if (!points.length) return ''
+    const [first, ...rest] = points
+    const commands = [`M ${formatNumber(first.x)} ${formatNumber(first.y)}`]
+    rest.forEach((point) => {
+        commands.push(`L ${formatNumber(point.x)} ${formatNumber(point.y)}`)
+    })
+    return commands.join(' ')
+}
+
+/**
  * Returns the file basename.
  * @param {string} value Path-like value.
  * @returns {string}
  */
 function basename(value) {
-    return String(value || '')
-        .split(/[\\/]/u)
-        .filter(Boolean)
-        .at(-1) || ''
+    return (
+        String(value || '')
+            .split(/[\\/]/u)
+            .filter(Boolean)
+            .at(-1) || ''
+    )
 }
 
 /**
