@@ -12,8 +12,9 @@ recovered model.
 
 The package was extracted from [PCB Styler](https://pcb-styler.app/), where it
 is used for browser-based KiCad board/project loading and deterministic render
-output. Its parser behavior, normalized model shape, project ZIP loading, and
-renderer output can be reused by other browser or Node-based tools.
+output, and it is also used in [ECAD Forge](https://ecadforge.app/). Its parser
+behavior, normalized model shape, project ZIP loading, and renderer output can
+be reused by other browser or Node-based tools.
 
 ## Features
 
