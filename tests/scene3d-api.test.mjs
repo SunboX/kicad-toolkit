@@ -31,6 +31,75 @@ test('PcbScene3dBuilder emits data-only scene description for KiCad PCB models',
     assert.equal(scene.pads.length, 1)
 })
 
+test('PcbScene3dBuilder exposes KiCad silkscreen drawings without copper zones', () => {
+    const scene = PcbScene3dBuilder.build({
+        pcb: {
+            boardOutline: { widthMil: 1000, heightMil: 500, segments: [] },
+            components: [],
+            pads: [],
+            tracks: [],
+            vias: [],
+            kicadBoard: {
+                drawings: [
+                    {
+                        type: 'line',
+                        layer: 'F.SilkS',
+                        side: 'front',
+                        strokeWidth: 0.2,
+                        start: { x: 1, y: 2 },
+                        end: { x: 4, y: 2 }
+                    },
+                    {
+                        type: 'polygon',
+                        layer: 'B.SilkS',
+                        side: 'back',
+                        fill: true,
+                        points: [
+                            { x: 5, y: 5 },
+                            { x: 6, y: 5 },
+                            { x: 6, y: 7 },
+                            { x: 5, y: 7 }
+                        ]
+                    },
+                    {
+                        type: 'zone',
+                        layer: 'F.Cu',
+                        side: 'front',
+                        fill: true,
+                        points: [
+                            { x: 0, y: 0 },
+                            { x: 20, y: 0 },
+                            { x: 20, y: 10 },
+                            { x: 0, y: 10 }
+                        ]
+                    }
+                ]
+            }
+        }
+    })
+
+    assert.deepEqual(scene.detail.silkscreen.top.tracks, [
+        {
+            x1: 39.37007874015748,
+            y1: 78.74015748031496,
+            x2: 157.48031496062993,
+            y2: 78.74015748031496,
+            width: 7.874015748031496
+        }
+    ])
+    assert.deepEqual(scene.detail.silkscreen.top.fills, [])
+    assert.deepEqual(scene.detail.silkscreen.bottom.fills, [
+        {
+            points: [
+                { x: 196.8503937007874, y: 196.8503937007874 },
+                { x: 236.2204724409449, y: 196.8503937007874 },
+                { x: 236.2204724409449, y: 275.59055118110234 },
+                { x: 196.8503937007874, y: 275.59055118110234 }
+            ]
+        }
+    ])
+})
+
 test('PcbScene3dScenePreparator exposes async scene preparation', async () => {
     const scene = await PcbScene3dScenePreparator.prepare({
         pcb: {

@@ -2,6 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { KicadArcGeometry } from './core/kicad/KicadArcGeometry.mjs'
+
+const milsPerMillimeter = 1000 / 25.4
+
 /**
  * Resolves procedural PCB package families and dimensions.
  */
@@ -209,6 +213,7 @@ export class PcbScene3dBuilder {
                 externalModel: registry.resolveComponentModel(component)
             }
         })
+        const silkscreen = buildKicadSilkscreenDetail(pcb.kicadBoard)
 
         return {
             sourceFormat: documentModel?.sourceFormat || 'kicad',
@@ -228,10 +233,7 @@ export class PcbScene3dBuilder {
                 fills: pcb.fills || [],
                 vias: pcb.vias || [],
                 polygons: pcb.polygons || [],
-                silkscreen: {
-                    top: { fills: [], tracks: [], arcs: [] },
-                    bottom: { fills: [], tracks: [], arcs: [] }
-                }
+                silkscreen
             },
             externalModels: components
                 .map((component) => component.externalModel)
@@ -377,6 +379,312 @@ function normalizeMatchKey(value) {
         .at(-1)
         .replace(/\.(step|stp|wrl|vrml)$/i, '')
         .toLowerCase()
+}
+
+/**
+ * Builds 3D silkscreen detail from KiCad drawing primitives.
+ * @param {object | undefined} kicadBoard Raw parsed KiCad board model.
+ * @returns {{ top: { fills: object[], tracks: object[], arcs: object[] }, bottom: { fills: object[], tracks: object[], arcs: object[] } }}
+ */
+function buildKicadSilkscreenDetail(kicadBoard) {
+    const silkscreen = emptySilkscreenDetail()
+    const drawings = Array.isArray(kicadBoard?.drawings)
+        ? kicadBoard.drawings
+        : []
+
+    drawings.forEach((drawing) => {
+        const sideName = resolveSilkscreenSide(drawing)
+        if (!sideName) {
+            return
+        }
+
+        buildKicadSilkscreenTracks(drawing).forEach((track) => {
+            silkscreen[sideName].tracks.push(track)
+        })
+
+        const arc = buildKicadSilkscreenArc(drawing)
+        if (arc) {
+            silkscreen[sideName].arcs.push(arc)
+        }
+
+        const fill = buildKicadSilkscreenFill(drawing)
+        if (fill) {
+            silkscreen[sideName].fills.push(fill)
+        }
+    })
+
+    return silkscreen
+}
+
+/**
+ * Builds an empty silkscreen detail container.
+ * @returns {{ top: { fills: object[], tracks: object[], arcs: object[] }, bottom: { fills: object[], tracks: object[], arcs: object[] } }}
+ */
+function emptySilkscreenDetail() {
+    return {
+        top: { fills: [], tracks: [], arcs: [] },
+        bottom: { fills: [], tracks: [], arcs: [] }
+    }
+}
+
+/**
+ * Resolves a KiCad drawing to a top or bottom silkscreen side.
+ * @param {object} drawing Drawing primitive.
+ * @returns {'top' | 'bottom' | ''}
+ */
+function resolveSilkscreenSide(drawing) {
+    const layer = String(drawing?.layer || '').toUpperCase()
+
+    if (layer === 'F.SILKS') {
+        return 'top'
+    }
+
+    if (layer === 'B.SILKS') {
+        return 'bottom'
+    }
+
+    return ''
+}
+
+/**
+ * Builds stroke-style silkscreen tracks from one drawing.
+ * @param {object} drawing Drawing primitive.
+ * @returns {object[]}
+ */
+function buildKicadSilkscreenTracks(drawing) {
+    const type = String(drawing?.type || '').toLowerCase()
+
+    if (
+        (type === 'line' || type === 'segment') &&
+        drawing.start &&
+        drawing.end
+    ) {
+        return [buildSilkscreenTrack(drawing.start, drawing.end, drawing)]
+    }
+
+    if (type === 'rect' && drawing.start && drawing.end && !drawing.fill) {
+        const bounds = drawingBounds([drawing.start, drawing.end])
+        if (!bounds) {
+            return []
+        }
+
+        return [
+            buildSilkscreenTrack(
+                { x: bounds.minX, y: bounds.minY },
+                { x: bounds.maxX, y: bounds.minY },
+                drawing
+            ),
+            buildSilkscreenTrack(
+                { x: bounds.maxX, y: bounds.minY },
+                { x: bounds.maxX, y: bounds.maxY },
+                drawing
+            ),
+            buildSilkscreenTrack(
+                { x: bounds.maxX, y: bounds.maxY },
+                { x: bounds.minX, y: bounds.maxY },
+                drawing
+            ),
+            buildSilkscreenTrack(
+                { x: bounds.minX, y: bounds.maxY },
+                { x: bounds.minX, y: bounds.minY },
+                drawing
+            )
+        ]
+    }
+
+    if (type === 'polygon' && Array.isArray(drawing.points) && !drawing.fill) {
+        return buildPolygonSilkscreenTracks(drawing)
+    }
+
+    return []
+}
+
+/**
+ * Builds closed polygon edge tracks.
+ * @param {object} drawing Polygon drawing.
+ * @returns {object[]}
+ */
+function buildPolygonSilkscreenTracks(drawing) {
+    const points = drawing.points || []
+    if (points.length < 2) {
+        return []
+    }
+
+    return points.map((point, index) =>
+        buildSilkscreenTrack(
+            point,
+            points[(index + 1) % points.length],
+            drawing
+        )
+    )
+}
+
+/**
+ * Builds one track primitive in mils.
+ * @param {{ x?: number, y?: number }} start Start point in mm.
+ * @param {{ x?: number, y?: number }} end End point in mm.
+ * @param {object} drawing Source drawing.
+ * @returns {{ x1: number, y1: number, x2: number, y2: number, width: number }}
+ */
+function buildSilkscreenTrack(start, end, drawing) {
+    return {
+        x1: toMil(start?.x),
+        y1: toMil(start?.y),
+        x2: toMil(end?.x),
+        y2: toMil(end?.y),
+        width: toMil(drawing?.strokeWidth ?? drawing?.width ?? 0.15)
+    }
+}
+
+/**
+ * Builds one arc primitive in mils.
+ * @param {object} drawing Drawing primitive.
+ * @returns {object | null}
+ */
+function buildKicadSilkscreenArc(drawing) {
+    const type = String(drawing?.type || '').toLowerCase()
+    if (type === 'circle' && drawing.center && drawing.radius) {
+        return {
+            x: toMil(drawing.center.x),
+            y: toMil(drawing.center.y),
+            radius: toMil(drawing.radius),
+            startAngle: 0,
+            endAngle: 360,
+            width: toMil(drawing?.strokeWidth ?? drawing?.width ?? 0.15)
+        }
+    }
+
+    if (type !== 'arc' || !drawing.start || !drawing.mid || !drawing.end) {
+        return null
+    }
+
+    const arc = KicadArcGeometry.fromThreePoints(
+        drawing.start,
+        drawing.mid,
+        drawing.end
+    )
+    if (!arc) {
+        return null
+    }
+
+    return {
+        x: toMil(arc.center.x),
+        y: toMil(arc.center.y),
+        radius: toMil(arc.radius),
+        startAngle: arc.startAngle,
+        endAngle: arc.endAngle,
+        width: toMil(drawing?.strokeWidth ?? drawing?.width ?? 0.15)
+    }
+}
+
+/**
+ * Builds one fill primitive in mils.
+ * @param {object} drawing Drawing primitive.
+ * @returns {object | null}
+ */
+function buildKicadSilkscreenFill(drawing) {
+    if (!drawing?.fill) {
+        return null
+    }
+
+    if (
+        String(drawing?.type || '').toLowerCase() === 'polygon' &&
+        Array.isArray(drawing.points) &&
+        drawing.points.length >= 3
+    ) {
+        return {
+            points: drawing.points.map((point) => toMilPoint(point))
+        }
+    }
+
+    const bounds = drawingBounds(drawingPoints(drawing))
+    if (!bounds) {
+        return null
+    }
+
+    return {
+        x1: toMil(bounds.minX),
+        y1: toMil(bounds.minY),
+        x2: toMil(bounds.maxX),
+        y2: toMil(bounds.maxY)
+    }
+}
+
+/**
+ * Converts one point from millimeters to mils.
+ * @param {{ x?: number, y?: number }} point Point in millimeters.
+ * @returns {{ x: number, y: number }}
+ */
+function toMilPoint(point) {
+    return {
+        x: toMil(point?.x),
+        y: toMil(point?.y)
+    }
+}
+
+/**
+ * Extracts boundary points from one drawing.
+ * @param {object} drawing Drawing primitive.
+ * @returns {{ x?: number, y?: number }[]}
+ */
+function drawingPoints(drawing) {
+    if (Array.isArray(drawing?.points)) {
+        return drawing.points
+    }
+
+    if (drawing?.start && drawing?.end) {
+        return [drawing.start, drawing.end]
+    }
+
+    if (drawing?.center && drawing?.radius) {
+        const radius = Number(drawing.radius || 0)
+        return [
+            {
+                x: Number(drawing.center.x || 0) - radius,
+                y: Number(drawing.center.y || 0) - radius
+            },
+            {
+                x: Number(drawing.center.x || 0) + radius,
+                y: Number(drawing.center.y || 0) + radius
+            }
+        ]
+    }
+
+    return []
+}
+
+/**
+ * Calculates drawing bounds in millimeters.
+ * @param {{ x?: number, y?: number }[]} points Drawing points.
+ * @returns {{ minX: number, minY: number, maxX: number, maxY: number } | null}
+ */
+function drawingBounds(points) {
+    const normalizedPoints = (points || [])
+        .map((point) => ({
+            x: Number(point?.x),
+            y: Number(point?.y)
+        }))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+
+    if (!normalizedPoints.length) {
+        return null
+    }
+
+    return {
+        minX: Math.min(...normalizedPoints.map((point) => point.x)),
+        minY: Math.min(...normalizedPoints.map((point) => point.y)),
+        maxX: Math.max(...normalizedPoints.map((point) => point.x)),
+        maxY: Math.max(...normalizedPoints.map((point) => point.y))
+    }
+}
+
+/**
+ * Converts millimeters to mils.
+ * @param {number | string | undefined} value Millimeter value.
+ * @returns {number}
+ */
+function toMil(value) {
+    return Number(value || 0) * milsPerMillimeter
 }
 
 /**
