@@ -167,3 +167,125 @@ test('SchematicSvgRenderer places connector pin numbers beside endpoint markers'
         new RegExp(`data-x="${formatSvgNumber(30 - 0.35 - pinNumberWidth)}"`)
     )
 })
+
+test('SchematicSvgRenderer does not draw hidden KiCad pins or their numbers', () => {
+    const document = createSchematicDocument()
+    document.schematic.pins = [
+        {
+            x: 12,
+            y: 12,
+            length: 0,
+            orientation: 'top',
+            designator: '1',
+            numberFontSize: 1.27,
+            numberVisible: false,
+            endpointVisible: false,
+            visible: false
+        }
+    ]
+
+    const markup = SchematicSvgRenderer.render(document)
+
+    assert.doesNotMatch(markup, /class="schematic-pin-line"/)
+    assert.doesNotMatch(markup, /class="schematic-pin-number"/)
+})
+
+test('SchematicSvgRenderer renders KiCad-like sheet grid and shape families', () => {
+    const document = createSchematicDocument()
+    document.schematic.sheet.visibleGrid = 2.54
+    document.schematic.polygons = [
+        {
+            points: [
+                { x: 5, y: 5 },
+                { x: 15, y: 5 },
+                { x: 15, y: 15 }
+            ],
+            fill: 'background',
+            lineWidth: 0.1
+        }
+    ]
+    document.schematic.ellipses = [
+        {
+            x: 22,
+            y: 10,
+            radiusX: 3,
+            radiusY: 3,
+            fill: 'none',
+            lineWidth: 0.1
+        }
+    ]
+    document.schematic.arcs = [
+        {
+            start: { x: 30, y: 10 },
+            mid: { x: 35, y: 5 },
+            end: { x: 40, y: 10 },
+            width: 0.1
+        }
+    ]
+    document.schematic.beziers = [
+        {
+            points: [
+                { x: 45, y: 10 },
+                { x: 48, y: 5 },
+                { x: 52, y: 15 },
+                { x: 55, y: 10 }
+            ],
+            width: 0.1
+        }
+    ]
+
+    const markup = SchematicSvgRenderer.render(document)
+
+    assert.match(markup, /<pattern id="schematic-grid-/)
+    assert.match(markup, /class="schematic-grid"/)
+    assert.match(markup, /<path class="schematic-polygon"/)
+    assert.match(markup, /<ellipse class="schematic-ellipse"/)
+    assert.match(markup, /<path class="schematic-arc"/)
+    assert.match(markup, /<path class="schematic-bezier"/)
+})
+
+test('SchematicSvgRenderer draws KiCad worksheet-sized title block chrome', () => {
+    const markup = SchematicSvgRenderer.render({
+        fileName: 'generic-a3-title.kicad_sch',
+        summary: { title: 'Generic A3 Design' },
+        schematic: {
+            sheet: {
+                width: 420,
+                height: 297,
+                visibleGrid: 2.54,
+                marginWidth: 10,
+                xZones: 8,
+                yZones: 6,
+                paperSize: 'A3',
+                borderOn: true,
+                titleBlockOn: true,
+                titleBlock: {
+                    title: 'Generic A3 Design',
+                    revision: 'A',
+                    documentNumber: 'Generic Company',
+                    sheetNumber: '1',
+                    sheetTotal: '1',
+                    date: '2026-05-26',
+                    drawnBy: 'Generic User'
+                }
+            },
+            lines: [],
+            components: [],
+            rectangles: [],
+            pins: [],
+            texts: []
+        }
+    })
+    const zoneLabels = markup.match(/class="sheet-zone-label"/g) || []
+
+    assert.match(markup, /<rect x="3000" y="2530" width="1080" height="320"\/>/)
+    assert.equal(zoneLabels.length, 28)
+    assert.doesNotMatch(markup, /<text class="sheet-title-label"/)
+    assert.doesNotMatch(markup, /<text class="sheet-zone-label"/)
+    assert.match(markup, /class="sheet-title-label"[^>]*aria-label="Sheet: \//)
+    assert.match(
+        markup,
+        /class="sheet-title-value sheet-title-value--title"[^>]*aria-label="Title: Generic A3 Design"/
+    )
+    assert.match(markup, /class="schematic-text-stroke"/)
+})

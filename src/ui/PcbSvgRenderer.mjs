@@ -3,6 +3,7 @@
 
 import { Geometry } from '../core/kicad/Geometry.mjs'
 import { KicadArcGeometry } from '../core/kicad/KicadArcGeometry.mjs'
+import { PcbSvgBoardOutlineBuilder } from './PcbSvgBoardOutlineBuilder.mjs'
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
 import { defaultLayerStyles } from './PcbSvgLayerStyles.mjs'
 import {
@@ -33,6 +34,7 @@ export class PcbSvgRenderer {
         const side =
             options.side ||
             PcbSvgRenderer.resolveRenderSide(board, renderBoardModel)
+        const includeOppositeCopper = options.includeOppositeCopper === true
         const layerStyles = defaultLayerStyles()
         const viewBounds = Geometry.expandBounds(renderBoardModel.bounds, 4)
         const visiblePads = renderBoardModel.pads.filter((pad) =>
@@ -40,8 +42,9 @@ export class PcbSvgRenderer {
         )
         const visibleDrawings = renderBoardModel.drawings.filter((drawing) => {
             return (
-                isVisibleOnSide(drawing, side) &&
-                isRenderableBoardLayer(drawing)
+                (isVisibleOnSide(drawing, side) &&
+                    isRenderableBoardLayer(drawing)) ||
+                (includeOppositeCopper && isOppositeSideCopper(drawing, side))
             )
         })
         const visibleTexts = renderBoardModel.texts.filter((text) => {
@@ -138,6 +141,7 @@ function renderBoard(board, bounds, layerStyles) {
     const edgeStyle = layerStyles.edgeCuts
     if (!boardStyle.visible && !edgeStyle.visible) return ''
 
+    const edgeOutline = PcbSvgBoardOutlineBuilder.build(board.outlines)
     const polygonOutlines = board.outlines.filter(
         (outline) => outline.type === 'polygon'
     )
@@ -146,6 +150,10 @@ function renderBoard(board, bounds, layerStyles) {
         ? fillOpacityAttribute(boardStyle)
         : ''
     const stroke = edgeStyle.visible ? edgeStyle.borderColor : 'none'
+
+    if (edgeOutline) {
+        return `<path class="pcb-board" d="${edgeOutline.d}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, edgeOutline.strokeWidth))}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke"/>`
+    }
 
     if (polygonOutlines.length === 0) {
         return `<rect class="pcb-board" x="${formatNumber(bounds.minX)}" y="${formatNumber(bounds.minY)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, 0.12))}" ${roundedStrokeAttributes}/>`
@@ -269,7 +277,7 @@ function renderSegment(segment, layerStyles) {
         style,
         Math.max(segment.strokeWidth || 0.2, 0.06)
     )
-    return `<line class="pcb-segment"${optionalAttribute(metadata)} stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" x1="${formatNumber(segment.start.x)}" y1="${formatNumber(segment.start.y)}" x2="${formatNumber(segment.end.x)}" y2="${formatNumber(segment.end.y)}"/>`
+    return `<line class="pcb-segment"${optionalAttribute(metadata)} stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} x1="${formatNumber(segment.start.x)}" y1="${formatNumber(segment.start.y)}" x2="${formatNumber(segment.end.x)}" y2="${formatNumber(segment.end.y)}"/>`
 }
 
 /**
@@ -287,7 +295,7 @@ function renderTrackArc(arc, layerStyles) {
         style,
         Math.max(arc.strokeWidth || 0.2, 0.06)
     )
-    return `<path class="pcb-arc"${optionalAttribute(metadata)} stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke" d="${arcPath(arc)}" fill="none"/>`
+    return `<path class="pcb-arc"${optionalAttribute(metadata)} stroke="${style.borderColor}" stroke-width="${formatNumber(strokeWidth)}" ${roundedStrokeAttributes} d="${arcPath(arc)}" fill="none"/>`
 }
 
 /**
@@ -856,6 +864,20 @@ function pathFromPoints(points, close) {
     })
     if (close) commands.push('Z')
     return commands.join(' ')
+}
+
+/**
+ * Checks whether an item is opposite-side copper for contextual rendering.
+ * @param {object} item Renderable item.
+ * @param {'front' | 'back'} side Active side.
+ * @returns {boolean}
+ */
+function isOppositeSideCopper(item, side) {
+    if (item.material !== 'copper') return false
+    if (!isRenderableBoardLayer(item)) return false
+    return side === 'front'
+        ? isVisibleOnSide(item, 'back')
+        : isVisibleOnSide(item, 'front')
 }
 
 /**

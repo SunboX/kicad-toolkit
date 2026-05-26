@@ -2,8 +2,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+import { SchematicSvgShapeRenderer } from './SchematicSvgShapeRenderer.mjs'
 
 const displayScale = 10
+const worksheetFrameInset = 2
+const worksheetTitleBlockLeft = 110
+const worksheetTitleBlockRight = 2
+const worksheetTitleBlockTop = 34
+const worksheetTitleBlockBottom = 2
+const worksheetZoneStep = 50
 const kicadTextLineSpacingRatio = 1.61
 const kicadFirstLineHeightRatio = 1.17
 const kicadStrokeBaselineFudgeRatio = 0.052
@@ -40,15 +47,39 @@ export class SchematicSvgRenderer {
             'Schematic'
         const lineCount = (schematic.lines || []).length
         const componentCount = (schematic.components || []).length
+        const shapeTheme = {
+            resolveFillColor: resolveSchematicFillColor,
+            resolveInkColor: resolveSchematicInkColor
+        }
         return [
             '<section class="svg-panel">',
             `<header class="svg-panel__header"><h3>${escapeHtml(title)}</h3><p>${lineCount} line segments, ${componentCount} components</p></header>`,
             `<svg xmlns="http://www.w3.org/2000/svg" class="schematic-svg" viewBox="0 0 ${formatNumber(width)} ${formatNumber(height)}" role="img" aria-label="${escapeAttribute(documentModel.summary?.title || documentModel.fileName || 'Schematic')}">`,
-            `<rect class="sheet-backdrop" x="0" y="0" width="${formatNumber(width)}" height="${formatNumber(height)}" rx="18"/>`,
+            `<rect class="sheet-backdrop" x="0" y="0" width="${formatNumber(width)}" height="${formatNumber(height)}" rx="0"/>`,
+            SchematicSvgShapeRenderer.renderGrid(sheet, width, height, {
+                displayScale,
+                frameColor
+            }),
             renderSheetChrome(sheet, width, height, documentModel?.fileName),
             `<g class="schematic-scene" transform="scale(${formatNumber(displayScale)})">`,
             renderSheetSymbols(schematic.sheetSymbols || []),
+            SchematicSvgShapeRenderer.renderPolygons(
+                schematic.polygons || [],
+                shapeTheme
+            ),
             renderRectangles(schematic.rectangles || []),
+            SchematicSvgShapeRenderer.renderEllipses(
+                schematic.ellipses || [],
+                shapeTheme
+            ),
+            SchematicSvgShapeRenderer.renderArcs(
+                schematic.arcs || [],
+                shapeTheme
+            ),
+            SchematicSvgShapeRenderer.renderBeziers(
+                schematic.beziers || [],
+                shapeTheme
+            ),
             renderLines(schematic.lines || []),
             renderPins(schematic.pins || []),
             renderJunctions(schematic.junctions || []),
@@ -122,6 +153,7 @@ function renderSheetSymbols(sheets) {
 function renderPins(pins) {
     return pins
         .map((pin) => {
+            if (pin.visible === false) return ''
             const end = pinConnectionPoint(pin)
             return [
                 `<line class="schematic-pin-line" x1="${formatNumber(pin.x)}" y1="${formatNumber(pin.y)}" x2="${formatNumber(end.x)}" y2="${formatNumber(end.y)}" stroke="${symbolColor}" stroke-width="0.08"/>`,
@@ -192,7 +224,7 @@ function renderCrosses(crosses) {
  * @returns {string}
  */
 function renderSheetChrome(sheet, width, height, fileName) {
-    const margin = Number(sheet.marginWidth || 5) * displayScale
+    const margin = Number(sheet.marginWidth || 10) * displayScale
     const markup = []
 
     if (sheet.borderOn !== false) {
@@ -222,45 +254,114 @@ function renderSheetChrome(sheet, width, height, fileName) {
 function renderSheetFrame(sheet, width, height, margin) {
     const left = margin
     const top = margin
-    const frameWidth = Math.max(width - margin * 2, 0)
-    const frameHeight = Math.max(height - margin * 2, 0)
+    const right = Math.max(width - margin, left)
+    const bottom = Math.max(height - margin, top)
+    const frameWidth = Math.max(right - left, 0)
+    const frameHeight = Math.max(bottom - top, 0)
+    const innerInset = worksheetFrameInset * displayScale
+    const zoneStep = worksheetZoneStep * displayScale
     const xZones = Math.max(Number(sheet.xZones || 0), 0)
     const yZones = Math.max(Number(sheet.yZones || 0), 0)
     const parts = [
-        `<rect class="sheet-frame" x="${formatNumber(left)}" y="${formatNumber(top)}" width="${formatNumber(frameWidth)}" height="${formatNumber(frameHeight)}"/>`
+        `<rect class="sheet-frame" x="${formatNumber(left)}" y="${formatNumber(top)}" width="${formatNumber(frameWidth)}" height="${formatNumber(frameHeight)}"/>`,
+        `<rect class="sheet-frame sheet-frame--inner" x="${formatNumber(left + innerInset)}" y="${formatNumber(top + innerInset)}" width="${formatNumber(Math.max(frameWidth - innerInset * 2, 0))}" height="${formatNumber(Math.max(frameHeight - innerInset * 2, 0))}"/>`
     ]
 
     for (let index = 1; index < xZones; index += 1) {
-        const x = left + (frameWidth / xZones) * index
+        const x = resolveWorksheetZoneCoordinate(
+            left,
+            right,
+            xZones,
+            index,
+            zoneStep
+        )
         parts.push(
-            `<line class="sheet-zone-separator" x1="${formatNumber(x)}" y1="0" x2="${formatNumber(x)}" y2="${formatNumber(top)}"/>`,
-            `<line class="sheet-zone-separator" x1="${formatNumber(x)}" y1="${formatNumber(height - margin)}" x2="${formatNumber(x)}" y2="${formatNumber(height)}"/>`
+            `<line class="sheet-zone-separator" x1="${formatNumber(x)}" y1="${formatNumber(top + innerInset)}" x2="${formatNumber(x)}" y2="${formatNumber(top)}"/>`,
+            `<line class="sheet-zone-separator" x1="${formatNumber(x)}" y1="${formatNumber(bottom - innerInset)}" x2="${formatNumber(x)}" y2="${formatNumber(bottom)}"/>`
         )
     }
 
     for (let index = 0; index < xZones; index += 1) {
         const label = String(index + 1)
-        const x = left + (frameWidth / xZones) * (index + 0.5)
+        const x = resolveWorksheetZoneCoordinate(
+            left,
+            right,
+            xZones,
+            index + 0.5,
+            zoneStep
+        )
         parts.push(
-            `<text class="sheet-zone-label" x="${formatNumber(x)}" y="${formatNumber(margin / 2)}" text-anchor="middle" fill="${frameColor}">${label}</text>`,
-            `<text class="sheet-zone-label" x="${formatNumber(x)}" y="${formatNumber(height - margin / 2)}" text-anchor="middle" fill="${frameColor}">${label}</text>`
+            renderWorksheetText({
+                className: 'sheet-zone-label',
+                x,
+                y: top + innerInset / 2,
+                value: label,
+                color: frameColor,
+                size: 13,
+                hAlign: 'center',
+                vAlign: 'center',
+                thickness: 1.5
+            }),
+            renderWorksheetText({
+                className: 'sheet-zone-label',
+                x,
+                y: bottom - innerInset / 2,
+                value: label,
+                color: frameColor,
+                size: 13,
+                hAlign: 'center',
+                vAlign: 'center',
+                thickness: 1.5
+            })
         )
     }
 
     for (let index = 1; index < yZones; index += 1) {
-        const y = top + (frameHeight / yZones) * index
+        const y = resolveWorksheetZoneCoordinate(
+            top,
+            bottom,
+            yZones,
+            index,
+            zoneStep
+        )
         parts.push(
-            `<line class="sheet-zone-separator" x1="0" y1="${formatNumber(y)}" x2="${formatNumber(left)}" y2="${formatNumber(y)}"/>`,
-            `<line class="sheet-zone-separator" x1="${formatNumber(width - margin)}" y1="${formatNumber(y)}" x2="${formatNumber(width)}" y2="${formatNumber(y)}"/>`
+            `<line class="sheet-zone-separator" x1="${formatNumber(left)}" y1="${formatNumber(y)}" x2="${formatNumber(left + innerInset)}" y2="${formatNumber(y)}"/>`,
+            `<line class="sheet-zone-separator" x1="${formatNumber(right - innerInset)}" y1="${formatNumber(y)}" x2="${formatNumber(right)}" y2="${formatNumber(y)}"/>`
         )
     }
 
     for (let index = 0; index < yZones; index += 1) {
         const label = String.fromCharCode(65 + index)
-        const y = top + (frameHeight / yZones) * (index + 0.5)
+        const y = resolveWorksheetZoneCoordinate(
+            top,
+            bottom,
+            yZones,
+            index + 0.5,
+            zoneStep
+        )
         parts.push(
-            `<text class="sheet-zone-label" x="${formatNumber(margin / 2)}" y="${formatNumber(y)}" text-anchor="middle" fill="${frameColor}">${label}</text>`,
-            `<text class="sheet-zone-label" x="${formatNumber(width - margin / 2)}" y="${formatNumber(y)}" text-anchor="middle" fill="${frameColor}">${label}</text>`
+            renderWorksheetText({
+                className: 'sheet-zone-label',
+                x: left + innerInset / 2,
+                y,
+                value: label,
+                color: frameColor,
+                size: 13,
+                hAlign: 'center',
+                vAlign: 'center',
+                thickness: 1.5
+            }),
+            renderWorksheetText({
+                className: 'sheet-zone-label',
+                x: right - innerInset / 2,
+                y,
+                value: label,
+                color: frameColor,
+                size: 13,
+                hAlign: 'center',
+                vAlign: 'center',
+                thickness: 1.5
+            })
         )
     }
 
@@ -268,7 +369,22 @@ function renderSheetFrame(sheet, width, height, margin) {
 }
 
 /**
- * Renders a compact title block.
+ * Resolves a worksheet zone coordinate using KiCad's 50 mm default cadence.
+ * @param {number} start Frame start.
+ * @param {number} end Frame end.
+ * @param {number} zoneCount Zone count.
+ * @param {number} index Zone index or center offset.
+ * @param {number} step Default zone step.
+ * @returns {number}
+ */
+function resolveWorksheetZoneCoordinate(start, end, zoneCount, index, step) {
+    const fixed = start + step * index
+    if (fixed <= end) return fixed
+    return start + ((end - start) / Math.max(zoneCount, 1)) * index
+}
+
+/**
+ * Renders KiCad's default worksheet title block.
  * @param {object} titleBlock Title block metadata.
  * @param {number} width Sheet width.
  * @param {number} height Sheet height.
@@ -276,198 +392,193 @@ function renderSheetFrame(sheet, width, height, margin) {
  * @returns {string}
  */
 function renderTitleBlock(titleBlock, width, height, margin, options = {}) {
-    const blockWidth = Math.min(
-        Math.max(width - margin * 2, 100),
-        Math.max(Math.min(480, width * 0.34), 140)
-    )
-    const blockHeight = Math.min(
-        Math.max(height - margin * 2, 100),
-        Math.max(Math.min(138, height * 0.18), 102)
-    )
-    const x = Math.max(width - margin - blockWidth, margin)
-    const y = Math.max(height - margin - blockHeight, margin)
+    const anchorRight = width - margin
+    const anchorBottom = height - margin
+    const x = anchorRight - worksheetTitleBlockLeft * displayScale
+    const y = anchorBottom - worksheetTitleBlockTop * displayScale
+    const blockRight = anchorRight - worksheetTitleBlockRight * displayScale
+    const blockBottom = anchorBottom - worksheetTitleBlockBottom * displayScale
+    const blockWidth = blockRight - x
+    const blockHeight = blockBottom - y
     const title = titleBlock.title || ''
     const revision = titleBlock.revision || ''
     const date = titleBlock.date || ''
     const company = titleBlock.documentNumber || ''
-    const author = titleBlock.drawnBy || ''
     const fileName = basename(options.fileName || '')
     const paperSize = options.paperSize || ''
-    const headerY = y + blockHeight * 0.16
-    const titleRowY = y + blockHeight * 0.48
-    const labelRowY = y + blockHeight * 0.62
-    const valueRowY = y + blockHeight * 0.78
-    const footerDateY = y + blockHeight * 0.9
-    const footerFileY = y + blockHeight * 0.98
-    const line1Y = y + blockHeight * 0.18
-    const line2Y = y + blockHeight * 0.5
-    const line3Y = y + blockHeight * 0.66
-    const line4Y = y + blockHeight * 0.82
-    const numberX = x + blockWidth * 0.64
-    const revisionX = x + blockWidth * 0.84
-    const sizeX = x + blockWidth * 0.16
-    const sheetX = x + blockWidth * 0.67
-    const drawnByX = x + blockWidth * 0.82
-    const sheetValue = titleBlock.sheetTotal
-        ? `${titleBlock.sheetNumber || '1'} of ${titleBlock.sheetTotal}`
-        : titleBlock.sheetNumber || ''
+    const commentValues = titleBlock.comments || {}
+    const fromRight = (value) => anchorRight - value * displayScale
+    const fromBottom = (value) => anchorBottom - value * displayScale
+    const sheetValue = titleBlock.sheetName || '/'
+    const idValue = titleBlock.sheetTotal
+        ? `${titleBlock.sheetNumber || '1'}/${titleBlock.sheetTotal}`
+        : '1/1'
 
     return [
         '<g class="sheet-title-block">',
         `<rect x="${formatNumber(x)}" y="${formatNumber(y)}" width="${formatNumber(blockWidth)}" height="${formatNumber(blockHeight)}"/>`,
-        `<line x1="${formatNumber(x)}" y1="${formatNumber(line1Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line1Y)}"/>`,
-        `<line x1="${formatNumber(x)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line2Y)}"/>`,
-        `<line x1="${formatNumber(x)}" y1="${formatNumber(line3Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line3Y)}"/>`,
-        `<line x1="${formatNumber(x)}" y1="${formatNumber(line4Y)}" x2="${formatNumber(x + blockWidth)}" y2="${formatNumber(line4Y)}"/>`,
-        `<line x1="${formatNumber(numberX)}" y1="${formatNumber(y)}" x2="${formatNumber(numberX)}" y2="${formatNumber(line2Y)}"/>`,
-        `<line x1="${formatNumber(revisionX)}" y1="${formatNumber(y)}" x2="${formatNumber(revisionX)}" y2="${formatNumber(line2Y)}"/>`,
-        `<line x1="${formatNumber(sizeX)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(sizeX)}" y2="${formatNumber(y + blockHeight)}"/>`,
-        `<line x1="${formatNumber(sheetX)}" y1="${formatNumber(line2Y)}" x2="${formatNumber(sheetX)}" y2="${formatNumber(line4Y)}"/>`,
-        `<line x1="${formatNumber(drawnByX)}" y1="${formatNumber(line4Y)}" x2="${formatNumber(drawnByX)}" y2="${formatNumber(y + blockHeight)}"/>`,
-        renderTitleText(
-            'sheet-title-label',
-            x + blockWidth * 0.03,
-            headerY,
-            'Title',
-            labelColor,
-            'start'
+        renderWorksheetLine(x, fromBottom(5.5), blockRight, fromBottom(5.5)),
+        renderWorksheetLine(x, fromBottom(8.5), blockRight, fromBottom(8.5)),
+        renderWorksheetLine(x, fromBottom(12.5), blockRight, fromBottom(12.5)),
+        renderWorksheetLine(x, fromBottom(18.5), blockRight, fromBottom(18.5)),
+        renderWorksheetLine(
+            fromRight(90),
+            fromBottom(8.5),
+            fromRight(90),
+            fromBottom(5.5)
         ),
-        renderTitleText(
-            'sheet-title-label',
-            numberX + blockWidth * 0.03,
-            headerY,
-            'Number',
-            labelColor,
-            'start'
+        renderWorksheetLine(
+            fromRight(26),
+            fromBottom(8.5),
+            fromRight(26),
+            fromBottom(2)
         ),
-        renderTitleText(
-            'sheet-title-label',
-            revisionX + blockWidth * 0.02,
-            headerY,
-            'Revision',
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-label',
-            x + blockWidth * 0.05,
-            labelRowY,
-            'Size',
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-label',
-            sizeX + blockWidth * 0.05,
-            labelRowY,
-            'Sheet',
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-label',
-            sizeX + 8,
-            footerDateY,
-            'Date:',
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-label',
-            sizeX + 8,
-            footerFileY,
-            'File:',
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-label',
-            drawnByX + 8,
-            footerFileY,
-            'Drawn By:',
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            x + blockWidth * 0.31,
-            titleRowY,
-            title,
-            wireColor,
-            'middle'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            x + blockWidth * 0.74,
-            titleRowY,
-            company,
-            labelColor,
-            'middle'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            x + blockWidth * 0.92,
-            titleRowY,
-            revision,
-            wireColor,
-            'middle'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            x + blockWidth * 0.08,
-            valueRowY,
-            paperSize,
-            labelColor,
-            'middle'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            x + blockWidth * 0.415,
-            valueRowY,
-            sheetValue,
-            wireColor,
-            'middle'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            sizeX + blockWidth * 0.08,
-            footerDateY,
-            date,
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            sizeX + blockWidth * 0.08,
-            footerFileY,
-            fileName,
-            labelColor,
-            'start'
-        ),
-        renderTitleText(
-            'sheet-title-value',
-            x + blockWidth * 0.93,
-            footerFileY,
-            author,
-            wireColor,
-            'middle'
-        ),
+        renderTitleText({
+            className: 'sheet-title-value sheet-title-value--company',
+            x: fromRight(109),
+            y: fromBottom(20),
+            value: company,
+            color: labelColor,
+            thickness: 2.4
+        }),
+        renderTitleText({
+            className: 'sheet-title-label',
+            x: fromRight(109),
+            y: fromBottom(17),
+            value: `Sheet: ${sheetValue}`,
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-label',
+            x: fromRight(109),
+            y: fromBottom(14.3),
+            value: `File: ${fileName}`,
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-value sheet-title-value--title',
+            x: fromRight(109),
+            y: fromBottom(10.7),
+            value: `Title: ${title}`,
+            color: wireColor,
+            size: 20,
+            thickness: 4
+        }),
+        renderTitleText({
+            className: 'sheet-title-label',
+            x: fromRight(109),
+            y: fromBottom(6.9),
+            value: `Size: ${paperSize}`,
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-label',
+            x: fromRight(87),
+            y: fromBottom(6.9),
+            value: `Date: ${date}`,
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-value sheet-title-value--revision',
+            x: fromRight(24),
+            y: fromBottom(6.9),
+            value: `Rev: ${revision}`,
+            color: wireColor,
+            thickness: 3
+        }),
+        renderTitleText({
+            className: 'sheet-title-label',
+            x: fromRight(109),
+            y: fromBottom(4.1),
+            value: 'KiCad E.D.A.',
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-label',
+            x: fromRight(24),
+            y: fromBottom(4.1),
+            value: `Id: ${idValue}`,
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-label sheet-title-comment',
+            x: fromRight(109),
+            y: fromBottom(23),
+            value: commentValues['0'] || '',
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-label sheet-title-comment',
+            x: fromRight(109),
+            y: fromBottom(26),
+            value: commentValues['1'] || '',
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-label sheet-title-comment',
+            x: fromRight(109),
+            y: fromBottom(29),
+            value: commentValues['2'] || '',
+            color: labelColor
+        }),
+        renderTitleText({
+            className: 'sheet-title-label sheet-title-comment',
+            x: fromRight(109),
+            y: fromBottom(32),
+            value: commentValues['3'] || '',
+            color: labelColor
+        }),
         '</g>'
     ].join('')
 }
 
 /**
- * Renders one title-block text element.
- * @param {string} className CSS class.
- * @param {number} x X coordinate.
- * @param {number} y Y coordinate.
- * @param {string} value Text value.
- * @param {string} fill Fill color.
- * @param {string} anchor Text anchor.
+ * Renders one worksheet line.
+ * @param {number} x1 Start x.
+ * @param {number} y1 Start y.
+ * @param {number} x2 End x.
+ * @param {number} y2 End y.
  * @returns {string}
  */
-function renderTitleText(className, x, y, value, fill, anchor) {
-    return `<text class="${className}" x="${formatNumber(x)}" y="${formatNumber(y)}" fill="${fill}" text-anchor="${anchor}">${escapeHtml(value)}</text>`
+function renderWorksheetLine(x1, y1, x2, y2) {
+    return `<line x1="${formatNumber(x1)}" y1="${formatNumber(y1)}" x2="${formatNumber(x2)}" y2="${formatNumber(y2)}"/>`
+}
+
+/**
+ * Renders one title-block text element.
+ * @param {{ className: string, x: number, y: number, value: string, color: string, size?: number, hAlign?: string, vAlign?: string, thickness?: number }} options Text options.
+ * @returns {string}
+ */
+function renderTitleText(options) {
+    return renderWorksheetText({
+        size: 15,
+        hAlign: 'left',
+        vAlign: 'bottom',
+        thickness: 1.5,
+        ...options
+    })
+}
+
+/**
+ * Renders one worksheet text element with KiCad's stroke font.
+ * @param {{ className: string, x: number, y: number, value: string, color: string, size: number, hAlign: string, vAlign: string, thickness: number }} options Text options.
+ * @returns {string}
+ */
+function renderWorksheetText(options) {
+    if (!String(options.value || '').trim()) return ''
+    return renderStrokeText({
+        className: options.className,
+        x: options.x,
+        y: options.y,
+        value: options.value,
+        color: options.color,
+        sizeX: options.size,
+        sizeY: options.size,
+        hAlign: options.hAlign,
+        vAlign: options.vAlign,
+        rotation: 0,
+        thickness: options.thickness
+    })
 }
 
 /**

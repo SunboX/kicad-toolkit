@@ -43,13 +43,14 @@ test('SchematicSvgRenderer emits deterministic schematic SVG markup', () => {
     const markup = SchematicSvgRenderer.render({
         schematic: {
             sheet: {
-                width: 100,
-                height: 80,
+                width: 420,
+                height: 297,
                 borderOn: true,
                 titleBlockOn: true,
-                marginWidth: 5,
-                xZones: 2,
-                yZones: 2,
+                marginWidth: 10,
+                paperSize: 'A3',
+                xZones: 8,
+                yZones: 6,
                 titleBlock: {
                     title: 'Demo sheet',
                     revision: 'A',
@@ -130,8 +131,9 @@ test('SchematicSvgRenderer emits deterministic schematic SVG markup', () => {
     assert.match(markup, /sheet-title-block/)
     assert.match(markup, /Demo sheet/)
     assert.match(markup, /Demo Org/)
-    assert.match(markup, /Demo Author/)
-    assert.match(markup, /viewBox="0 0 1000 800"/)
+    assert.match(markup, /Sheet: \//)
+    assert.doesNotMatch(markup, /Demo Author/)
+    assert.match(markup, /viewBox="0 0 4200 2970"/)
     assert.match(markup, /class="svg-panel"/)
     assert.match(markup, /transform="scale\(10\)"/)
     assert.match(markup, /stroke="var\(--schematic-default-ink-color\)"/)

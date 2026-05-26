@@ -63,6 +63,7 @@ export class KicadSchematicSymbolParser {
         return collectSymbolPinNodes(symbol, selection).map((node, index) => {
             const at = parseAt(child(node, 'at'))
             const numberFont = parsePinTextFont(child(node, 'number'))
+            const visible = !pinHidden(node)
             const connection = transformPoint({ x: at.x, y: at.y }, transform)
             const length = numberValue(child(node, 'length')?.[1], 2.54)
             const innerLocal = pointFromPinConnection(at, length)
@@ -79,13 +80,14 @@ export class KicadSchematicSymbolParser {
                 designator:
                     textValue(child(node, 'number')) || String(index + 1),
                 numberFontSize: numberFont.size,
-                numberVisible: numberFont.visible && !hidePinNumbers,
+                numberVisible: visible && numberFont.visible && !hidePinNumbers,
                 orientation,
                 electrical: 4,
                 color: defaultInkColor,
                 labelColor: defaultInkColor,
                 labelMode: 'number-only',
-                endpointVisible: Boolean(transform.endpointVisible),
+                endpointVisible: visible && Boolean(transform.endpointVisible),
+                visible,
                 ownerIndex
             }
         })
@@ -99,6 +101,15 @@ export class KicadSchematicSymbolParser {
  */
 function pinNumbersHidden(symbol) {
     return hasChild(child(symbol, 'pin_numbers'), 'hide')
+}
+
+/**
+ * Checks whether a pin is hidden in the KiCad library symbol.
+ * @param {Array | undefined} node Pin node.
+ * @returns {boolean}
+ */
+function pinHidden(node) {
+    return hasScalar(node, 'hide') || hasChild(node, 'hide')
 }
 
 /**
@@ -504,6 +515,16 @@ function child(node, name) {
  */
 function hasChild(node, name) {
     return children(node, name).length > 0
+}
+
+/**
+ * Checks whether a node contains a scalar token.
+ * @param {Array | undefined} node Node.
+ * @param {string} name Token name.
+ * @returns {boolean}
+ */
+function hasScalar(node, name) {
+    return (node || []).slice(1).some((value) => String(value) === name)
 }
 
 /**

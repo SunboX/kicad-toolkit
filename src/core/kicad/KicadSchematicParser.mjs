@@ -160,6 +160,7 @@ function parseSheetMetadata(root) {
     const paper = textValue(child(root, 'paper')) || 'A4'
     const titleBlock = child(root, 'title_block')
     const size = pageSizeForPaper(paper)
+    const zones = drawingSheetZonesForPaper(paper)
     const comments = parseTitleBlockComments(titleBlock)
     return {
         width: size.width,
@@ -171,9 +172,9 @@ function parseSheetMetadata(root) {
         snapGrid: 1.27,
         borderOn: true,
         titleBlockOn: true,
-        marginWidth: 5,
-        xZones: 6,
-        yZones: 4,
+        marginWidth: 10,
+        xZones: zones.x,
+        yZones: zones.y,
         fonts: {},
         title: textValue(child(titleBlock, 'title')) || '',
         titleBlock: {
@@ -220,6 +221,26 @@ function pageSizeForPaper(paper) {
         LEGAL: { width: 355.6, height: 215.9 }
     }
     return sizes[normalized] || sizes.A4
+}
+
+/**
+ * Resolves KiCad's default drawing sheet zone counts for one paper size.
+ * @param {string} paper Paper token.
+ * @returns {{ x: number, y: number }}
+ */
+function drawingSheetZonesForPaper(paper) {
+    const normalized = String(paper || '').toUpperCase()
+    const zones = {
+        A5: { x: 4, y: 4 },
+        A4: { x: 6, y: 4 },
+        A3: { x: 8, y: 6 },
+        A2: { x: 12, y: 8 },
+        A1: { x: 16, y: 12 },
+        A0: { x: 24, y: 16 },
+        LETTER: { x: 6, y: 4 },
+        LEGAL: { x: 8, y: 4 }
+    }
+    return zones[normalized] || zones.A4
 }
 
 /**
@@ -831,10 +852,14 @@ function firstJustify(justify, options) {
  * @returns {boolean}
  */
 function hasHiddenEffect(node) {
+    const effects = child(node, 'effects')
     return (
+        hasScalar(node, 'hide') ||
+        hasScalar(effects, 'hide') ||
         children(node).some(
             (entry) => entry[0] === 'effects' && hasChild(entry, 'hide')
-        ) || hasChild(node, 'hide')
+        ) ||
+        hasChild(node, 'hide')
     )
 }
 
@@ -894,6 +919,16 @@ function child(node, name) {
  */
 function hasChild(node, name) {
     return Boolean(child(node, name))
+}
+
+/**
+ * Checks whether a node contains a scalar token.
+ * @param {Array | undefined} node Node.
+ * @param {string} name Token name.
+ * @returns {boolean}
+ */
+function hasScalar(node, name) {
+    return (node || []).slice(1).some((value) => String(value) === name)
 }
 
 /**
