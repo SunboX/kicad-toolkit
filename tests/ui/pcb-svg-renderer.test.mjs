@@ -215,6 +215,51 @@ test('PcbSvgRenderer draws pad drill cutouts above overlapping pads', () => {
     )
 })
 
+test('PcbSvgRenderer renders oval pad drills as slots', () => {
+    const svg = PcbSvgRenderer.render({
+        title: 'Oval drill pad',
+        bounds: {
+            minX: 0,
+            minY: 0,
+            maxX: 10,
+            maxY: 10,
+            width: 10,
+            height: 10
+        },
+        outlines: [],
+        drawings: [],
+        texts: [],
+        footprints: [],
+        pads: [
+            {
+                number: '1',
+                footprintId: 'footprint:J1:0',
+                shape: 'oval',
+                x: 5,
+                y: 5,
+                width: 1.4,
+                height: 3,
+                rotation: 0,
+                drill: 0.6,
+                drillWidth: 0.6,
+                drillHeight: 1.6,
+                drillShape: 'oval',
+                roundrectRatio: 0.25,
+                side: 'front'
+            }
+        ]
+    })
+
+    const drill = svg.match(/<rect class="pcb-pad-drill"[^>]+>/u)?.[0] || ''
+
+    assert.match(drill, /x="4\.7"/u)
+    assert.match(drill, /y="4\.2"/u)
+    assert.match(drill, /width="0\.6"/u)
+    assert.match(drill, /height="1\.6"/u)
+    assert.match(drill, /rx="0\.3"/u)
+    assert.match(drill, /ry="0\.3"/u)
+})
+
 test('PcbSvgRenderer emits layer and pad metadata for styled primitives', () => {
     const svg = PcbSvgRenderer.render(
         {

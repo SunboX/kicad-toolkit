@@ -430,7 +430,37 @@ function renderPadDrill(pad, layerStyles) {
         ...padMetadataAttributeList(pad),
         ...componentAttributeList(pad.footprintId)
     ].join(' ')
-    return `<circle class="pcb-pad-drill"${optionalAttribute(metadata)} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(pad.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0.08)} vector-effect="non-scaling-stroke"/>`
+    const attributes = [
+        'class="pcb-pad-drill"',
+        metadata,
+        `fill="${fillValue(style)}"`,
+        fillOpacityAttribute(style),
+        strokeAttributes(style, 0.08).trim(),
+        'vector-effect="non-scaling-stroke"'
+    ]
+        .filter(Boolean)
+        .join(' ')
+    return renderPadDrillShape(pad, attributes)
+}
+
+/**
+ * Renders circular and oval pad drill geometry.
+ * @param {object} pad
+ * @param {string} attributes
+ * @returns {string}
+ */
+function renderPadDrillShape(pad, attributes) {
+    const width = Number(pad.drillWidth || pad.drill || 0)
+    const height = Number(pad.drillHeight || pad.drill || width)
+    const isOval = pad.drillShape === 'oval' && width > 0 && height > 0
+    if (!isOval || Math.abs(width - height) < Number.EPSILON) {
+        return `<circle ${attributes} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(pad.drill / 2)}"/>`
+    }
+    const radius = Math.min(width, height) / 2
+    const x = pad.x - width / 2
+    const y = pad.y - height / 2
+    const transform = `rotate(${formatNumber(pad.rotation || 0)} ${formatNumber(pad.x)} ${formatNumber(pad.y)})`
+    return `<rect ${attributes} transform="${transform}" x="${formatNumber(x)}" y="${formatNumber(y)}" width="${formatNumber(width)}" height="${formatNumber(height)}" rx="${formatNumber(radius)}" ry="${formatNumber(radius)}"/>`
 }
 
 /**
