@@ -335,17 +335,105 @@ function normalizePad(pad, footprints) {
 function padLayerSummary(pad) {
     const base = basePadLayer(pad)
     const stack = normalizedPadstackLayers(pad, base)
-    const top = findLayerEntry(stack, 'F.Cu') || base
-    const mid =
-        findLayerEntry(stack, 'Inner') ||
-        stack.find((layer) => {
-            const name = layer.layer || ''
-            return name !== 'F.Cu' && name !== 'B.Cu'
-        }) ||
-        base
-    const bottom = findLayerEntry(stack, 'B.Cu') || base
+    const top = resolveFacePadLayer(pad, stack, base, 'F.Cu')
+    const mid = resolveInnerPadLayer(pad, stack, base)
+    const bottom = resolveFacePadLayer(pad, stack, base, 'B.Cu')
 
     return { top, mid, bottom, stack }
+}
+
+/**
+ * Resolves a pad's copper data for one outer board face.
+ * @param {object} pad KiCad pad.
+ * @param {object[]} stack Padstack layer entries.
+ * @param {object} base Base pad layer.
+ * @param {'F.Cu' | 'B.Cu'} layerName Copper layer name.
+ * @returns {object}
+ */
+function resolveFacePadLayer(pad, stack, base, layerName) {
+    return (
+        findLayerEntry(stack, layerName) ||
+        (padUsesCopperLayer(pad, layerName)
+            ? { ...base, layer: layerName }
+            : emptyPadLayer(layerName))
+    )
+}
+
+/**
+ * Resolves representative inner copper pad data.
+ * @param {object} pad KiCad pad.
+ * @param {object[]} stack Padstack layer entries.
+ * @param {object} base Base pad layer.
+ * @returns {object}
+ */
+function resolveInnerPadLayer(pad, stack, base) {
+    const explicitInner =
+        findLayerEntry(stack, 'Inner') ||
+        stack.find((layer) => isInnerCopperLayer(layer.layer))
+
+    if (explicitInner) {
+        return explicitInner
+    }
+
+    return padUsesInnerCopper(pad)
+        ? { ...base, layer: 'Inner' }
+        : emptyPadLayer('Inner')
+}
+
+/**
+ * Returns whether a pad's layer set includes an outer copper layer.
+ * @param {object} pad KiCad pad.
+ * @param {'F.Cu' | 'B.Cu'} layerName Copper layer name.
+ * @returns {boolean}
+ */
+function padUsesCopperLayer(pad, layerName) {
+    const layers = Array.isArray(pad.layers) ? pad.layers : []
+
+    if (!layers.length) {
+        return layerName === 'F.Cu'
+    }
+
+    return layers.includes('*.Cu') || layers.includes(layerName)
+}
+
+/**
+ * Returns whether a pad has inner-layer copper participation.
+ * @param {object} pad KiCad pad.
+ * @returns {boolean}
+ */
+function padUsesInnerCopper(pad) {
+    const layers = Array.isArray(pad.layers) ? pad.layers : []
+
+    return (
+        layers.includes('*.Cu') ||
+        layers.some((layer) => isInnerCopperLayer(layer))
+    )
+}
+
+/**
+ * Checks whether a KiCad layer name refers to inner copper.
+ * @param {string | undefined} layer Layer name.
+ * @returns {boolean}
+ */
+function isInnerCopperLayer(layer) {
+    const name = String(layer || '')
+
+    return name.endsWith('.Cu') && name !== 'F.Cu' && name !== 'B.Cu'
+}
+
+/**
+ * Builds an absent copper layer record.
+ * @param {string} layerName Layer name.
+ * @returns {object}
+ */
+function emptyPadLayer(layerName) {
+    return {
+        layer: layerName,
+        shape: '',
+        size: { width: 0, height: 0 },
+        offset: { x: 0, y: 0 },
+        rectDelta: { x: 0, y: 0 }
+    }
 }
 
 /**

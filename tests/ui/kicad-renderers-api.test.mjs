@@ -148,13 +148,13 @@ test('SchematicSvgRenderer emits deterministic schematic SVG markup', () => {
     assert.match(markup, /stroke="var\(--schematic-text-color\)"/)
     assert.match(
         markup,
-        /x="12" y="12" width="2" height="1" fill="var\(--schematic-power-color\)"/
+        /<rect class="schematic-rect schematic-shape-fill" x="12" y="12" width="2" height="1" fill="var\(--schematic-default-ink-color\)" stroke="none"/
     )
     assert.doesNotMatch(markup, /class="schematic-pin-endpoint"/)
     assert.match(markup, /class="schematic-pin-number"/)
     assert.match(markup, /class="schematic-text-line"/)
     assert.match(markup, /class="schematic-text-stroke"/)
-    assert.match(markup, /transform="rotate\(-90 5 5\)"/)
+    assert.match(markup, /transform="rotate\(-90 4\.58 5\)"/)
     assert.match(markup, /transform="rotate\(90 9 9\)"/)
     assert.doesNotMatch(markup, /rotate\(180 8 7\)/)
     assert.doesNotMatch(markup, /<text class="schematic-text/)

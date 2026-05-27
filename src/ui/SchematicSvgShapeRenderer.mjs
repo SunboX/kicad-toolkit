@@ -37,6 +37,35 @@ export class SchematicSvgShapeRenderer {
     }
 
     /**
+     * Renders KiCad schematic shape background fills.
+     * @param {object[]} primitives Shape primitives.
+     * @param {object} theme Color resolver callbacks.
+     * @returns {string}
+     */
+    static renderShapeBackgrounds(primitives, theme) {
+        return sortedPrimitives(primitives)
+            .map((primitive) => renderShapeFill(primitive, theme, 'background'))
+            .join('')
+    }
+
+    /**
+     * Renders KiCad schematic shape foreground fills and strokes.
+     * @param {object[]} primitives Shape primitives.
+     * @param {object} theme Color resolver callbacks.
+     * @returns {string}
+     */
+    static renderShapeForegrounds(primitives, theme) {
+        return sortedPrimitives(primitives)
+            .map((primitive) =>
+                [
+                    renderShapeFill(primitive, theme, 'foreground'),
+                    renderShapeStroke(primitive, theme)
+                ].join('')
+            )
+            .join('')
+    }
+
+    /**
      * Renders schematic polygons.
      * @param {object[]} polygons Polygons.
      * @param {object} theme Color resolver callbacks.
@@ -96,6 +125,169 @@ export class SchematicSvgShapeRenderer {
             )
             .join('')
     }
+}
+
+/**
+ * Renders one closed primitive fill pass.
+ * @param {object} primitive Shape primitive.
+ * @param {object} theme Color resolver callbacks.
+ * @param {'background' | 'foreground'} phase Paint phase.
+ * @returns {string}
+ */
+function renderShapeFill(primitive, theme, phase) {
+    if (!canFillPrimitive(primitive)) return ''
+    const color =
+        phase === 'background'
+            ? resolveBackgroundFillColor(primitive, theme)
+            : resolveForegroundFillColor(primitive, theme)
+    if (color === 'none') return ''
+    return renderShapePrimitive(primitive, {
+        classSuffix: 'fill',
+        fill: color,
+        stroke: 'none',
+        strokeWidth: 0
+    })
+}
+
+/**
+ * Renders one primitive stroke pass.
+ * @param {object} primitive Shape primitive.
+ * @param {object} theme Color resolver callbacks.
+ * @returns {string}
+ */
+function renderShapeStroke(primitive, theme) {
+    const strokeWidth = effectiveStrokeWidth(primitiveStrokeWidth(primitive))
+    if (strokeWidth <= 0) return ''
+    return renderShapePrimitive(primitive, {
+        classSuffix: 'stroke',
+        fill: 'none',
+        stroke: theme.resolveInkColor(primitive),
+        strokeWidth
+    })
+}
+
+/**
+ * Resolves the stroke-width field without confusing geometry width for pen width.
+ * @param {object} primitive Shape primitive.
+ * @returns {number | undefined}
+ */
+function primitiveStrokeWidth(primitive) {
+    if (['line', 'arc', 'bezier'].includes(primitive?.shapeType)) {
+        return primitive.width ?? primitive.lineWidth
+    }
+    return primitive?.lineWidth
+}
+
+/**
+ * Renders one shape primitive.
+ * @param {object} primitive Shape primitive.
+ * @param {{ classSuffix: string, fill: string, stroke: string, strokeWidth: number }} paint Paint attributes.
+ * @returns {string}
+ */
+function renderShapePrimitive(primitive, paint) {
+    if (primitive.shapeType === 'line')
+        return renderLinePrimitive(primitive, paint)
+    if (primitive.shapeType === 'rectangle') {
+        return `<rect class="schematic-rect schematic-shape-${paint.classSuffix}" x="${formatNumber(primitive.x)}" y="${formatNumber(primitive.y)}" width="${formatNumber(primitive.width)}" height="${formatNumber(primitive.height)}" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}"/>`
+    }
+    if (primitive.shapeType === 'polygon') {
+        const points = primitive.points || []
+        if (points.length === 0) return ''
+        return `<path class="schematic-polygon schematic-shape-${paint.classSuffix}" d="${pathFromPoints(points)} Z" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linejoin="round"/>`
+    }
+    if (primitive.shapeType === 'ellipse') {
+        return `<ellipse class="schematic-ellipse schematic-shape-${paint.classSuffix}" cx="${formatNumber(primitive.x)}" cy="${formatNumber(primitive.y)}" rx="${formatNumber(primitive.radiusX || 0)}" ry="${formatNumber(primitive.radiusY || primitive.radiusX || 0)}" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}"/>`
+    }
+    if (primitive.shapeType === 'arc') {
+        return `<path class="schematic-arc schematic-shape-${paint.classSuffix}" d="${arcPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"/>`
+    }
+    if (primitive.shapeType === 'bezier') {
+        return `<path class="schematic-bezier schematic-shape-${paint.classSuffix}" d="${bezierPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"/>`
+    }
+    return ''
+}
+
+/**
+ * Renders one line primitive.
+ * @param {object} line Line primitive.
+ * @param {{ classSuffix: string, stroke: string, strokeWidth: number }} paint Paint attributes.
+ * @returns {string}
+ */
+function renderLinePrimitive(line, paint) {
+    return `<line class="schematic-line schematic-shape-${paint.classSuffix}" x1="${formatNumber(line.x1)}" y1="${formatNumber(line.y1)}" x2="${formatNumber(line.x2)}" y2="${formatNumber(line.y2)}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"/>`
+}
+
+/**
+ * Checks whether a primitive has closed geometry for fill drawing.
+ * @param {object} primitive Shape primitive.
+ * @returns {boolean}
+ */
+function canFillPrimitive(primitive) {
+    return ['rectangle', 'polygon', 'ellipse'].includes(primitive?.shapeType)
+}
+
+/**
+ * Resolves background-pass fill color.
+ * @param {object} primitive Shape primitive.
+ * @param {object} theme Color resolver callbacks.
+ * @returns {string}
+ */
+function resolveBackgroundFillColor(primitive, theme) {
+    return theme.resolveBackgroundFillColor
+        ? theme.resolveBackgroundFillColor(primitive)
+        : theme.resolveFillColor(primitive)
+}
+
+/**
+ * Resolves foreground-pass fill color.
+ * @param {object} primitive Shape primitive.
+ * @param {object} theme Color resolver callbacks.
+ * @returns {string}
+ */
+function resolveForegroundFillColor(primitive, theme) {
+    return theme.resolveForegroundFillColor
+        ? theme.resolveForegroundFillColor(primitive)
+        : 'none'
+}
+
+/**
+ * Resolves KiCad's effective stroke width convention.
+ * @param {number | undefined} width Stroke width.
+ * @returns {number}
+ */
+function effectiveStrokeWidth(width) {
+    const resolved = Number(width)
+    if (Number.isFinite(resolved) && resolved < 0) return 0
+    if (!Number.isFinite(resolved) || Math.abs(resolved) < 0.001) return 0.15
+    return resolved
+}
+
+/**
+ * Sorts primitives in KiCad source order.
+ * @param {object[]} primitives Shape primitives.
+ * @returns {object[]}
+ */
+function sortedPrimitives(primitives) {
+    return (primitives || [])
+        .map((primitive, index) => ({ primitive, index }))
+        .sort((left, right) => {
+            const order = primitiveRenderOrder(left.primitive)
+            const otherOrder = primitiveRenderOrder(right.primitive)
+            return order - otherOrder || left.index - right.index
+        })
+        .map((entry) => entry.primitive)
+}
+
+/**
+ * Resolves a primitive render-order key.
+ * @param {object} primitive Shape primitive.
+ * @returns {number}
+ */
+function primitiveRenderOrder(primitive) {
+    const order = Number(primitive?.renderOrder)
+    if (!Number.isFinite(order)) return 0
+    if (primitive?.shapeType === 'line') return order / 100
+    return order
 }
 
 /**

@@ -2,7 +2,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+import { SchematicSvgPinRenderer } from './SchematicSvgPinRenderer.mjs'
 import { SchematicSvgShapeRenderer } from './SchematicSvgShapeRenderer.mjs'
+import {
+    applySchematicTextOffset,
+    applySymbolFieldPlacement,
+    resolveRenderedTextRotation,
+    textHeight,
+    textLineSpacing,
+    textLineX,
+    textLineY,
+    textStrokeWidth,
+    textWidth
+} from './SchematicSvgTextMetrics.mjs'
 
 const displayScale = 10
 const worksheetFrameInset = 2
@@ -11,9 +23,6 @@ const worksheetTitleBlockRight = 2
 const worksheetTitleBlockTop = 34
 const worksheetTitleBlockBottom = 2
 const worksheetZoneStep = 50
-const kicadTextLineSpacingRatio = 1.61
-const kicadFirstLineHeightRatio = 1.17
-const kicadStrokeBaselineFudgeRatio = 0.052
 const wireColor = 'var(--schematic-default-ink-color)'
 const symbolColor = 'var(--schematic-power-color)'
 const sheetGraphicColor = 'var(--schematic-accent-ink-color)'
@@ -48,9 +57,15 @@ export class SchematicSvgRenderer {
         const lineCount = (schematic.lines || []).length
         const componentCount = (schematic.components || []).length
         const shapeTheme = {
+            resolveBackgroundFillColor: resolveSchematicBackgroundFillColor,
+            resolveForegroundFillColor: resolveSchematicForegroundFillColor,
             resolveFillColor: resolveSchematicFillColor,
             resolveInkColor: resolveSchematicInkColor
         }
+        const shapePrimitives = schematicShapePrimitives(schematic)
+        const connectionLines = (schematic.lines || []).filter(
+            (line) => !isShapeLine(line)
+        )
         return [
             '<section class="svg-panel">',
             `<header class="svg-panel__header"><h3>${escapeHtml(title)}</h3><p>${lineCount} line segments, ${componentCount} components</p></header>`,
@@ -63,24 +78,15 @@ export class SchematicSvgRenderer {
             renderSheetChrome(sheet, width, height, documentModel?.fileName),
             `<g class="schematic-scene" transform="scale(${formatNumber(displayScale)})">`,
             renderSheetSymbols(schematic.sheetSymbols || []),
-            SchematicSvgShapeRenderer.renderPolygons(
-                schematic.polygons || [],
+            SchematicSvgShapeRenderer.renderShapeBackgrounds(
+                shapePrimitives,
                 shapeTheme
             ),
-            renderRectangles(schematic.rectangles || []),
-            SchematicSvgShapeRenderer.renderEllipses(
-                schematic.ellipses || [],
+            SchematicSvgShapeRenderer.renderShapeForegrounds(
+                shapePrimitives,
                 shapeTheme
             ),
-            SchematicSvgShapeRenderer.renderArcs(
-                schematic.arcs || [],
-                shapeTheme
-            ),
-            SchematicSvgShapeRenderer.renderBeziers(
-                schematic.beziers || [],
-                shapeTheme
-            ),
-            renderLines(schematic.lines || []),
+            renderLines(connectionLines),
             renderPins(schematic.pins || []),
             renderJunctions(schematic.junctions || []),
             renderCrosses(schematic.crosses || []),
@@ -101,6 +107,44 @@ export class SchematicSvgRenderer {
             '</svg>'
         ].join('')
     }
+}
+
+/**
+ * Collects schematic shape primitives for KiCad layered rendering.
+ * @param {object} schematic Schematic model.
+ * @returns {object[]}
+ */
+function schematicShapePrimitives(schematic) {
+    return [
+        ...shapePrimitivesOfType(schematic.rectangles, 'rectangle'),
+        ...shapePrimitivesOfType(schematic.polygons, 'polygon'),
+        ...shapePrimitivesOfType(schematic.ellipses, 'ellipse'),
+        ...shapePrimitivesOfType(schematic.arcs, 'arc'),
+        ...shapePrimitivesOfType(schematic.beziers, 'bezier'),
+        ...shapePrimitivesOfType(
+            (schematic.lines || []).filter(isShapeLine),
+            'line'
+        )
+    ]
+}
+
+/**
+ * Tags primitives with their SVG shape type.
+ * @param {object[] | undefined} primitives Primitive collection.
+ * @param {string} shapeType Shape type.
+ * @returns {object[]}
+ */
+function shapePrimitivesOfType(primitives, shapeType) {
+    return (primitives || []).map((primitive) => ({ ...primitive, shapeType }))
+}
+
+/**
+ * Checks whether a line is a KiCad graphical shape rather than a wire or bus.
+ * @param {object} line Line primitive.
+ * @returns {boolean}
+ */
+function isShapeLine(line) {
+    return line?.sourceType === 'polyline' || Boolean(line?.ownerIndex)
 }
 
 /**
@@ -151,17 +195,13 @@ function renderSheetSymbols(sheets) {
  * @returns {string}
  */
 function renderPins(pins) {
-    return pins
-        .map((pin) => {
-            if (pin.visible === false) return ''
-            const end = pinConnectionPoint(pin)
-            return [
-                `<line class="schematic-pin-line" x1="${formatNumber(pin.x)}" y1="${formatNumber(pin.y)}" x2="${formatNumber(end.x)}" y2="${formatNumber(end.y)}" stroke="${symbolColor}" stroke-width="0.08"/>`,
-                renderPinEndpoint(pin),
-                renderPinNumber(pin)
-            ].join('')
-        })
-        .join('')
+    return SchematicSvgPinRenderer.renderPins(pins, {
+        formatNumber,
+        labelColor,
+        pinMarkerFillColor,
+        renderStrokeText,
+        symbolColor
+    })
 }
 
 /**
@@ -171,8 +211,8 @@ function renderPins(pins) {
  */
 function renderTexts(texts) {
     return texts
-        .map((text) =>
-            renderStrokeText({
+        .map((text) => {
+            const renderedText = {
                 className: resolveSchematicTextClass(text),
                 x: text.x,
                 y: text.y,
@@ -183,8 +223,14 @@ function renderTexts(texts) {
                 hAlign: resolveTextHAlign(text),
                 vAlign: resolveTextVAlign(text),
                 rotation: resolveRenderedTextRotation(text)
-            })
-        )
+            }
+            return renderStrokeText(
+                applySchematicTextOffset(
+                    text,
+                    applySymbolFieldPlacement(text, renderedText)
+                )
+            )
+        })
         .join('')
 }
 
@@ -582,62 +628,6 @@ function renderWorksheetText(options) {
 }
 
 /**
- * Renders one visible KiCad pin endpoint at the symbol body.
- * @param {object} pin Pin.
- * @returns {string}
- */
-function renderPinEndpoint(pin) {
-    if (!pin.endpointVisible) return ''
-    return `<circle class="schematic-pin-endpoint" cx="${formatNumber(pin.x)}" cy="${formatNumber(pin.y)}" r="0.42" fill="${pinMarkerFillColor}" stroke="${symbolColor}" stroke-width="0.12"/>`
-}
-
-/**
- * Renders one KiCad pin number near the symbol body.
- * @param {object} pin Pin.
- * @returns {string}
- */
-function renderPinNumber(pin) {
-    const label = String(pin.designator || '').trim()
-    if (!label || label === '~' || pin.numberVisible === false) return ''
-    const offset = 0.35
-    const fontSize = Number(pin.numberFontSize || 0.85)
-    const x =
-        pin.orientation === 'left'
-            ? pin.x - offset
-            : pin.orientation === 'right'
-              ? pin.x + offset
-              : pin.x + offset
-    const y =
-        pin.orientation === 'top'
-            ? pin.y + offset
-            : pin.orientation === 'bottom'
-              ? pin.y - offset
-              : pin.y - offset
-    return renderStrokeText({
-        className: 'schematic-pin-number',
-        x,
-        y,
-        value: label,
-        color: symbolColor,
-        sizeX: fontSize,
-        sizeY: fontSize,
-        hAlign: pin.orientation === 'left' ? 'right' : 'left',
-        vAlign:
-            pin.orientation === 'top'
-                ? 'top'
-                : pin.orientation === 'bottom'
-                  ? 'bottom'
-                  : 'center',
-        rotation: 0
-    })
-}
-
-/**
- * Resolves the visible color of a KiCad symbol pin line.
- * @param {object} pin Pin.
- * @returns {string}
- */
-/**
  * Resolves schematic primitive stroke color.
  * @param {object} primitive Primitive.
  * @returns {string}
@@ -663,6 +653,30 @@ function resolveSchematicFillColor(primitive) {
         return symbolFillColor
     }
 
+    return 'none'
+}
+
+/**
+ * Resolves schematic shape background-pass fill color.
+ * @param {object} primitive Primitive.
+ * @returns {string}
+ */
+function resolveSchematicBackgroundFillColor(primitive) {
+    if (primitive?.fill && !['none', 'outline'].includes(primitive.fill)) {
+        return symbolFillColor
+    }
+
+    return 'none'
+}
+
+/**
+ * Resolves schematic shape foreground-pass fill color.
+ * @param {object} primitive Primitive.
+ * @returns {string}
+ */
+function resolveSchematicForegroundFillColor(primitive) {
+    if (primitive?.fill === 'outline')
+        return resolveSchematicInkColor(primitive)
     return 'none'
 }
 
@@ -811,124 +825,6 @@ function renderStrokeTextTransform(text) {
     const rotation = Number(text.rotation || 0)
     if (Math.abs(rotation) < 0.001) return ''
     return `transform="rotate(${formatNumber(rotation)} ${formatNumber(text.x)} ${formatNumber(text.y)})"`
-}
-
-/**
- * Resolves the SVG rotation direction for one rendered text node.
- * @param {object} text Text primitive.
- * @returns {number}
- */
-function resolveRenderedTextRotation(text) {
-    const rotation = -resolveReadableTextRotation(text)
-    if (text?.symbolKind !== 'power') return rotation
-    if (Math.abs(Math.abs(rotation) - 90) > 0.001) return rotation
-    return rotation < 0 ? rotation + 180 : rotation - 180
-}
-
-/**
- * Resolves the display rotation for KiCad text while keeping flipped labels readable.
- * @param {object} text Text primitive.
- * @returns {number}
- */
-function resolveReadableTextRotation(text) {
-    const rotation = Number(text?.rotation || 0)
-    if (!Number.isFinite(rotation)) return 0
-    const normalized = ((rotation % 360) + 360) % 360
-    if (Math.abs(normalized - 180) < 0.001) return 0
-    if (normalized > 180) return normalized - 360
-    return normalized
-}
-
-/**
- * Resolves pin connection point.
- * @param {object} pin Pin.
- * @returns {{ x: number, y: number }}
- */
-function pinConnectionPoint(pin) {
-    if (pin.orientation === 'left') return { x: pin.x - pin.length, y: pin.y }
-    if (pin.orientation === 'right') return { x: pin.x + pin.length, y: pin.y }
-    if (pin.orientation === 'top') return { x: pin.x, y: pin.y - pin.length }
-    return { x: pin.x, y: pin.y + pin.length }
-}
-
-/**
- * Calculates KiCad-like baseline spacing for multiline text.
- * @param {object} text Text item.
- * @returns {number}
- */
-function textLineSpacing(text) {
-    return textHeight(text) * kicadTextLineSpacingRatio
-}
-
-/**
- * Resolves KiCad's vertical stroke size for font and baseline metrics.
- * @param {object} text Text item.
- * @returns {number}
- */
-function textHeight(text) {
-    return positiveTextSize(text.sizeY, text.sizeX)
-}
-
-/**
- * Resolves KiCad's horizontal stroke size for glyph scaling.
- * @param {object} text Text item.
- * @returns {number}
- */
-function textWidth(text) {
-    return positiveTextSize(text.sizeX, text.sizeY)
-}
-
-/**
- * Calculates line origin from KiCad horizontal justification.
- * @param {object} text Text item.
- * @param {number} lineWidth Line width.
- * @returns {number}
- */
-function textLineX(text, lineWidth) {
-    if (text.hAlign === 'left') return text.x
-    if (text.hAlign === 'right') return text.x - lineWidth
-    return text.x - lineWidth / 2
-}
-
-/**
- * Calculates one line baseline from KiCad vertical justification.
- * @param {object} text Text item.
- * @param {number} index Line index.
- * @param {number} lineCount Total line count.
- * @param {number} lineSpacing Line spacing.
- * @returns {number}
- */
-function textLineY(text, index, lineCount, lineSpacing) {
-    const height = textHeight(text)
-    const blockHeight =
-        height * kicadFirstLineHeightRatio + lineSpacing * (lineCount - 1)
-    let baseline = text.y + height - textStrokeBaselineFudge(text)
-
-    if (text.vAlign === 'bottom') {
-        baseline -= blockHeight
-    } else if (text.vAlign === 'center') {
-        baseline -= blockHeight / 2
-    }
-
-    return baseline + lineSpacing * index
-}
-
-/**
- * Mirrors KiCad's small stroke-font baseline adjustment.
- * @param {object} text Text item.
- * @returns {number}
- */
-function textStrokeBaselineFudge(text) {
-    return textStrokeWidth(text) * kicadStrokeBaselineFudgeRatio
-}
-
-/**
- * Resolves KiCad text stroke width.
- * @param {object} text Text item.
- * @returns {number}
- */
-function textStrokeWidth(text) {
-    return Math.max(Number(text.thickness) || 0.12, 0.01)
 }
 
 /**

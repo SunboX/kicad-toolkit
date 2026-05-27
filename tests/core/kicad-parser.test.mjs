@@ -147,6 +147,33 @@ test('KicadParser exposes detailed KiCad pads in the Altium-style PCB model', ()
     assert.equal(pad.customPrimitives.length, 2)
 })
 
+test('KicadParser keeps one-sided pad copper off the opposite face', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'one-sided-pads.kicad_pcb',
+        bytesFor(oneSidedPadPcbSource())
+    )
+    const [frontPad, backPad, throughPad] = document.pcb.pads
+
+    assert.deepEqual(
+        {
+            frontTop: Math.round(frontPad.sizeTopX),
+            frontBottom: Math.round(frontPad.sizeBottomX),
+            backTop: Math.round(backPad.sizeTopX),
+            backBottom: Math.round(backPad.sizeBottomX),
+            throughTop: Math.round(throughPad.sizeTopX),
+            throughBottom: Math.round(throughPad.sizeBottomX)
+        },
+        {
+            frontTop: 39,
+            frontBottom: 0,
+            backTop: 0,
+            backBottom: 39,
+            throughTop: 47,
+            throughBottom: 47
+        }
+    )
+})
+
 test('KicadParser builds BOM rows from KiCad footprint BOM attributes', () => {
     const document = KicadParser.parseArrayBuffer(
         'footprint-attributes.kicad_pcb',
@@ -271,6 +298,40 @@ test('KicadParser applies rotated symbol orientation to unrotated property field
 
     assert.equal(reference.rotation, 90)
     assert.equal(value.rotation, 90)
+})
+
+test('KicadParser applies clockwise symbol orientation as KiCad vertical field text', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'clockwise-rotated-symbol-field.kicad_sch',
+        bytesFor(clockwiseRotatedSymbolFieldSource())
+    )
+    const reference = document.schematic.texts.find(
+        (text) => text.propertyName === 'Reference'
+    )
+    const value = document.schematic.texts.find(
+        (text) => text.propertyName === 'Value'
+    )
+
+    assert.equal(reference.rotation, 90)
+    assert.equal(value.rotation, 90)
+})
+
+test('KicadParser combines placed symbol and explicit property rotations', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'counter-rotated-symbol-field.kicad_sch',
+        bytesFor(counterRotatedSymbolFieldSource())
+    )
+    const reference = document.schematic.texts.find(
+        (text) => text.propertyName === 'Reference'
+    )
+    const value = document.schematic.texts.find(
+        (text) => text.propertyName === 'Value'
+    )
+
+    assert.equal(reference.rotation, 0)
+    assert.equal(value.rotation, 0)
+    assert.equal(reference.anchor, 'middle')
+    assert.equal(value.anchor, 'middle')
 })
 
 test('KicadParser centers schematic text when vertical justification is omitted', () => {
@@ -619,6 +680,48 @@ function copperArcPcbSource() {
 }
 
 /**
+ * Builds a board fixture with pads on explicit KiCad copper layer sets.
+ * @returns {string}
+ */
+function oneSidedPadPcbSource() {
+    return `(kicad_pcb
+        (version 20250101)
+        (gr_rect
+            (start 0 0)
+            (end 12 8)
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (footprint "Package:PadSides"
+            (layer "F.Cu")
+            (at 6 4 0)
+            (property "Reference" "U1"
+                (at 0 -2 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (pad "1" smd rect
+                (at -2 0 0)
+                (size 1 1)
+                (layers "F.Cu" "F.Mask" "F.Paste")
+            )
+            (pad "2" smd rect
+                (at 0 0 0)
+                (size 1 1)
+                (layers "B.Cu" "B.Mask" "B.Paste")
+            )
+            (pad "3" thru_hole circle
+                (at 2 0 0)
+                (size 1.2 1.2)
+                (drill 0.5)
+                (layers "*.Cu" "*.Mask")
+            )
+        )
+    )`
+}
+
+/**
  * Builds a minimal board fixture with a detailed pad.
  * @returns {string}
  */
@@ -826,6 +929,80 @@ function rotatedSymbolFieldSource() {
                 (effects (font (size 1.27 1.27)) (justify center bottom))
             )
             (uuid "rotated-symbol-field")
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with a clockwise-rotated symbol and unrotated fields.
+ * @returns {string}
+ */
+function clockwiseRotatedSymbolFieldSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (paper "A4")
+        (lib_symbols
+            (symbol "Device:R"
+                (pin passive line (at 0 -2.54 90) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "1" (effects (font (size 1.27 1.27))))
+                )
+                (pin passive line (at 0 2.54 270) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "2" (effects (font (size 1.27 1.27))))
+                )
+                (rectangle (start -1.27 -2.54) (end 1.27 2.54)
+                    (stroke (width 0.15) (type solid))
+                    (fill (type none))
+                )
+            )
+        )
+        (symbol "Device:R"
+            (at 40 30 270)
+            (property "Reference" "R2" (at 38 30 0)
+                (effects (font (size 1.27 1.27)) (justify center bottom))
+            )
+            (property "Value" "8.2K" (at 42 30 0)
+                (effects (font (size 1.27 1.27)) (justify center bottom))
+            )
+            (uuid "clockwise-rotated-symbol-field")
+        )
+    )`
+}
+
+/**
+ * Builds a schematic fixture with a rotated symbol and counter-rotated fields.
+ * @returns {string}
+ */
+function counterRotatedSymbolFieldSource() {
+    return `(kicad_sch
+        (version 20250114)
+        (paper "A4")
+        (lib_symbols
+            (symbol "Test:COUNTER_FIELD"
+                (pin passive line (at -2.54 0 0) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "1" (effects (font (size 1.27 1.27))))
+                )
+                (pin passive line (at 2.54 0 180) (length 2.54)
+                    (name "~" (effects (font (size 1.27 1.27))))
+                    (number "2" (effects (font (size 1.27 1.27))))
+                )
+                (rectangle (start -1.27 -2.54) (end 1.27 2.54)
+                    (stroke (width 0.15) (type solid))
+                    (fill (type none))
+                )
+            )
+        )
+        (symbol "Test:COUNTER_FIELD"
+            (at 40 30 270)
+            (property "Reference" "X1" (at 40 24.7 90)
+                (effects (font (size 1.27 1.27)))
+            )
+            (property "Value" "42" (at 40 27 90)
+                (effects (font (size 1.27 1.27)))
+            )
+            (uuid "counter-rotated-symbol-field")
         )
     )`
 }

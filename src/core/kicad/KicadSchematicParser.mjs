@@ -3,6 +3,7 @@
 
 import { Geometry } from './Geometry.mjs'
 import { groupSchematicBomRows } from './KicadBomUtils.mjs'
+import { symbolPropertyTextRotation } from './KicadSchematicFieldRotation.mjs'
 import { KicadSchematicGraphicParser } from './KicadSchematicGraphicParser.mjs'
 import { KicadSchematicSymbolParser } from './KicadSchematicSymbolParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
@@ -474,6 +475,8 @@ function parseSchematicSymbol(node, index, librarySymbols) {
         selection
     )
     const texts = parseSymbolPropertyTexts(properties, uuid, {
+        x: at.x,
+        y: at.y,
         mirror,
         rotation: at.rotation,
         powerSymbol: isPowerSymbol(librarySymbol, libId)
@@ -541,7 +544,7 @@ function hasConnectorPinEndpointMarkers(libId) {
  * Parses visible symbol property text.
  * @param {Map<string, object>} properties Symbol properties.
  * @param {string} ownerIndex Symbol owner id.
- * @param {{ mirror?: string, rotation?: number, powerSymbol?: boolean }} transform Symbol placement transform.
+ * @param {{ x?: number, y?: number, mirror?: string, rotation?: number, powerSymbol?: boolean }} transform Symbol placement transform.
  * @returns {object[]}
  */
 function parseSymbolPropertyTexts(properties, ownerIndex, transform = {}) {
@@ -560,25 +563,17 @@ function parseSymbolPropertyTexts(properties, ownerIndex, transform = {}) {
             rotation: symbolPropertyTextRotation(property, transform),
             anchor: mirrorTextAnchor(property.anchor, transform.mirror),
             vAlign: mirrorTextVAlign(property.vAlign, transform.mirror),
+            symbolField: {
+                symbolX: numberValue(transform.x, 0),
+                symbolY: numberValue(transform.y, 0),
+                symbolRotation: numberValue(transform.rotation, 0),
+                symbolMirror: transform.mirror || '',
+                textRotation: numberValue(property.rotation, 0),
+                hAlign: property.font.hAlign,
+                vAlign: property.font.vAlign
+            },
             symbolKind: transform.powerSymbol ? 'power' : ''
         }))
-}
-
-/**
- * Resolves visible field rotation for placed symbol properties.
- * @param {object} property Symbol property.
- * @param {{ rotation?: number }} transform Symbol placement transform.
- * @returns {number}
- */
-function symbolPropertyTextRotation(property, transform) {
-    const propertyRotation = numberValue(property?.rotation, 0)
-    if (Math.abs(propertyRotation) > 0.001) return propertyRotation
-
-    const symbolRotation = numberValue(transform?.rotation, 0)
-    const normalized = ((symbolRotation % 360) + 360) % 360
-    if (Math.abs(normalized - 90) < 0.001) return 90
-    if (Math.abs(normalized - 270) < 0.001) return 270
-    return propertyRotation
 }
 
 /**
@@ -792,7 +787,8 @@ function parseProperties(node) {
     const properties = new Map()
     for (const property of children(node, 'property')) {
         const at = parseAt(child(property, 'at'))
-        const font = parseTextFont(property)
+        const hAlign = propertyTextHAlign(property)
+        const font = { ...parseTextFont(property), hAlign }
         properties.set(String(property[1] || ''), {
             value: String(property[2] || ''),
             x: at.x,
@@ -801,16 +797,26 @@ function parseProperties(node) {
             fontSize: font.size,
             font,
             anchor:
-                font.hAlign === 'right'
+                hAlign === 'right'
                     ? 'end'
-                    : font.hAlign === 'center'
-                      ? 'middle'
-                      : 'start',
+                    : hAlign === 'left'
+                      ? 'start'
+                      : 'middle',
             vAlign: font.vAlign,
             visible: !hasHiddenEffect(property)
         })
     }
     return properties
+}
+
+/**
+ * Resolves symbol property horizontal justification.
+ * @param {Array} property Property node.
+ * @returns {string}
+ */
+function propertyTextHAlign(property) {
+    const justify = child(child(property, 'effects'), 'justify') || []
+    return firstJustify(justify, ['left', 'center', 'right']) || 'center'
 }
 
 /**

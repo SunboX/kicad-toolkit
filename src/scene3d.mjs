@@ -3,8 +3,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadArcGeometry } from './core/kicad/KicadArcGeometry.mjs'
+import { PcbScene3dLayerMapper } from './PcbScene3dLayerMapper.mjs'
+import { KicadStrokeFont } from './ui/KicadStrokeFont.mjs'
 
 const milsPerMillimeter = 1000 / 25.4
+const kicadTextLineSpacingRatio = 1.61
+const kicadFirstLineHeightRatio = 1.17
+const kicadStrokeBaselineFudgeRatio = 0.052
 
 /**
  * Resolves procedural PCB package families and dimensions.
@@ -177,8 +182,33 @@ export class PcbScene3dBuilder {
             centerY:
                 Number(boardOutline.minY || 0) +
                 Number(boardOutline.heightMil || 0) / 2,
-            segments: boardOutline.segments || []
+            segments: []
         }
+        board.segments = PcbScene3dLayerMapper.boardSegments(
+            boardOutline.segments || [],
+            board
+        )
+        const pads = (pcb.pads || []).map((pad) =>
+            PcbScene3dLayerMapper.pad(pad, board)
+        )
+        const tracks = (pcb.tracks || []).map((track) =>
+            PcbScene3dLayerMapper.track(track, board)
+        )
+        const arcs = (pcb.arcs || []).map((arc) =>
+            PcbScene3dLayerMapper.arc(arc, board)
+        )
+        const fills = (pcb.fills || []).map((fill) =>
+            PcbScene3dLayerMapper.fill(fill, board)
+        )
+        const vias = (pcb.vias || []).map((via) =>
+            PcbScene3dLayerMapper.via(via, board)
+        )
+        const polygons = (pcb.polygons || []).map((polygon) =>
+            PcbScene3dLayerMapper.polygon(polygon, board)
+        )
+        const texts = (pcb.texts || []).map((text) =>
+            PcbScene3dLayerMapper.text(text, board)
+        )
         const components = (pcb.components || []).map((component) => {
             const mountSide =
                 String(component.layer || 'TOP').toUpperCase() === 'BOTTOM'
@@ -199,7 +229,7 @@ export class PcbScene3dBuilder {
                 rotationDeg: Number(component.rotation || 0),
                 positionMil: {
                     x: Number(component.x || 0) - board.centerX,
-                    y: Number(component.y || 0) - board.centerY,
+                    y: board.centerY - Number(component.y || 0),
                     z
                 },
                 boardPositionMil: {
@@ -213,26 +243,27 @@ export class PcbScene3dBuilder {
                 externalModel: registry.resolveComponentModel(component)
             }
         })
-        const silkscreen = buildKicadSilkscreenDetail(pcb.kicadBoard)
+        const silkscreen = buildKicadSilkscreenDetail(pcb.kicadBoard, board)
 
         return {
             sourceFormat: documentModel?.sourceFormat || 'kicad',
+            coordinateSystem: 'kicad-3d-y-up',
             board,
             layers: pcb.layers || [],
             components,
-            pads: pcb.pads || [],
-            tracks: pcb.tracks || [],
-            vias: pcb.vias || [],
-            zones: pcb.polygons || [],
-            texts: pcb.texts || [],
+            pads,
+            tracks,
+            vias,
+            zones: polygons,
+            texts,
             externalPlacements: [],
             detail: {
-                pads: pcb.pads || [],
-                tracks: pcb.tracks || [],
-                arcs: pcb.arcs || [],
-                fills: pcb.fills || [],
-                vias: pcb.vias || [],
-                polygons: pcb.polygons || [],
+                pads,
+                tracks,
+                arcs,
+                fills,
+                vias,
+                polygons,
                 silkscreen
             },
             externalModels: components
@@ -384,13 +415,15 @@ function normalizeMatchKey(value) {
 /**
  * Builds 3D silkscreen detail from KiCad drawing primitives.
  * @param {object | undefined} kicadBoard Raw parsed KiCad board model.
+ * @param {{ centerY: number }} board Board placement metadata in mils.
  * @returns {{ top: { fills: object[], tracks: object[], arcs: object[] }, bottom: { fills: object[], tracks: object[], arcs: object[] } }}
  */
-function buildKicadSilkscreenDetail(kicadBoard) {
+function buildKicadSilkscreenDetail(kicadBoard, board) {
     const silkscreen = emptySilkscreenDetail()
     const drawings = Array.isArray(kicadBoard?.drawings)
         ? kicadBoard.drawings
         : []
+    const texts = Array.isArray(kicadBoard?.texts) ? kicadBoard.texts : []
 
     drawings.forEach((drawing) => {
         const sideName = resolveSilkscreenSide(drawing)
@@ -398,19 +431,38 @@ function buildKicadSilkscreenDetail(kicadBoard) {
             return
         }
 
-        buildKicadSilkscreenTracks(drawing).forEach((track) => {
-            silkscreen[sideName].tracks.push(track)
-        })
+        buildKicadSilkscreenTracks(drawing).forEach((track) =>
+            silkscreen[sideName].tracks.push(
+                PcbScene3dLayerMapper.silkscreenTrack(track, board)
+            )
+        )
 
         const arc = buildKicadSilkscreenArc(drawing)
         if (arc) {
-            silkscreen[sideName].arcs.push(arc)
+            silkscreen[sideName].arcs.push(
+                PcbScene3dLayerMapper.silkscreenArc(arc, board)
+            )
         }
 
         const fill = buildKicadSilkscreenFill(drawing)
         if (fill) {
-            silkscreen[sideName].fills.push(fill)
+            silkscreen[sideName].fills.push(
+                PcbScene3dLayerMapper.silkscreenFill(fill, board)
+            )
         }
+    })
+
+    texts.forEach((text) => {
+        const sideName = resolveSilkscreenSide(text)
+        if (!sideName) {
+            return
+        }
+
+        buildKicadSilkscreenTextTracks(text).forEach((track) =>
+            silkscreen[sideName].tracks.push(
+                PcbScene3dLayerMapper.silkscreenTrack(track, board)
+            )
+        )
     })
 
     return silkscreen
@@ -497,6 +549,232 @@ function buildKicadSilkscreenTracks(drawing) {
     }
 
     return []
+}
+
+/**
+ * Builds KiCad stroke-font text as silkscreen tracks.
+ * @param {object} text Text primitive.
+ * @returns {object[]}
+ */
+function buildKicadSilkscreenTextTracks(text) {
+    if (!isVisibleSilkscreenText(text)) {
+        return []
+    }
+
+    const width = textStrokeWidth(text)
+    return textStrokes(text).flatMap((stroke) => {
+        const tracks = []
+
+        for (let index = 1; index < stroke.length; index += 1) {
+            tracks.push({
+                x1: toMil(stroke[index - 1].x),
+                y1: toMil(stroke[index - 1].y),
+                x2: toMil(stroke[index].x),
+                y2: toMil(stroke[index].y),
+                width: toMil(width)
+            })
+        }
+
+        return tracks
+    })
+}
+
+/**
+ * Checks whether one parsed text item should contribute to 3D silkscreen.
+ * @param {object} text Text primitive.
+ * @returns {boolean}
+ */
+function isVisibleSilkscreenText(text) {
+    return (
+        text?.visible !== false &&
+        String(text?.value ?? text?.text ?? '').length > 0
+    )
+}
+
+/**
+ * Builds transformed KiCad stroke-font point lists for one text item.
+ * @param {object} text Text primitive.
+ * @returns {{ x: number, y: number }[][]}
+ */
+function textStrokes(text) {
+    const lines = String(text?.value ?? text?.text ?? '').split('\n')
+    const lineSpacing = textLineSpacing(text)
+
+    return lines.flatMap((line, index) =>
+        textLineStrokes(text, line, index, lines.length, lineSpacing)
+    )
+}
+
+/**
+ * Builds transformed KiCad stroke-font point lists for one text line.
+ * @param {object} text Text primitive.
+ * @param {string} line Line text.
+ * @param {number} index Line index.
+ * @param {number} lineCount Total line count.
+ * @param {number} lineSpacing Baseline spacing in millimeters.
+ * @returns {{ x: number, y: number }[][]}
+ */
+function textLineStrokes(text, line, index, lineCount, lineSpacing) {
+    const sizeX = textWidth(text)
+    const sizeY = textHeight(text)
+    const lineWidth = KicadStrokeFont.measureLine(line, sizeX)
+    const x = textLineX(text, lineWidth)
+    const y = textLineY(text, index, lineCount, lineSpacing)
+
+    return KicadStrokeFont.strokeLine(line, { x, y, sizeX, sizeY }).map(
+        (stroke) => stroke.map((point) => transformTextPoint(text, point))
+    )
+}
+
+/**
+ * Calculates KiCad-like baseline spacing for multiline text.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function textLineSpacing(text) {
+    return textHeight(text) * kicadTextLineSpacingRatio
+}
+
+/**
+ * Resolves vertical text size.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function textHeight(text) {
+    return positiveTextSize(text?.sizeX, text?.sizeY)
+}
+
+/**
+ * Resolves horizontal text size.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function textWidth(text) {
+    return positiveTextSize(text?.sizeY, text?.sizeX)
+}
+
+/**
+ * Resolves a positive text metric.
+ * @param {number | undefined} primary Primary metric.
+ * @param {number | undefined} secondary Fallback metric.
+ * @returns {number}
+ */
+function positiveTextSize(primary, secondary) {
+    const value = Number(primary) || Number(secondary) || 1
+    return Math.max(value, 0.001)
+}
+
+/**
+ * Calculates line origin from KiCad horizontal justification.
+ * @param {object} text Text primitive.
+ * @param {number} lineWidth Rendered line width.
+ * @returns {number}
+ */
+function textLineX(text, lineWidth) {
+    const fudge = textStrokeHorizontalFudge(text)
+
+    if (text?.hAlign === 'left') {
+        return Number(text?.x || 0) + fudge
+    }
+
+    if (text?.hAlign === 'right') {
+        return Number(text?.x || 0) - lineWidth - fudge
+    }
+
+    return Number(text?.x || 0) - lineWidth / 2
+}
+
+/**
+ * Calculates one line baseline from KiCad vertical justification.
+ * @param {object} text Text primitive.
+ * @param {number} index Line index.
+ * @param {number} lineCount Total line count.
+ * @param {number} lineSpacing Baseline spacing in millimeters.
+ * @returns {number}
+ */
+function textLineY(text, index, lineCount, lineSpacing) {
+    const height = textHeight(text)
+    const blockHeight =
+        height * kicadFirstLineHeightRatio + lineSpacing * (lineCount - 1)
+    let baseline = Number(text?.y || 0) + height - textStrokeBaselineFudge(text)
+
+    if (text?.vAlign === 'bottom') {
+        baseline -= blockHeight
+    } else if (text?.vAlign === 'center') {
+        baseline -= blockHeight / 2
+    }
+
+    return baseline + lineSpacing * index
+}
+
+/**
+ * Applies KiCad text rotation and mirrored text transforms.
+ * @param {object} text Text primitive.
+ * @param {{ x: number, y: number }} point Stroke point.
+ * @returns {{ x: number, y: number }}
+ */
+function transformTextPoint(text, point) {
+    const origin = {
+        x: Number(text?.x || 0),
+        y: Number(text?.y || 0)
+    }
+
+    if (text?.mirrored) {
+        const rotated = rotatePoint(point, origin, Number(text?.rotation || 0))
+        return {
+            x: origin.x - (rotated.x - origin.x),
+            y: rotated.y
+        }
+    }
+
+    return rotatePoint(point, origin, -Number(text?.rotation || 0))
+}
+
+/**
+ * Rotates one point around an origin.
+ * @param {{ x: number, y: number }} point Point.
+ * @param {{ x: number, y: number }} origin Origin.
+ * @param {number} angleDeg Rotation angle in degrees.
+ * @returns {{ x: number, y: number }}
+ */
+function rotatePoint(point, origin, angleDeg) {
+    const angle = (Number(angleDeg || 0) * Math.PI) / 180
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    const dx = Number(point?.x || 0) - origin.x
+    const dy = Number(point?.y || 0) - origin.y
+
+    return {
+        x: origin.x + dx * cos - dy * sin,
+        y: origin.y + dx * sin + dy * cos
+    }
+}
+
+/**
+ * Resolves KiCad text stroke width.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function textStrokeWidth(text) {
+    return Math.max(Number(text?.thickness) || 0.12, 0.01)
+}
+
+/**
+ * Mirrors KiCad's small horizontal stroke-font adjustment.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function textStrokeHorizontalFudge(text) {
+    return textStrokeWidth(text) / 1.52
+}
+
+/**
+ * Mirrors KiCad's small stroke-font baseline adjustment.
+ * @param {object} text Text primitive.
+ * @returns {number}
+ */
+function textStrokeBaselineFudge(text) {
+    return textStrokeWidth(text) * kicadStrokeBaselineFudgeRatio
 }
 
 /**

@@ -60,8 +60,12 @@ export class KicadSchematicSymbolParser {
      */
     static parsePins(symbol, ownerIndex, transform, selection) {
         const hidePinNumbers = pinNumbersHidden(symbol)
+        const hidePinNames = pinNamesHidden(symbol)
+        const nameOffset = pinNameOffset(symbol)
         return collectSymbolPinNodes(symbol, selection).map((node, index) => {
             const at = parseAt(child(node, 'at'))
+            const name = textValue(child(node, 'name')) || ''
+            const nameFont = parsePinTextFont(child(node, 'name'))
             const numberFont = parsePinTextFont(child(node, 'number'))
             const visible = !pinHidden(node)
             const connection = transformPoint({ x: at.x, y: at.y }, transform)
@@ -76,9 +80,17 @@ export class KicadSchematicSymbolParser {
                 x: inner.x,
                 y: inner.y,
                 length: Geometry.distance(inner, connection),
-                name: textValue(child(node, 'name')) || '',
+                name,
                 designator:
                     textValue(child(node, 'number')) || String(index + 1),
+                nameFontSize: nameFont.size,
+                nameOffset,
+                nameVisible:
+                    visible &&
+                    nameFont.visible &&
+                    !hidePinNames &&
+                    Boolean(name.trim()) &&
+                    name.trim() !== '~',
                 numberFontSize: numberFont.size,
                 numberVisible: visible && numberFont.visible && !hidePinNumbers,
                 orientation,
@@ -100,7 +112,27 @@ export class KicadSchematicSymbolParser {
  * @returns {boolean}
  */
 function pinNumbersHidden(symbol) {
-    return hasChild(child(symbol, 'pin_numbers'), 'hide')
+    const pinNumbers = child(symbol, 'pin_numbers')
+    return hasScalar(pinNumbers, 'hide') || hasChild(pinNumbers, 'hide')
+}
+
+/**
+ * Checks whether a library symbol hides pin names.
+ * @param {Array | undefined} symbol Library symbol node.
+ * @returns {boolean}
+ */
+function pinNamesHidden(symbol) {
+    const pinNames = child(symbol, 'pin_names')
+    return hasScalar(pinNames, 'hide') || hasChild(pinNames, 'hide')
+}
+
+/**
+ * Reads the library symbol pin-name offset.
+ * @param {Array | undefined} symbol Library symbol node.
+ * @returns {number}
+ */
+function pinNameOffset(symbol) {
+    return numberValue(child(child(symbol, 'pin_names'), 'offset')?.[1], 0.5)
 }
 
 /**
@@ -127,7 +159,7 @@ function parsePinTextFont(node) {
     const size = Math.max(width, height)
     return {
         size,
-        visible: size > 0
+        visible: size > 0 && !hasScalar(node, 'hide') && !hasChild(node, 'hide')
     }
 }
 
