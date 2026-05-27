@@ -1,6 +1,6 @@
 {
     "name": "kicad-toolkit",
-    "version": "0.2.26",
+    "version": "0.2.27",
     "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
     "keywords": [
         "kicad",
