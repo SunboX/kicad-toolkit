@@ -24,6 +24,29 @@ test('KicadParser wraps .kicad_pcb files in the ECAD Forge document model', () =
     assert.deepEqual(document.bom[0].designators, ['U1'])
 })
 
+test('KicadParser exposes KiCad footprint model metadata on PCB components', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'models.kicad_pcb',
+        bytesFor(modelPcbSource())
+    )
+    const component = document.pcb.components[0]
+
+    assert.equal(component.modelName, 'body.step')
+    assert.equal(component.modelPath, '${KIPRJMOD}/parts/body.step')
+    assert.deepEqual(component.modelTransform, {
+        rotationDeg: { x: -90, y: 0, z: 90 },
+        offsetMil: {
+            x: 49.21259842519685,
+            y: -78.74015748031496,
+            z: 59.05511811023622
+        },
+        dxMil: 49.21259842519685,
+        dyMil: -78.74015748031496,
+        dzMil: 59.05511811023622,
+        scale: { x: 2, y: 3, z: 4 }
+    })
+})
+
 test('KicadParser exposes Altium-style PCB nets and primitive net names', () => {
     const document = KicadParser.parseArrayBuffer(
         'nets.kicad_pcb',
@@ -531,6 +554,41 @@ function minimalPcbSource() {
                 (size 1 1)
                 (layers "F.Cu" "F.Mask" "F.Paste")
                 (net 1 "GND")
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a minimal board fixture with one footprint 3D model.
+ * @returns {string}
+ */
+function modelPcbSource() {
+    return `(kicad_pcb
+        (version 20241229)
+        (gr_poly
+            (pts (xy 0 0) (xy 30 0) (xy 30 20) (xy 0 20))
+            (stroke (width 0.15) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (footprint "Fixture:Body"
+            (layer "F.Cu")
+            (at 10 10 0)
+            (property "Reference" "U1"
+                (at 0 -3 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1)))
+            )
+            (property "Value" "Body"
+                (at 0 3 0)
+                (layer "F.Fab")
+                (effects (font (size 1 1)))
+            )
+            (model "\${KIPRJMOD}/parts/body.step"
+                (offset (xyz 1.25 -2 1.5))
+                (scale (xyz 2 3 4))
+                (rotate (xyz -90 0 90))
             )
         )
     )`

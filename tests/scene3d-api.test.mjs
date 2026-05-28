@@ -180,7 +180,16 @@ test('PcbScene3dBuilder maps PCB primitives into KiCad 3D layer space', () => {
                 minY: 0,
                 segments: [{ type: 'line', x1: 10, y1: 20, x2: 90, y2: 120 }]
             },
-            components: [{ designator: 'U1', x: 125, y: 200 }],
+            components: [
+                { designator: 'U1', x: 125, y: 200, rotation: 90 },
+                {
+                    designator: 'U2',
+                    x: 225,
+                    y: 220,
+                    layer: 'BOTTOM',
+                    rotation: -45
+                }
+            ],
             pads: [
                 {
                     x: 100,
@@ -219,6 +228,8 @@ test('PcbScene3dBuilder maps PCB primitives into KiCad 3D layer space', () => {
     assert.equal(scene.board.segments[0].y1, 480)
     assert.equal(scene.board.segments[0].y2, 380)
     assert.equal(scene.components[0].positionMil.y, 50)
+    assert.equal(scene.components[0].rotationDeg, 90)
+    assert.equal(scene.components[1].rotationDeg, -45)
     assert.equal(scene.pads[0].y, 350)
     assert.equal(scene.pads[0].offsetTopY, -7)
     assert.equal(scene.detail.tracks[0].y1, 460)
@@ -292,4 +303,55 @@ test('PcbScene3dPackages mirrors procedural body package usage', () => {
     assert.equal(packageBody.family, 'chip')
     assert.equal(scene.components[0].mountSide, 'bottom')
     assert.equal(scene.components[0].positionMil.z < 0, true)
+})
+
+test('PcbScene3dBuilder carries KiCad model metadata onto scene components', () => {
+    const scene = PcbScene3dBuilder.build(
+        {
+            pcb: {
+                boardOutline: { widthMil: 1000, heightMil: 500, segments: [] },
+                components: [
+                    {
+                        designator: 'U1',
+                        x: 100,
+                        y: 200,
+                        layer: 'TOP',
+                        pattern: 'Fixture:Body',
+                        modelName: 'body.step',
+                        modelPath: '${KIPRJMOD}/parts/body.step',
+                        modelTransform: {
+                            rotationDeg: { x: -90, y: 0, z: 90 },
+                            dxMil: 10,
+                            dyMil: -20,
+                            dzMil: 30,
+                            scale: { x: 2, y: 3, z: 4 }
+                        }
+                    }
+                ],
+                pads: [],
+                tracks: [],
+                vias: []
+            }
+        },
+        {
+            sessionAssets: [
+                {
+                    name: 'body.step',
+                    relativePath: 'parts/body.step',
+                    format: 'step'
+                }
+            ]
+        }
+    )
+
+    assert.equal(scene.components[0].modelName, 'body.step')
+    assert.equal(scene.components[0].modelPath, '${KIPRJMOD}/parts/body.step')
+    assert.deepEqual(scene.components[0].modelTransform, {
+        rotationDeg: { x: -90, y: 0, z: 90 },
+        dxMil: 10,
+        dyMil: -20,
+        dzMil: 30,
+        scale: { x: 2, y: 3, z: 4 }
+    })
+    assert.equal(scene.components[0].externalModel.name, 'body.step')
 })

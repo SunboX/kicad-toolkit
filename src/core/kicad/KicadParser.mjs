@@ -52,36 +52,42 @@ export class KicadParser {
      */
     static wrapBoard(board, fileName = '') {
         const nets = board.nets || []
-        const components = (board.footprints || []).map((footprint) => ({
-            componentIndex: Number(
-                String(footprint.id || '')
-                    .split(':')
-                    .at(-1) || 0
-            ),
-            designator: footprint.reference,
-            x: toMil(footprint.x),
-            y: toMil(footprint.y),
-            layer: footprint.side === 'back' ? 'BOTTOM' : 'TOP',
-            pattern: footprint.libraryName,
-            rotation: footprint.rotation,
-            source: footprint.libraryName,
-            description: footprint.libraryName,
-            value: footprint.value || '',
-            footprintName: footprint.footprintName || footprint.libraryName,
-            properties: footprint.properties || {},
-            attributes: footprint.attributes || [],
-            excludeFromPositionFiles:
-                footprint.excludeFromPositionFiles === true,
-            excludeFromBom: footprint.excludeFromBom === true,
-            doNotPopulate: footprint.doNotPopulate === true,
-            boardOnly: footprint.boardOnly === true,
-            isThroughHole: footprint.isThroughHole === true,
-            isSmd: footprint.isSmd === true,
-            isVirtual: footprint.isVirtual === true,
-            allowMissingCourtyard: footprint.allowMissingCourtyard === true,
-            allowSolderMaskBridges: footprint.allowSolderMaskBridges === true,
-            height: null
-        }))
+        const components = (board.footprints || []).map((footprint) => {
+            const model = primaryFootprintModel(footprint)
+
+            return {
+                componentIndex: Number(
+                    String(footprint.id || '')
+                        .split(':')
+                        .at(-1) || 0
+                ),
+                designator: footprint.reference,
+                x: toMil(footprint.x),
+                y: toMil(footprint.y),
+                layer: footprint.side === 'back' ? 'BOTTOM' : 'TOP',
+                pattern: footprint.libraryName,
+                rotation: footprint.rotation,
+                source: footprint.libraryName,
+                description: footprint.libraryName,
+                value: footprint.value || '',
+                footprintName: footprint.footprintName || footprint.libraryName,
+                properties: footprint.properties || {},
+                attributes: footprint.attributes || [],
+                excludeFromPositionFiles:
+                    footprint.excludeFromPositionFiles === true,
+                excludeFromBom: footprint.excludeFromBom === true,
+                doNotPopulate: footprint.doNotPopulate === true,
+                boardOnly: footprint.boardOnly === true,
+                isThroughHole: footprint.isThroughHole === true,
+                isSmd: footprint.isSmd === true,
+                isVirtual: footprint.isVirtual === true,
+                allowMissingCourtyard: footprint.allowMissingCourtyard === true,
+                allowSolderMaskBridges:
+                    footprint.allowSolderMaskBridges === true,
+                ...modelComponentFields(model),
+                height: null
+            }
+        })
         const pads = (board.pads || []).map((pad) =>
             normalizePad(pad, board.footprints)
         )
@@ -233,6 +239,69 @@ function decodeSource(bytes) {
  */
 function toMil(value) {
     return Number(value || 0) * milsPerMillimeter
+}
+
+/**
+ * Picks the first visible footprint model.
+ * @param {object} footprint Raw KiCad footprint.
+ * @returns {object | null}
+ */
+function primaryFootprintModel(footprint) {
+    return (
+        (Array.isArray(footprint?.models) ? footprint.models : []).find(
+            (model) => model?.visible !== false
+        ) || null
+    )
+}
+
+/**
+ * Builds optional component fields from a KiCad footprint model.
+ * @param {object | null} model Raw footprint model.
+ * @returns {object}
+ */
+function modelComponentFields(model) {
+    if (!model) {
+        return {}
+    }
+
+    const offsetMil = {
+        x: toMil(model.offset?.x),
+        y: toMil(model.offset?.y),
+        z: toMil(model.offset?.z)
+    }
+
+    return {
+        modelName: String(model.name || basename(model.path)),
+        modelPath: String(model.path || ''),
+        modelTransform: {
+            rotationDeg: {
+                x: Number(model.rotation?.x || 0),
+                y: Number(model.rotation?.y || 0),
+                z: Number(model.rotation?.z || 0)
+            },
+            offsetMil,
+            dxMil: offsetMil.x,
+            dyMil: offsetMil.y,
+            dzMil: offsetMil.z,
+            scale: {
+                x: Number(model.scale?.x ?? 1),
+                y: Number(model.scale?.y ?? 1),
+                z: Number(model.scale?.z ?? 1)
+            }
+        }
+    }
+}
+
+/**
+ * Returns a slash-normalized path basename.
+ * @param {string} path Path value.
+ * @returns {string}
+ */
+function basename(path) {
+    return String(path || '')
+        .replace(/\\/g, '/')
+        .split('/')
+        .at(-1)
 }
 
 /**

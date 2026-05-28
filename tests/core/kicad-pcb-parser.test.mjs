@@ -43,6 +43,23 @@ test('KicadPcbParser extracts title, outline, footprints, pads, and transformed 
     assert.equal(mirroredText.mirrored, true)
 })
 
+test('KicadPcbParser extracts footprint 3D model transforms', () => {
+    const board = KicadPcbParser.parse(modelFootprintFixture(), {
+        fileName: 'models.kicad_pcb'
+    })
+
+    assert.deepEqual(board.footprints[0].models, [
+        {
+            path: '${KIPRJMOD}/parts/body.step',
+            name: 'body.step',
+            offset: { x: 1.25, y: -2, z: 1.5 },
+            scale: { x: 2, y: 3, z: 4 },
+            rotation: { x: -90, y: 0, z: 90 },
+            visible: true
+        }
+    ])
+})
+
 test('KicadPcbParser extracts copper segments, vias, zones, and rotated rectangles', async () => {
     const source = await readFile(fixtureUrl, 'utf8')
     const board = KicadPcbParser.parse(source, {
@@ -525,6 +542,35 @@ function footprintAttributeFixture() {
         ${attributeFootprint('D1', 'LED_SMD:LED_0603', 'smd dnp', 'RED')}
         ${attributeFootprint('TP1', 'TestPoint:Pad_1mm', 'board_only', 'TEST')}
         ${attributeFootprint('LOGO1', 'Symbol:Logo', 'virtual', 'LOGO')}
+    )`
+}
+
+/**
+ * Builds a minimal board fixture with footprint model metadata.
+ * @returns {string}
+ */
+function modelFootprintFixture() {
+    return `(kicad_pcb
+        (version 20241229)
+        (footprint "Fixture:Body"
+            (layer "F.Cu")
+            (at 1 2 90)
+            (property "Reference" "U1"
+                (at 0 0 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1)))
+            )
+            (property "Value" "Body"
+                (at 0 1 0)
+                (layer "F.Fab")
+                (effects (font (size 1 1)))
+            )
+            (model "\${KIPRJMOD}/parts/body.step"
+                (offset (xyz 1.25 -2 1.5))
+                (scale (xyz 2 3 4))
+                (rotate (xyz -90 0 90))
+            )
+        )
     )`
 }
 

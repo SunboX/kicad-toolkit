@@ -118,6 +118,7 @@ function parseFootprint(node, index, netResolver) {
         ...parseAt(child(node, 'at')),
         side
     }
+    const models = parseFootprintModels(children(node, 'model'))
     const pads = children(node, 'pad').map((padNode, padIndex) => {
         return KicadPcbPadParser.parsePad(padNode, {
             footprintId: id,
@@ -182,12 +183,50 @@ function parseFootprint(node, index, netResolver) {
         x: transform.x,
         y: transform.y,
         rotation: transform.rotation,
+        models,
         pads,
         texts,
         drawings,
         groups: graphicItems.groups,
         generatedItems: graphicItems.generatedItems,
         bounds
+    }
+}
+
+/**
+ * Parses footprint 3D model metadata.
+ * @param {Array[]} modelNodes Model nodes.
+ * @returns {{ path: string, name: string, offset: { x: number, y: number, z: number }, scale: { x: number, y: number, z: number }, rotation: { x: number, y: number, z: number }, visible: boolean }[]}
+ */
+function parseFootprintModels(modelNodes) {
+    return modelNodes.map((modelNode) => {
+        const path = String(modelNode?.[1] || '')
+
+        return {
+            path,
+            name: basename(path),
+            offset: parseNestedXyz(modelNode, 'offset', 0),
+            scale: parseNestedXyz(modelNode, 'scale', 1),
+            rotation: parseNestedXyz(modelNode, 'rotate', 0),
+            visible: !hasChild(modelNode, 'hide')
+        }
+    })
+}
+
+/**
+ * Reads one nested `(name (xyz ...))` coordinate.
+ * @param {Array | undefined} node Parent node.
+ * @param {string} name Child node name.
+ * @param {number} fallback Fallback coordinate value.
+ * @returns {{ x: number, y: number, z: number }}
+ */
+function parseNestedXyz(node, name, fallback) {
+    const xyz = child(child(node, name), 'xyz')
+
+    return {
+        x: numberValue(xyz?.[1], fallback),
+        y: numberValue(xyz?.[2], fallback),
+        z: numberValue(xyz?.[3], fallback)
     }
 }
 
@@ -583,6 +622,18 @@ function isNode(node, name) {
  */
 function textValue(node) {
     return String(node?.[1] || '')
+}
+
+/**
+ * Returns a slash-normalized path basename.
+ * @param {string} path Path value.
+ * @returns {string}
+ */
+function basename(path) {
+    return String(path || '')
+        .replace(/\\/g, '/')
+        .split('/')
+        .at(-1)
 }
 
 /**
