@@ -83,10 +83,12 @@ Specialized parser helpers are exported for lower-level integrations, including
 `KicadPcbDrawingParser`, `KicadPcbLayerMetadata`, `KicadPcbPadParser`,
 `KicadFeatureParity`, `KicadReadinessReport`, `KicadSchematicGraphicParser`,
 `KicadSchematicSymbolParser`, `KicadToolkitCapabilities`, and
-`SExpressionTree`. The layer, net, drawing, pad, schematic, report, parity,
-capability, and S-expression tree helpers expose the same normalization used by
-`.kicad_pcb` and `.kicad_sch` parsing. `SExpressionParser.parse(source)`
-returns the raw nested S-expression tree used by the KiCad parsers.
+`SExpressionTree`. The layer, net, drawing, pad, schematic, report, capability,
+and S-expression tree helpers expose the same normalization used by
+`.kicad_pcb` and `.kicad_sch` parsing. `KicadFeatureParity` exposes a data-only
+parity inventory for KiCad equivalents and source-format exemptions.
+`SExpressionParser.parse(source)` returns the raw nested S-expression tree used
+by the KiCad parsers.
 
 `KicadLayerResolver` resolves standard KiCad aliases such as silkscreen and
 courtyard display names, exposes standard ordinals, layer classes, copper

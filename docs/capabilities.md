@@ -56,9 +56,9 @@ All current package capabilities are `read_only`. `supportsDryRun` and
 ## Feature Parity Inventory
 
 `KicadFeatureParity.inventory(options)` returns a read-only parity contract for
-Altium Toolkit user-facing capabilities that have KiCad-native equivalents.
-The helper is data only; it does not parse files, render documents, mutate
-input, create backups, or invoke external tools.
+Altium Toolkit user-facing capabilities that have KiCad equivalents or
+documented source-format exemptions. The helper is data only; it does not parse
+files, render documents, mutate input, create backups, or invoke external tools.
 
 ```js
 import { KicadFeatureParity } from 'kicad-toolkit/parser'
