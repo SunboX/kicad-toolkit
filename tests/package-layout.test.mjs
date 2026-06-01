@@ -31,6 +31,8 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
     )
 
     assertPublicApi(parserApi, [
+        'CircuitJsonModelAdapter',
+        'CircuitJsonModelSchema',
         'Geometry',
         'KicadArcGeometry',
         'KicadLayerResolver',
@@ -91,6 +93,12 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
     await assertFileExists('../src/core/kicad/NormalizedModelSchema.mjs')
     await assertFileExists('../src/core/kicad/SExpressionParser.mjs')
+    await assertFileExists(
+        '../src/core/circuit-json/CircuitJsonModelAdapter.mjs'
+    )
+    await assertFileExists(
+        '../src/core/circuit-json/CircuitJsonModelSchema.mjs'
+    )
     await assertFileExists('../src/ui/PcbSideResolvedRenderModel.mjs')
     await assertFileExists('../src/scene3d.mjs')
     await assertFileExists('../src/workers/kicad-parser.worker.mjs')

@@ -15,4 +15,6 @@ export { KicadSchematicGraphicParser } from './core/kicad/KicadSchematicGraphicP
 export { KicadSchematicParser } from './core/kicad/KicadSchematicParser.mjs'
 export { KicadSchematicSymbolParser } from './core/kicad/KicadSchematicSymbolParser.mjs'
 export { NormalizedModelSchema } from './core/kicad/NormalizedModelSchema.mjs'
+export { CircuitJsonModelSchema } from './core/circuit-json/CircuitJsonModelSchema.mjs'
+export { CircuitJsonModelAdapter } from './core/circuit-json/CircuitJsonModelAdapter.mjs'
 export { SExpressionParser } from './core/kicad/SExpressionParser.mjs'

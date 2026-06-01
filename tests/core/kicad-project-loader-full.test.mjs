@@ -12,6 +12,10 @@ test('KicadProjectLoader loads a full KiCad project from named entries', async (
     assert.equal(result.project.name, 'demo')
     assert.equal(result.documents.length, 3)
     assert.equal(result.diagnostics.length, 0)
+    assert.equal(
+        result.documents.every((document) => Array.isArray(document)),
+        true
+    )
     assert.ok(result.documents.some((document) => document.kind === 'pcb'))
     assert.equal(
         result.documents.filter((document) => document.kind === 'schematic')

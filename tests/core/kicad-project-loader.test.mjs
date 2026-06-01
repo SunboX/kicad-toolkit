@@ -20,6 +20,8 @@ test('KicadProjectLoader loads a direct .kicad_pcb entry', async () => {
 
     assert.equal(result.board.title, 'Tiny Board')
     assert.equal(result.sourceFileName, 'minimal.kicad_pcb')
+    assert.equal(Array.isArray(result.documents[0]), true)
+    assert.equal(result.documents[0].kind, 'pcb')
 })
 
 test('KicadProjectLoader finds the first board file inside a KiCad project zip', async () => {

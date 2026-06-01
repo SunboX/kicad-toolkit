@@ -24,14 +24,15 @@ Specialized entrypoints are also available:
 ```js
 import { KicadParser } from 'kicad-toolkit/parser'
 
-const documentModel = KicadParser.parseArrayBuffer(fileName, arrayBuffer)
+const circuitJson = KicadParser.parseArrayBuffer(fileName, arrayBuffer)
 ```
 
 `fileName` is used to infer schematic or PCB parsing from the extension. The
 parser accepts native `.kicad_sch` and `.kicad_pcb` bytes as an `ArrayBuffer`
-and returns the normalized model described in [Model Format](model-format.md).
-Every parser root includes a top-level `schema` id for the emitted normalized
-model contract.
+and returns a Circuit JSON element array. The returned array carries
+non-serialized renderer-compatibility fields such as `sourceFormat`, `kind`,
+`fileType`, `schematic`, `pcb`, `summary`, `diagnostics`, and `bom` so existing
+renderers can consume parser output directly during the migration.
 
 PCB parsing reads KiCad S-expression board data, including layer declarations,
 net declarations, footprints, pads, graphical primitives, copper tracks, routed
@@ -46,12 +47,19 @@ junctions, no-connect markers, graphical items, embedded file metadata, simple
 net recovery, and grouped BOM rows.
 
 ```js
-import { NormalizedModelSchema } from 'kicad-toolkit/parser'
+import { CircuitJsonModelSchema } from 'kicad-toolkit/parser'
 
-if (documentModel.schema !== NormalizedModelSchema.CURRENT_SCHEMA_ID) {
-    throw new Error('Unsupported normalized model schema')
+if (!CircuitJsonModelSchema.isModel(circuitJson)) {
+    throw new Error('Unsupported Circuit JSON model')
 }
 ```
+
+Use `KicadParser.parseArrayBufferToRendererModel(fileName, arrayBuffer)` when
+an integration still needs the legacy renderer model object. The
+`CircuitJsonModelAdapter` export also exposes `fromRendererModel()`,
+`toRendererModel()`, and `isCircuitJson()` for explicit conversions. Legacy
+renderer compatibility fields keep their `NormalizedModelSchema` id for
+integrations that still check the normalized model contract.
 
 `KicadPcbParser.parse(source, options)` accepts KiCad `.kicad_pcb` source text
 and returns the lower-level board model that is wrapped by
@@ -62,10 +70,11 @@ for host metadata and accessible renderer labels.
 values. `KicadProjectLoader.loadEntries(entries)` accepts named byte entries in
 the shape `{ name, bytes }`. Both methods support direct `.kicad_pcb` files and
 ZIP archives containing `.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, and companion
-3D asset files. Direct board loads return the raw board, wrapped documents,
-project summary, assets, diagnostics, source file name, and source text. Full
-project loads return parsed documents, a project summary, companion assets, and
-diagnostics.
+3D asset files. Direct board loads return the raw board, Circuit JSON
+documents, renderer compatibility documents, project summary, assets,
+diagnostics, source file name, and source text. Full project loads return
+Circuit JSON documents, renderer compatibility documents, a project summary,
+companion assets, and diagnostics.
 
 Specialized parser helpers are exported for lower-level integrations, including
 `Geometry`, `KicadArcGeometry`, `KicadLayerResolver`, `KicadNetResolver`,

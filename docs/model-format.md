@@ -6,8 +6,30 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # Model Format
 
-The normalized model is intentionally stable with the ECAD Forge parser model.
-The parser returns one object per parsed native KiCad document.
+The public parser returns one Circuit JSON element array per parsed native
+KiCad document. Circuit JSON is the serialized model contract. The returned
+array also carries non-serialized renderer-compatibility fields that preserve
+the previous ECAD Forge parser model for renderers and migration code.
+
+## Circuit JSON Fields
+
+Every parser result is an array of elements with a `type` field. The adapter
+emits Circuit JSON elements for source project metadata, source components,
+ports, nets, schematic symbols, schematic lines, schematic text, PCB boards,
+PCB components, PCB pads, PCB traces, and PCB vias where those structures are
+available in the source document.
+
+Use `CircuitJsonModelSchema.isModel(result)` to validate that a value is a
+Circuit JSON array. `JSON.stringify(result)` serializes only the Circuit JSON
+elements; compatibility fields are intentionally omitted from serialized JSON.
+
+## Renderer Compatibility Fields
+
+For compatibility, `KicadParser.parseArrayBuffer()` attaches the previous
+renderer model fields directly to the Circuit JSON array. Integrations that need
+the object form can call
+`KicadParser.parseArrayBufferToRendererModel(fileName, arrayBuffer)` or
+`CircuitJsonModelAdapter.toRendererModel(circuitJson)`.
 
 ## Common Fields
 
@@ -23,11 +45,13 @@ The parser returns one object per parsed native KiCad document.
 
 ## Schema Contracts
 
-The current root model contract is published as a JSON Schema at
+The legacy renderer compatibility contract is published as a JSON Schema at
 [`docs/schemas/kicad_toolkit/normalized_model_a1.schema.json`](schemas/kicad_toolkit/normalized_model_a1.schema.json).
-Parser roots expose the same id through the top-level `schema` field, and
-library consumers can compare it with
-`NormalizedModelSchema.CURRENT_SCHEMA_ID`.
+Compatibility fields expose the same id through the top-level `schema` field,
+and consumers can compare it with `NormalizedModelSchema.CURRENT_SCHEMA_ID`.
+The serialized parser return value follows the upstream
+[`tscircuit/circuit-json`](https://github.com/tscircuit/circuit-json) element
+array convention.
 
 ## Schematic Fields
 
@@ -81,12 +105,13 @@ stroke font helper.
 ## Project Loading Fields
 
 `KicadProjectLoader` returns a loader container rather than a normalized parser
-root. Direct board loads include the lower-level `board`, wrapped `documents`,
-a compact `project` summary, companion `assets`, `diagnostics`,
+root. Direct board loads include the lower-level `board`, Circuit JSON
+`documents`, `rendererDocuments` for integrations that still need the legacy
+object shape, a compact `project` summary, companion `assets`, `diagnostics`,
 `sourceFileName`, and `sourceText`. Full project ZIP loads include parsed
-schematic and PCB `documents`, a `project` summary with document counts,
-project-level net references, grouped BOM rows, companion 3D `assets`, and
-diagnostics for missing hierarchical sheets.
+schematic and PCB Circuit JSON `documents`, `rendererDocuments`, a `project`
+summary with document counts, project-level net references, grouped BOM rows,
+companion 3D `assets`, and diagnostics for missing hierarchical sheets.
 
 ## Compatibility Rule
 

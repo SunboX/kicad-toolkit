@@ -27,8 +27,8 @@ be reused by other browser or Node-based tools.
   segments, vias, zones, drawings, text, layer side metadata, and board bounds
 - Preserve raw KiCad board detail through the wrapped `pcb.kicadBoard` model so
   lower-level KiCad parser output remains inspectable
-- Emit versioned normalized model roots with a machine-readable JSON Schema
-  contract
+- Emit Circuit JSON arrays from parser roots, with non-serialized
+  renderer-compatibility fields for existing consumers
 - Render schematic SVG, PCB SVG, and grouped BOM HTML
 - Build non-interactive PCB 3D scene-description data for host applications
 - Render KiCad stroke text and a static 3D board summary

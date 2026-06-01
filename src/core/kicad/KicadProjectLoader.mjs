@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { strFromU8, unzipSync } from 'fflate'
+import { CircuitJsonModelAdapter } from '../circuit-json/CircuitJsonModelAdapter.mjs'
 import { KicadParser } from './KicadParser.mjs'
 import { KicadPcbParser } from './KicadPcbParser.mjs'
 
@@ -67,10 +68,13 @@ export class KicadProjectLoader {
         const board = KicadPcbParser.parse(source, {
             fileName: boardEntry.name
         })
-        const document = KicadParser.wrapBoard(board, boardEntry.name)
+        const rendererDocument = KicadParser.wrapBoard(board, boardEntry.name)
+        const document =
+            CircuitJsonModelAdapter.fromRendererModel(rendererDocument)
         return {
             board,
             documents: [document],
+            rendererDocuments: [rendererDocument],
             project: KicadProjectLoader.#buildProjectSummary(
                 '',
                 [document],
@@ -232,6 +236,9 @@ export class KicadProjectLoader {
         return {
             project,
             documents,
+            rendererDocuments: documents.map((document) =>
+                CircuitJsonModelAdapter.toRendererModel(document)
+            ),
             assets: entries.filter((entry) =>
                 /\.(step|stp|wrl|vrml)$/i.test(entry.name)
             ),

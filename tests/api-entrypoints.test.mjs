@@ -17,6 +17,11 @@ test('root entrypoint exports parser and renderer classes', () => {
         /^urn:kicad-toolkit:normalized-model:/
     )
     assert.equal(typeof rootApi.KicadArcGeometry.fromThreePoints, 'function')
+    assert.equal(
+        typeof rootApi.CircuitJsonModelAdapter.isCircuitJson,
+        'function'
+    )
+    assert.equal(typeof rootApi.CircuitJsonModelSchema.attach, 'function')
     assert.equal(typeof rootApi.KicadNetResolver.fromNodes, 'function')
     assert.equal(typeof rootApi.KicadParser.parseArrayBuffer, 'function')
     assert.equal(
@@ -52,6 +57,11 @@ test('root entrypoint exports parser and renderer classes', () => {
  * Verifies specialized parser and renderer entrypoints stay separated.
  */
 test('specialized entrypoints expose their intended API groups', () => {
+    assert.equal(
+        typeof parserApi.CircuitJsonModelAdapter.isCircuitJson,
+        'function'
+    )
+    assert.equal(typeof parserApi.CircuitJsonModelSchema.attach, 'function')
     assert.equal(typeof parserApi.NormalizedModelSchema.attach, 'function')
     assert.equal(typeof parserApi.KicadParser.parseArrayBuffer, 'function')
     assert.equal(typeof parserApi.KicadPcbPadParser.parsePad, 'function')

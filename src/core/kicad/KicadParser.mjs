@@ -6,21 +6,43 @@ import { KicadArcGeometry } from './KicadArcGeometry.mjs'
 import { KicadPcbParser } from './KicadPcbParser.mjs'
 import { KicadSchematicParser } from './KicadSchematicParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
+import { CircuitJsonModelAdapter } from '../circuit-json/CircuitJsonModelAdapter.mjs'
 
 const milsPerMillimeter = 1000 / 25.4
 
 /**
- * Altium-style parser facade for KiCad documents.
+ * Circuit JSON parser facade for KiCad documents.
  */
 export class KicadParser {
     /**
-     * Parses a KiCad document buffer into an ECAD Forge model.
+     * Parses a KiCad document buffer into a Circuit JSON element array.
+     * @param {string} fileName Source file name.
+     * @param {ArrayBuffer | Uint8Array} arrayBuffer Source bytes.
+     * @param {object} [options] Parser options.
+     * @returns {object[]}
+     */
+    static parseArrayBuffer(fileName, arrayBuffer, options = {}) {
+        return CircuitJsonModelAdapter.fromRendererModel(
+            KicadParser.parseArrayBufferToRendererModel(
+                fileName,
+                arrayBuffer,
+                options
+            )
+        )
+    }
+
+    /**
+     * Parses a KiCad document buffer into the renderer compatibility model.
      * @param {string} fileName Source file name.
      * @param {ArrayBuffer | Uint8Array} arrayBuffer Source bytes.
      * @param {object} [options] Parser options.
      * @returns {object}
      */
-    static parseArrayBuffer(fileName, arrayBuffer, options = {}) {
+    static parseArrayBufferToRendererModel(
+        fileName,
+        arrayBuffer,
+        options = {}
+    ) {
         const normalizedName = String(fileName || 'document')
         const source = decodeSource(arrayBuffer)
 
