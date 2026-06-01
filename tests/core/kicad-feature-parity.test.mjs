@@ -102,8 +102,7 @@ test('KicadFeatureParity records Altium-only source-format exemptions', () => {
         label: 'OLE compound document parsing',
         altiumCapability:
             'Read Altium native compound document stream containers.',
-        reason:
-            'KiCad schematic and PCB files are text S-expressions, and KiCad projects are loaded from normal files or ZIP archives.',
+        reason: 'KiCad schematic and PCB files are text S-expressions, and KiCad projects are loaded from normal files or ZIP archives.',
         kicadEquivalent: 'SExpressionParser and KicadProjectLoader',
         docs: ['spec/library-scope.md']
     })
@@ -112,8 +111,7 @@ test('KicadFeatureParity records Altium-only source-format exemptions', () => {
         id: 'pcb_library_streams',
         label: 'Altium PCB library stream parsing',
         altiumCapability: 'Parse .PcbLib footprint library streams.',
-        reason:
-            'KiCad footprint libraries use KiCad-specific .kicad_mod or symbol-library workflows outside the current parser roots.',
+        reason: 'KiCad footprint libraries use KiCad-specific .kicad_mod or symbol-library workflows outside the current parser roots.',
         kicadEquivalent:
             'Footprint instances embedded in .kicad_pcb files are parsed through KicadPcbParser.',
         docs: ['spec/library-scope.md']

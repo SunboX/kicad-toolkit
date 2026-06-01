@@ -35,6 +35,7 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'CircuitJsonModelSchema',
         'Geometry',
         'KicadArcGeometry',
+        'KicadFeatureParity',
         'KicadLayerResolver',
         'KicadNetResolver',
         'KicadParser',
