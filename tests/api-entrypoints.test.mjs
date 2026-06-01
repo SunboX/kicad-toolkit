@@ -23,6 +23,7 @@ test('root entrypoint exports parser and renderer classes', () => {
     )
     assert.equal(typeof rootApi.CircuitJsonModelSchema.attach, 'function')
     assert.equal(typeof rootApi.KicadToolkitCapabilities.inventory, 'function')
+    assert.equal(typeof rootApi.KicadFeatureParity.inventory, 'function')
     assert.equal(typeof rootApi.KicadReadinessReport.parseDrcReport, 'function')
     assert.equal(typeof rootApi.KicadNetResolver.fromNodes, 'function')
     assert.equal(typeof rootApi.KicadParser.parseArrayBuffer, 'function')
@@ -74,6 +75,7 @@ test('specialized entrypoints expose their intended API groups', () => {
         typeof parserApi.KicadToolkitCapabilities.inventory,
         'function'
     )
+    assert.equal(typeof parserApi.KicadFeatureParity.inventory, 'function')
     assert.equal(
         typeof parserApi.KicadReadinessReport.fabricationReadiness,
         'function'

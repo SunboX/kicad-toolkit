@@ -59,6 +59,7 @@ test('required project files exist', async () => {
         'src/core/kicad/KicadLayerResolver.mjs',
         'src/core/kicad/KicadPcbParser.mjs',
         'src/core/kicad/KicadProjectLoader.mjs',
+        'src/core/kicad/KicadFeatureParity.mjs',
         'src/core/kicad/SExpressionParser.mjs',
         'src/ui/KicadStrokeFont.mjs',
         'src/ui/PcbSvgRenderer.mjs',
@@ -260,6 +261,7 @@ test('API docs describe Altium-style KiCad entrypoints', async () => {
     assert.match(apiDocs, /preparePcbSideResolvedRenderModel/)
     assert.match(apiDocs, /PcbScene3dPackages/)
     assert.match(apiDocs, /KicadToolkitCapabilities/)
+    assert.match(apiDocs, /KicadFeatureParity/)
     assert.match(apiDocs, /KicadReadinessReport/)
 })
 
@@ -294,6 +296,8 @@ test('model docs publish the normalized model JSON schema contract', async () =>
     assert.match(modelDocs, /Schema Contracts/)
     assert.match(modelDocs, /Helper Report Fields/)
     assert.match(capabilityDocs, /Capability Inventory/)
+    assert.match(capabilityDocs, /Feature Parity Inventory/)
+    assert.match(capabilityDocs, /Source-Format Exemptions/)
     assert.match(capabilityDocs, /Fabrication Readiness/)
     assert.equal(schema.$id, NormalizedModelSchema.CURRENT_SCHEMA_ID)
     assert.equal(schema.properties.schema.const, schema.$id)
