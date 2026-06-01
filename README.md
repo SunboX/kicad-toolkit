@@ -30,6 +30,8 @@ be reused by other browser or Node-based tools.
   wildcard sides, rotated pad bounds, and analytic geometry clearances
 - Expose a read-only parser/rendering capability inventory and normalized
   DRC/ERC/readiness report helpers for host diagnostics
+- Expose an auditable feature-level parity inventory against Altium Toolkit
+  capabilities, including explicit source-format exemptions
 - Preserve raw KiCad board detail through the wrapped `pcb.kicadBoard` model so
   lower-level KiCad parser output remains inspectable
 - Emit Circuit JSON arrays from parser roots, with non-serialized
@@ -60,11 +62,13 @@ import {
     preparePcbSideResolvedRenderModel,
     BomTableRenderer,
     PcbScene3dBuilder,
+    KicadFeatureParity,
     KicadToolkitCapabilities,
     KicadReadinessReport
 } from 'kicad-toolkit'
 
 const documentModel = KicadParser.parseArrayBuffer(file.name, arrayBuffer)
+const parityInventory = KicadFeatureParity.inventory()
 const capabilityInventory = KicadToolkitCapabilities.inventory()
 const readiness = KicadReadinessReport.fabricationReadiness(
     documentModel.pcb?.kicadBoard || documentModel

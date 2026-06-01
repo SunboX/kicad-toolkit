@@ -81,9 +81,9 @@ companion assets, and diagnostics.
 Specialized parser helpers are exported for lower-level integrations, including
 `Geometry`, `KicadArcGeometry`, `KicadLayerResolver`, `KicadNetResolver`,
 `KicadPcbDrawingParser`, `KicadPcbLayerMetadata`, `KicadPcbPadParser`,
-`KicadReadinessReport`, `KicadSchematicGraphicParser`,
+`KicadFeatureParity`, `KicadReadinessReport`, `KicadSchematicGraphicParser`,
 `KicadSchematicSymbolParser`, `KicadToolkitCapabilities`, and
-`SExpressionTree`. The layer, net, drawing, pad, schematic, report,
+`SExpressionTree`. The layer, net, drawing, pad, schematic, report, parity,
 capability, and S-expression tree helpers expose the same normalization used by
 `.kicad_pcb` and `.kicad_sch` parsing. `SExpressionParser.parse(source)`
 returns the raw nested S-expression tree used by the KiCad parsers.
@@ -105,10 +105,12 @@ bounds points to footprint and board bounds.
 
 ```js
 import {
+    KicadFeatureParity,
     KicadReadinessReport,
     KicadToolkitCapabilities
 } from 'kicad-toolkit/parser'
 
+const parity = KicadFeatureParity.inventory()
 const inventory = KicadToolkitCapabilities.inventory({
     category: 'reporting'
 })
@@ -123,6 +125,9 @@ matrix for parser, project-loading, geometry/metadata, rendering, 3D scene data,
 and reporting support. Each capability record includes a safety class,
 dependency list, browser and Node support flags, output shapes, dry-run support,
 backup behavior, mutation behavior, and a short summary.
+`KicadFeatureParity.inventory(options)` returns the auditable feature-level
+parity contract against Altium Toolkit capabilities, including KiCad-native
+feature records and source-format-specific exemptions.
 
 `KicadReadinessReport.parseDrcReport(report, options)` and
 `KicadReadinessReport.parseErcReport(report, options)` normalize

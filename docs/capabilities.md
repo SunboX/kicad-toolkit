@@ -53,6 +53,55 @@ The response also contains aggregate counts:
 All current package capabilities are `read_only`. `supportsDryRun` and
 `createsBackup` are false because the library does not perform write operations.
 
+## Feature Parity Inventory
+
+`KicadFeatureParity.inventory(options)` returns a read-only parity contract for
+Altium Toolkit user-facing capabilities that have KiCad-native equivalents.
+The helper is data only; it does not parse files, render documents, mutate
+input, create backups, or invoke external tools.
+
+```js
+import { KicadFeatureParity } from 'kicad-toolkit/parser'
+
+const parity = KicadFeatureParity.inventory()
+const pcbRendering = KicadFeatureParity.inventory({
+    category: 'pcb_rendering'
+})
+```
+
+Each implemented feature includes:
+
+| Field              | Meaning                                                                       |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `id`               | Stable machine-readable parity feature id                                     |
+| `label`            | Human-readable feature name                                                   |
+| `category`         | Parity area such as `parser_roots`, `pcb_rendering`, or `scene3d`             |
+| `status`           | Current implementation status; built-in features are `implemented`            |
+| `kicadNative`      | Whether the capability is KiCad-native rather than an adapted shared contract |
+| `altiumCapability` | Altium Toolkit user-facing capability being matched                           |
+| `kicadCapability`  | KiCad Toolkit capability that provides the equivalent behavior                |
+| `entrypoints`      | Public package entrypoints that expose the capability                         |
+| `docs`             | Documentation files that describe the capability                              |
+| `tests`            | Test files that cover the capability                                          |
+| `summary`          | Short behavior summary                                                        |
+
+The response includes aggregate `categories`, `statusCounts`, `nativeCounts`,
+and `featureCoverage` fields. Unknown filters are treated as empty result sets,
+so host applications can probe optional categories without handling exceptions.
+
+### Source-Format Exemptions
+
+Some Altium Toolkit capabilities are intentionally not copied because they are
+specific to Altium file storage rather than shared EDA-library behavior. The
+`exemptions` list records these cases with the Altium capability, the reason it
+does not apply to native KiCad files, and the closest KiCad equivalent.
+
+Current exemptions cover OLE compound documents, Altium binary primitive
+streams, `.PcbLib` stream parsing, `.PrjPcb` INI parsing, Altium raw record
+registries, and embedded Altium binary payload extraction. KiCad equivalents
+are S-expression parsing, project ZIP loading, raw KiCad AST/model
+preservation, companion asset metadata, and KiCad stroke-font rendering.
+
 ## Report Normalization
 
 `KicadReadinessReport` normalizes caller-supplied DRC and ERC report data into
