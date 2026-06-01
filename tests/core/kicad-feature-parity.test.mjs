@@ -82,6 +82,7 @@ test('KicadFeatureParity filters without throwing for unknown filters', () => {
     })
 
     assert.equal(unknown.total, 0)
+    assert.equal(unknown.implemented, false)
     assert.deepEqual(unknown.categories, {})
     assert.deepEqual(unknown.statusCounts, {})
     assert.deepEqual(unknown.nativeCounts, {

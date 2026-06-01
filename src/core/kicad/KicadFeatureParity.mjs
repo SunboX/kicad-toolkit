@@ -415,9 +415,9 @@ export class KicadFeatureParity {
         })
         const response = {
             total: records.length,
-            implemented: records.every(
-                (record) => record.status === 'implemented'
-            ),
+            implemented:
+                records.length > 0 &&
+                records.every((record) => record.status === 'implemented'),
             filters: { category, status },
             availableCategories: Object.entries(categoryInfo).map(
                 ([id, info]) => ({ id, ...info })
