@@ -69,11 +69,12 @@ fields, properties, and BOM exclusion metadata when present.
 ## PCB Fields
 
 PCB documents include recovered `pcb` data with board outline geometry, layer
-metadata, primitive layer metadata, net records, component placements, board
-polygons, routed tracks, routed arcs, vias, pads, text, empty compatibility
-arrays for Altium-style consumers, and the lower-level raw KiCad board model as
-`kicadBoard`. Summary fields expose component, layer, outline segment, BOM,
-net, polygon, track, arc, via, and board-size counts.
+metadata, declared layer definitions, primitive layer metadata, net records,
+component placements, board polygons, routed tracks, routed arcs, vias, pads,
+text, empty compatibility arrays for Altium-style consumers, and the
+lower-level raw KiCad board model as `kicadBoard`. Summary fields expose
+component, layer, outline segment, BOM, net, polygon, track, arc, via, and
+board-size counts.
 
 Coordinates projected into the public `pcb` model use mils to match the
 Altium-style renderer contract. The nested `pcb.kicadBoard` model keeps raw
@@ -84,12 +85,28 @@ Footprint-derived component placements include `componentIndex`, `designator`,
 footprint name, properties, KiCad attribute flags, assembly/BOM exclusion
 flags, mount-style hints, and nullable height metadata.
 
+The lower-level `pcb.kicadBoard` object preserves board declarations such as
+`version`, `generator`, `generatorVersion`, `embeddedFonts`, `paper`,
+`titleBlock`, `general`, `properties`, declared `layers`, and `setup`.
+Legacy module footprint nodes are normalized into the same footprint collection
+as modern footprint nodes, with their original node type preserved on
+`sourceType`.
+
+Layer records in `pcb.layers` and `pcb.primitiveLayers` include additive
+metadata for canonical KiCad layer names, standard ordinals when known, layer
+side, layer class, copper participation, technical-layer status, wildcard
+status, and standard-layer recognition. Declared layer definitions remain
+available unchanged through `pcb.layerDefinitions` and
+`pcb.kicadBoard.layers`.
+
 Pads preserve raw KiCad pad detail while also exposing Altium-style size, shape,
 drill, stack, mask, tenting, thermal relief, per-layer shape/offset, custom
 primitive, pin function/type, and net metadata. Supported shape names include
 KiCad pad shapes such as `rect`, `circle`, `oval`, `trapezoid`, `roundrect`,
 and `custom`; unknown names remain preserved on the raw pad fields and map to a
-deterministic fallback shape hint.
+deterministic fallback shape hint. Parser helpers expose geometry-aware pad
+bound points for rectangular, circular, and oval pads so rotated pads contribute
+accurate lower-level footprint and board extents.
 
 PCB drawing and copper objects use `type` values such as `line`, `circle`,
 `arc`, `curve`, `polygon`, `segment`, `via`, `zone`, `dimension`, `image`,
@@ -112,6 +129,28 @@ object shape, a compact `project` summary, companion `assets`, `diagnostics`,
 schematic and PCB Circuit JSON `documents`, `rendererDocuments`, a `project`
 summary with document counts, project-level net references, grouped BOM rows,
 companion 3D `assets`, and diagnostics for missing hierarchical sheets.
+
+## Helper Report Fields
+
+Capability inventory and readiness helpers return separate report objects. They
+are not serialized into Circuit JSON arrays and do not change the normalized
+model schema id.
+
+`KicadToolkitCapabilities.inventory()` returns records with stable capability
+ids, categories, safety classes, dependency labels, browser and Node support
+flags, dry-run support, backup behavior, mutation behavior, output shapes, and
+summaries.
+
+`KicadReadinessReport.parseDrcReport()` and `parseErcReport()` return
+normalized issue records with `category`, `severity`, `rule`, `message`, and
+optional source details such as `items`, `pos`, `uuid`, `excluded`, and
+`details`. Summary helpers return counts by severity, rule, and category plus a
+small examples list.
+
+`KicadReadinessReport.fabricationReadiness()` returns a parsed-board readiness
+object with `ok`, `readiness`, `score`, `findingCounts`, `findings`,
+`statistics`, `outline`, `connectivity`, and `bounds`. It derives those fields
+from recovered parser data only.
 
 ## Compatibility Rule
 

@@ -17,11 +17,19 @@ rendering primitives.
 - Project summary, grouped BOM, companion asset, and hierarchical schematic
   diagnostics for loaded KiCad projects
 - Board geometry helpers
-- KiCad layer side and net resolution
+- KiCad layer side/class metadata, standard ordinal, alias, wildcard, and net
+  resolution
+- Generic board-coordinate geometry helpers for rotated rectangles, primitive
+  bounds, and supported shape clearances
+- Read-only parser/rendering capability inventory with safety, dependency,
+  dry-run, and backup support metadata
+- Normalized caller-supplied DRC/ERC report summaries and parsed-board
+  fabrication-readiness summaries
 - Schematic SVG rendering
 - PCB SVG rendering
 - BOM HTML rendering
-- PCB 3D scene-description data
+- PCB 3D scene-description data, including external model placement metadata,
+  copper text detail, and silkscreen drill cutouts
 - KiCad stroke-font text rendering
 - Static 3D summary HTML
 - Parser worker entrypoint for host applications
@@ -42,3 +50,5 @@ rendering primitives.
 - PNG export or download orchestration
 - Server, deployment, and app metadata endpoints
 - DOM event binding or UI controls
+- External command wrappers, tool orchestration, or fabrication-output
+  generation

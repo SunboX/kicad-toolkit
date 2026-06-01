@@ -14,6 +14,7 @@ scene-description classes from one entrypoint.
 Specialized entrypoints are also available:
 
 - `kicad-toolkit/parser`
+- `kicad-toolkit/netlist-query`
 - `kicad-toolkit/renderers`
 - `kicad-toolkit/scene3d`
 - `kicad-toolkit/workers/kicad-parser.worker.mjs`
@@ -35,11 +36,12 @@ non-serialized renderer-compatibility fields such as `sourceFormat`, `kind`,
 renderers can consume parser output directly during the migration.
 
 PCB parsing reads KiCad S-expression board data, including layer declarations,
-net declarations, footprints, pads, graphical primitives, copper tracks, routed
-arcs, vias, zones, groups, generated items, and title-block metadata. The
-wrapped normalized PCB model keeps the raw KiCad board parser output available
-as `pcb.kicadBoard` while projecting commonly used placement, pad, copper, BOM,
-outline, and summary fields into the Altium-style public model.
+setup metadata, plot parameters, net declarations, footprints, legacy module
+footprints, pads, graphical primitives, copper tracks, routed arcs, vias,
+zones, groups, generated items, and title-block metadata. The wrapped
+normalized PCB model keeps the raw KiCad board parser output available as
+`pcb.kicadBoard` while projecting commonly used placement, pad, copper, BOM,
+outline, layer, and summary fields into the Altium-style public model.
 
 Schematic parsing reads KiCad S-expression sheet data, including sheet
 metadata, symbols, embedded library graphics, labels, hierarchical sheets,
@@ -78,11 +80,93 @@ companion assets, and diagnostics.
 
 Specialized parser helpers are exported for lower-level integrations, including
 `Geometry`, `KicadArcGeometry`, `KicadLayerResolver`, `KicadNetResolver`,
-`KicadPcbDrawingParser`, `KicadPcbPadParser`,
-`KicadSchematicGraphicParser`, and `KicadSchematicSymbolParser`. The layer,
-net, drawing, pad, and schematic helpers expose the same normalization used by
+`KicadPcbDrawingParser`, `KicadPcbLayerMetadata`, `KicadPcbPadParser`,
+`KicadReadinessReport`, `KicadSchematicGraphicParser`,
+`KicadSchematicSymbolParser`, `KicadToolkitCapabilities`, and
+`SExpressionTree`. The layer, net, drawing, pad, schematic, report,
+capability, and S-expression tree helpers expose the same normalization used by
 `.kicad_pcb` and `.kicad_sch` parsing. `SExpressionParser.parse(source)`
 returns the raw nested S-expression tree used by the KiCad parsers.
+
+`KicadLayerResolver` resolves standard KiCad aliases such as silkscreen and
+courtyard display names, exposes standard ordinals, layer classes, copper
+participation, and front/back/both side metadata, and handles wildcard layer
+sets such as `*.Cu` and `*.Mask`. `KicadPcbLayerMetadata` applies that detail to
+declared document layers and primitive layers while preserving the raw declared
+layer names.
+
+`Geometry` includes generic board-coordinate helpers for rotated rectangle
+points, circle/segment/polygon descriptors, geometry bounds, and analytic edge
+clearance between supported shapes. `KicadPcbPadParser.pointsForPad()` uses
+those helpers so rotated rectangular pads and oval pads contribute accurate
+bounds points to footprint and board bounds.
+
+## Capabilities And Reports
+
+```js
+import {
+    KicadReadinessReport,
+    KicadToolkitCapabilities
+} from 'kicad-toolkit/parser'
+
+const inventory = KicadToolkitCapabilities.inventory({
+    category: 'reporting'
+})
+const drcSummary = KicadReadinessReport.summarizeDrcReport(drcJson)
+const readiness = KicadReadinessReport.fabricationReadiness(
+    documentModel.pcb.kicadBoard
+)
+```
+
+`KicadToolkitCapabilities.inventory(options)` returns a read-only feature
+matrix for parser, project-loading, geometry/metadata, rendering, 3D scene data,
+and reporting support. Each capability record includes a safety class,
+dependency list, browser and Node support flags, output shapes, dry-run support,
+backup behavior, mutation behavior, and a short summary.
+
+`KicadReadinessReport.parseDrcReport(report, options)` and
+`KicadReadinessReport.parseErcReport(report, options)` normalize
+caller-supplied report JSON strings, objects, or arrays into consistent issue
+records with counts by severity, rule, and category. The `summarizeDrcReport()`
+and `summarizeErcReport()` variants return compact counts and examples.
+
+`KicadReadinessReport.fabricationReadiness(input)` summarizes parsed board
+readiness from recovered model data only. It reports blocker, warning, and info
+findings for copper-layer availability, board outline presence and closure,
+footprints, unrouted multi-pad nets, no-net pads, and visible 3D model metadata.
+It does not invoke external commands or replace a complete design-rule,
+electrical, or fabrication review.
+
+See [Capabilities](capabilities.md) for the full inventory and report shapes.
+
+## Netlist Query
+
+```js
+import { LoadedDesignNetlistService } from 'kicad-toolkit/netlist-query'
+
+const service = new LoadedDesignNetlistService({
+    getDocuments: () => [
+        {
+            id: 'active-sheet',
+            active: true,
+            documentModel
+        }
+    ]
+})
+
+const nets = service.searchNets({ pattern: 'i2c' })
+```
+
+The `netlist-query` entrypoint exposes browser-safe helpers for loaded document
+inspection: `LoadedDesignNetlistService`, `QueryNetlistBuilder`,
+`CircuitTraversal`, `ComponentGrouping`, `MPN_MISSING_NOTE`, and
+`RegexPattern`.
+
+The service accepts host-provided loaded document entries and returns plain
+JSON-compatible query results. It can list designs, components, and nets; search
+components by reference designator, MPN, or description; query one component's
+pin connections; and trace extended connectivity from a net or `REFDES.PIN`.
+Normal user-query failures return `{ error: string }`.
 
 ## Renderers
 
@@ -126,6 +210,9 @@ import {
 
 - `PcbScene3dBuilder.build(documentModel, options)` returns procedural board,
   placement, copper, text, zone, and external-model scene-description data.
+  It includes `externalPlacements` for resolved footprint 3D models, copper
+  layer text in `detail.copperTexts`, and side-specific silkscreen detail with
+  drill cutouts.
 - `PcbScene3dModelRegistry` resolves companion 3D model candidates for KiCad
   component placements.
 - `PcbScene3dPackages.resolve(component, padSpan)` resolves procedural package

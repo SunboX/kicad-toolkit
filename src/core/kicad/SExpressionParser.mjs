@@ -120,6 +120,12 @@ export class SExpressionParser {
      * @returns {string | number}
      */
     static normalizeToken(token) {
+        if (/^[+-]?0x[0-9a-fA-F_]+$/i.test(token)) {
+            const sign = String(token).startsWith('-') ? -1 : 1
+            const unsigned = String(token).replace(/^[+-]?0x/i, '')
+            return sign * Number.parseInt(unsigned.replace(/_/g, ''), 16)
+        }
+
         if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(token)) {
             return Number(token)
         }

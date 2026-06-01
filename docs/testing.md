@@ -21,6 +21,9 @@ The tests cover:
 - PCB layer side resolution, net recovery, footprint transforms, pad detail,
   padstack metadata, copper segments, routed arcs, vias, zones, board outlines,
   BOM rows, and normalized model schema ids
+- Layer metadata aliases/classes/wildcards, analytic pad geometry bounds,
+  capability inventory records, DRC/ERC report normalization, and parsed-board
+  readiness summaries
 - Schematic symbol recovery, embedded library graphics, labels, hierarchical
   sheets, metadata item families, simple net recovery, and BOM rows
 - Schematic SVG, side-resolved PCB SVG, BOM HTML, KiCad stroke text, pad stroke,

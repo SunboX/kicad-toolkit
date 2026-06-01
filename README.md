@@ -23,14 +23,21 @@ be reused by other browser or Node-based tools.
 - Load browser `File` objects or named byte entries from KiCad board files and
   project ZIP archives
 - Recover schematic symbols, sheet symbols, labels, nets, graphical items,
-  embedded schematic metadata, board outlines, footprints, pads, copper
-  segments, vias, zones, drawings, text, layer side metadata, and board bounds
+  embedded schematic metadata, board outlines, declared board layers, setup and
+  plot metadata, footprints, legacy module footprints, pads, copper segments,
+  vias, zones, drawings, text, layer side/class metadata, and board bounds
+- Resolve standard KiCad layer aliases, ordinals, classes, copper participation,
+  wildcard sides, rotated pad bounds, and analytic geometry clearances
+- Expose a read-only parser/rendering capability inventory and normalized
+  DRC/ERC/readiness report helpers for host diagnostics
 - Preserve raw KiCad board detail through the wrapped `pcb.kicadBoard` model so
   lower-level KiCad parser output remains inspectable
 - Emit Circuit JSON arrays from parser roots, with non-serialized
   renderer-compatibility fields for existing consumers
 - Render schematic SVG, PCB SVG, and grouped BOM HTML
-- Build non-interactive PCB 3D scene-description data for host applications
+- Build non-interactive PCB 3D scene-description data for host applications,
+  including companion model placements, copper text detail, and silkscreen
+  drill cutouts
 - Render KiCad stroke text and a static 3D board summary
 - Run entirely with local input data; no network calls are made by the parser
 
@@ -52,10 +59,16 @@ import {
     PcbSvgRenderer,
     preparePcbSideResolvedRenderModel,
     BomTableRenderer,
-    PcbScene3dBuilder
+    PcbScene3dBuilder,
+    KicadToolkitCapabilities,
+    KicadReadinessReport
 } from 'kicad-toolkit'
 
 const documentModel = KicadParser.parseArrayBuffer(file.name, arrayBuffer)
+const capabilityInventory = KicadToolkitCapabilities.inventory()
+const readiness = KicadReadinessReport.fabricationReadiness(
+    documentModel.pcb?.kicadBoard || documentModel
+)
 const backRenderModel = preparePcbSideResolvedRenderModel(documentModel, {
     side: 'back'
 })
@@ -75,6 +88,7 @@ import 'kicad-toolkit/styles/kicad-renderers.css'
 ## Documentation
 
 - [API](docs/api.md)
+- [Capabilities](docs/capabilities.md)
 - [Model Format](docs/model-format.md)
 - [Normalized Model Schema](docs/schemas/kicad_toolkit/normalized_model_a1.schema.json)
 - [Testing](docs/testing.md)

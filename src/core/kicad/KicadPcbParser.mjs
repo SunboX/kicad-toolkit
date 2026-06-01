@@ -7,6 +7,7 @@ import { KicadNetResolver } from './KicadNetResolver.mjs'
 import { KicadPcbDrawingParser } from './KicadPcbDrawingParser.mjs'
 import { KicadPcbPadParser } from './KicadPcbPadParser.mjs'
 import { SExpressionParser } from './SExpressionParser.mjs'
+import { SExpressionTree } from './SExpressionTree.mjs'
 
 /**
  * Converts KiCad PCB S-expressions into a small assembly-rendering model.
@@ -30,9 +31,11 @@ export class KicadPcbParser {
             root,
             netResolver
         )
-        const footprints = children(root, 'footprint').map((node, index) => {
-            return parseFootprint(node, index, netResolver)
-        })
+        const footprints = children(root, ['footprint', 'module']).map(
+            (node, index) => {
+                return parseFootprint(node, index, netResolver)
+            }
+        )
         const pads = footprints.flatMap((footprint) => footprint.pads)
         const footprintTexts = footprints.flatMap(
             (footprint) => footprint.texts
@@ -66,6 +69,7 @@ export class KicadPcbParser {
         )
 
         return {
+            ...parseBoardMetadata(root),
             fileName: String(options.fileName || ''),
             title: textValue(child(titleBlock, 'title')) || '',
             revision: textValue(child(titleBlock, 'rev')) || '',
@@ -87,6 +91,253 @@ export class KicadPcbParser {
             diagnostics: []
         }
     }
+}
+
+/**
+ * Parses board-level metadata declarations.
+ * @param {Array} root Board root node.
+ * @returns {object}
+ */
+function parseBoardMetadata(root) {
+    const titleBlock = child(root, 'title_block')
+
+    return {
+        version: numberValue(child(root, 'version')?.[1], 0),
+        generator: textValue(child(root, 'generator')),
+        generatorVersion: textValue(child(root, 'generator_version')),
+        embeddedFonts: booleanValue(child(root, 'embedded_fonts')?.[1], false),
+        paper: parsePaper(child(root, 'paper')),
+        titleBlock: parseTitleBlock(titleBlock),
+        general: parseGeneral(child(root, 'general')),
+        properties: SExpressionTree.propertyObject(root),
+        layers: parseLayers(child(root, 'layers')),
+        setup: parseSetup(child(root, 'setup'))
+    }
+}
+
+/**
+ * Parses a paper declaration.
+ * @param {Array | undefined} node Paper node.
+ * @returns {{ size: string, width?: number, height?: number, portrait: boolean }}
+ */
+function parsePaper(node) {
+    const size = textValue(node) || 'A4'
+    const width = Number.isFinite(Number(node?.[2]))
+        ? Number(node[2])
+        : undefined
+    const height = Number.isFinite(Number(node?.[3]))
+        ? Number(node[3])
+        : undefined
+
+    return {
+        size,
+        ...(width === undefined ? {} : { width }),
+        ...(height === undefined ? {} : { height }),
+        portrait: node?.map(String).includes('portrait') || false
+    }
+}
+
+/**
+ * Parses title-block metadata.
+ * @param {Array | undefined} node Title block node.
+ * @returns {{ title: string, date: string, revision: string, company: string, comments: Record<string, string> }}
+ */
+function parseTitleBlock(node) {
+    return {
+        title: textValue(child(node, 'title')),
+        date: textValue(child(node, 'date')),
+        revision: textValue(child(node, 'rev')),
+        company: textValue(child(node, 'company')),
+        comments: Object.fromEntries(
+            children(node, 'comment').map((comment) => [
+                String(comment[1] || ''),
+                String(comment[2] || '')
+            ])
+        )
+    }
+}
+
+/**
+ * Parses general board options.
+ * @param {Array | undefined} node General node.
+ * @returns {{ thickness?: number, legacyTeardrops?: boolean }}
+ */
+function parseGeneral(node) {
+    if (!node) return {}
+
+    return {
+        thickness: numberValue(child(node, 'thickness')?.[1], 0),
+        legacyTeardrops: hasChild(node, 'legacy_teardrops')
+    }
+}
+
+/**
+ * Parses declared board layer records.
+ * @param {Array | undefined} node Layers node.
+ * @returns {object[]}
+ */
+function parseLayers(node) {
+    return children(node).map(parseLayer)
+}
+
+/**
+ * Parses one declared board layer.
+ * @param {Array} node Layer node.
+ * @returns {{ ordinal: number, name: string, type: string, userName: string, uuid: string }}
+ */
+function parseLayer(node) {
+    const scalarValues = node.filter((value) => !Array.isArray(value))
+
+    return {
+        ordinal: numberValue(scalarValues[0], 0),
+        name: String(scalarValues[1] || ''),
+        type: String(scalarValues[2] || ''),
+        userName: String(scalarValues[3] || ''),
+        uuid: textValue(child(node, 'uuid'))
+    }
+}
+
+/**
+ * Parses board setup options.
+ * @param {Array | undefined} node Setup node.
+ * @returns {object}
+ */
+function parseSetup(node) {
+    if (!node) return {}
+
+    return removeUndefinedValues({
+        padToMaskClearance: optionalNumber(
+            child(node, 'pad_to_mask_clearance')
+        ),
+        solderMaskMinWidth: optionalNumber(
+            child(node, 'solder_mask_min_width')
+        ),
+        padToPasteClearance: optionalNumber(
+            child(node, 'pad_to_paste_clearance')
+        ),
+        padToPasteClearanceRatio: optionalNumber(
+            child(node, 'pad_to_paste_clearance_ratio')
+        ),
+        allowSoldermaskBridgesInFootprints: optionalBoolean(
+            child(node, 'allow_soldermask_bridges_in_footprints')
+        ),
+        auxAxisOrigin: optionalVec2(child(node, 'aux_axis_origin')),
+        gridOrigin: optionalVec2(child(node, 'grid_origin')),
+        stackup: parseStackup(child(node, 'stackup')),
+        pcbPlotParams: parsePcbPlotParams(child(node, 'pcbplotparams'))
+    })
+}
+
+/**
+ * Parses stackup metadata.
+ * @param {Array | undefined} node Stackup node.
+ * @returns {object | undefined}
+ */
+function parseStackup(node) {
+    if (!node) return undefined
+
+    return removeUndefinedValues({
+        layers: children(node, 'layer').map(parseStackupLayer),
+        copperFinish: optionalText(child(node, 'copper_finish')),
+        dielectricConstraints: optionalBoolean(
+            child(node, 'dielectric_constraints')
+        ),
+        edgeConnector: optionalText(child(node, 'edge_connector')),
+        castellatedPads: optionalBoolean(child(node, 'castellated_pads')),
+        edgePlating: optionalBoolean(child(node, 'edge_plating'))
+    })
+}
+
+/**
+ * Parses one stackup layer record.
+ * @param {Array} node Stackup layer node.
+ * @returns {object}
+ */
+function parseStackupLayer(node) {
+    return {
+        name: textValue(node),
+        type: optionalText(child(node, 'type')) || '',
+        color: optionalText(child(node, 'color')) || '',
+        thickness: optionalNumber(child(node, 'thickness')) || 0,
+        material: optionalText(child(node, 'material')) || '',
+        epsilonR: optionalNumber(child(node, 'epsilon_r')) || 0,
+        lossTangent: optionalNumber(child(node, 'loss_tangent')) || 0,
+        uuid: optionalText(child(node, 'uuid')) || ''
+    }
+}
+
+/**
+ * Parses PCB plot parameters as scalar values keyed by KiCad names.
+ * @param {Array | undefined} node Plot parameter node.
+ * @returns {Record<string, string | number | boolean> | undefined}
+ */
+function parsePcbPlotParams(node) {
+    if (!node) return undefined
+    return Object.fromEntries(
+        children(node).map((entry) => [
+            String(entry[0] || ''),
+            parseScalarValue(entry[1])
+        ])
+    )
+}
+
+/**
+ * Parses a scalar node value.
+ * @param {unknown} value Scalar value.
+ * @returns {string | number | boolean}
+ */
+function parseScalarValue(value) {
+    if (value === 'yes' || value === 'true') return true
+    if (value === 'no' || value === 'false') return false
+    return typeof value === 'number' ? value : String(value ?? '')
+}
+
+/**
+ * Reads optional text from a node.
+ * @param {Array | undefined} node Value node.
+ * @returns {string | undefined}
+ */
+function optionalText(node) {
+    return node ? textValue(node) : undefined
+}
+
+/**
+ * Reads optional number from a node.
+ * @param {Array | undefined} node Value node.
+ * @returns {number | undefined}
+ */
+function optionalNumber(node) {
+    return node ? numberValue(node[1], 0) : undefined
+}
+
+/**
+ * Reads optional boolean from a node.
+ * @param {Array | undefined} node Value node.
+ * @returns {boolean | undefined}
+ */
+function optionalBoolean(node) {
+    if (!node) return undefined
+    return node.length === 1 ? true : booleanValue(node[1], false)
+}
+
+/**
+ * Reads optional two-coordinate value from a node.
+ * @param {Array | undefined} node Coordinate node.
+ * @returns {{ x: number, y: number } | undefined}
+ */
+function optionalVec2(node) {
+    return node ? SExpressionTree.vec2(node) : undefined
+}
+
+/**
+ * Removes undefined fields from an object.
+ * @param {Record<string, unknown>} value Source object.
+ * @returns {object}
+ */
+function removeUndefinedValues(value) {
+    return Object.fromEntries(
+        Object.entries(value).filter((entry) => entry[1] !== undefined)
+    )
 }
 
 /**
@@ -170,6 +421,7 @@ function parseFootprint(node, index, netResolver) {
 
     return {
         id,
+        sourceType: String(node[0] || 'footprint'),
         libraryName: String(node[1] || ''),
         reference,
         value: propertyText(properties, 'Value'),
@@ -526,34 +778,31 @@ function computeBoardBounds(outlines, pads, drawings, texts) {
 /**
  * Finds direct child nodes, optionally by name.
  * @param {Array | undefined} node
- * @param {string} [name]
+ * @param {string | string[]} [name]
  * @returns {Array[]}
  */
 function children(node, name) {
-    if (!Array.isArray(node)) return []
-    return node.filter((entry) => {
-        return Array.isArray(entry) && (!name || entry[0] === name)
-    })
+    return SExpressionTree.children(node, name)
 }
 
 /**
  * Finds the first direct child by name.
  * @param {Array | undefined} node
- * @param {string} name
+ * @param {string | string[]} name
  * @returns {Array | undefined}
  */
 function child(node, name) {
-    return children(node, name)[0]
+    return SExpressionTree.child(node, name)
 }
 
 /**
  * Returns true when a child exists.
  * @param {Array | undefined} node
- * @param {string} name
+ * @param {string | string[]} name
  * @returns {boolean}
  */
 function hasChild(node, name) {
-    return Boolean(child(node, name))
+    return SExpressionTree.hasChild(node, name)
 }
 
 /**
@@ -612,7 +861,7 @@ function parseJustify(node) {
  * @returns {boolean}
  */
 function isNode(node, name) {
-    return Array.isArray(node) && node[0] === name
+    return SExpressionTree.nodeName(node) === name
 }
 
 /**
@@ -621,7 +870,7 @@ function isNode(node, name) {
  * @returns {string}
  */
 function textValue(node) {
-    return String(node?.[1] || '')
+    return SExpressionTree.textValue(node)
 }
 
 /**
@@ -643,8 +892,7 @@ function basename(path) {
  * @returns {number}
  */
 function numberValue(value, fallback) {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : fallback
+    return SExpressionTree.numberValue(value, fallback)
 }
 
 /**
@@ -654,15 +902,7 @@ function numberValue(value, fallback) {
  * @returns {boolean}
  */
 function booleanValue(value, fallback) {
-    if (value === true || value === 'yes' || value === 1 || value === '1') {
-        return true
-    }
-
-    if (value === false || value === 'no' || value === 0 || value === '0') {
-        return false
-    }
-
-    return fallback
+    return SExpressionTree.booleanValue(value, fallback)
 }
 
 /**

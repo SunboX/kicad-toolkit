@@ -4,7 +4,9 @@
 
 import { KicadArcGeometry } from './core/kicad/KicadArcGeometry.mjs'
 import { PcbScene3dLayerMapper } from './PcbScene3dLayerMapper.mjs'
+import { PcbScene3dCopperTextBuilder } from './PcbScene3dCopperTextBuilder.mjs'
 import { PcbScene3dDrillCutoutBuilder } from './PcbScene3dDrillCutoutBuilder.mjs'
+import { PcbScene3dExternalPlacementBuilder } from './PcbScene3dExternalPlacementBuilder.mjs'
 import { PcbScene3dPackages } from './PcbScene3dPackages.mjs'
 import { KicadStrokeFont } from './ui/KicadStrokeFont.mjs'
 
@@ -117,6 +119,12 @@ export class PcbScene3dBuilder {
             pads,
             vias
         )
+        const externalPlacements =
+            PcbScene3dExternalPlacementBuilder.build(components)
+        const copperTexts = PcbScene3dCopperTextBuilder.build(
+            documentModel,
+            board
+        )
 
         return {
             sourceFormat: documentModel?.sourceFormat || 'kicad',
@@ -129,7 +137,7 @@ export class PcbScene3dBuilder {
             vias,
             zones: polygons,
             texts,
-            externalPlacements: [],
+            externalPlacements,
             detail: {
                 pads,
                 tracks,
@@ -137,6 +145,7 @@ export class PcbScene3dBuilder {
                 fills,
                 vias,
                 polygons,
+                copperTexts,
                 silkscreen
             },
             externalModels: components

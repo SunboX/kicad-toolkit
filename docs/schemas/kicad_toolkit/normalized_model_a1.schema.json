@@ -220,6 +220,12 @@
                         "$ref": "#/$defs/layer"
                     }
                 },
+                "layerDefinitions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/kicadLayerDefinition"
+                    }
+                },
                 "primitiveLayers": {
                     "type": "array",
                     "items": {
@@ -550,6 +556,55 @@
                 },
                 "layerId": {
                     "type": "number"
+                },
+                "canonicalName": {
+                    "type": "string"
+                },
+                "ordinal": {
+                    "type": ["number", "null"]
+                },
+                "standardOrdinal": {
+                    "type": ["number", "null"]
+                },
+                "side": {
+                    "enum": ["front", "back", "both"]
+                },
+                "layerClass": {
+                    "type": "string"
+                },
+                "isCopper": {
+                    "type": "boolean"
+                },
+                "isTechnical": {
+                    "type": "boolean"
+                },
+                "isWildcard": {
+                    "type": "boolean"
+                },
+                "isKnownStandard": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true
+        },
+        "kicadLayerDefinition": {
+            "type": "object",
+            "required": ["ordinal", "name", "type"],
+            "properties": {
+                "ordinal": {
+                    "type": "number"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "userName": {
+                    "type": "string"
+                },
+                "uuid": {
+                    "type": "string"
                 }
             },
             "additionalProperties": true
@@ -563,6 +618,30 @@
                 },
                 "layerId": {
                     "type": "number"
+                },
+                "canonicalName": {
+                    "type": "string"
+                },
+                "ordinal": {
+                    "type": ["number", "null"]
+                },
+                "side": {
+                    "enum": ["front", "back", "both"]
+                },
+                "layerClass": {
+                    "type": "string"
+                },
+                "isCopper": {
+                    "type": "boolean"
+                },
+                "isTechnical": {
+                    "type": "boolean"
+                },
+                "isWildcard": {
+                    "type": "boolean"
+                },
+                "isKnownStandard": {
+                    "type": "boolean"
                 }
             },
             "additionalProperties": true
@@ -895,6 +974,27 @@
                 },
                 "revision": {
                     "type": "string"
+                },
+                "version": {
+                    "type": "number"
+                },
+                "generator": {
+                    "type": "string"
+                },
+                "generatorVersion": {
+                    "type": "string"
+                },
+                "embeddedFonts": {
+                    "type": "boolean"
+                },
+                "layers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/kicadLayerDefinition"
+                    }
+                },
+                "setup": {
+                    "type": "object"
                 },
                 "nets": {
                     "type": "array",

@@ -39,14 +39,18 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadNetResolver',
         'KicadParser',
         'KicadPcbDrawingParser',
+        'KicadPcbLayerMetadata',
         'KicadPcbPadParser',
         'KicadPcbParser',
         'KicadProjectLoader',
+        'KicadReadinessReport',
         'KicadSchematicGraphicParser',
         'KicadSchematicParser',
         'KicadSchematicSymbolParser',
+        'KicadToolkitCapabilities',
         'NormalizedModelSchema',
-        'SExpressionParser'
+        'SExpressionParser',
+        'SExpressionTree'
     ])
     assertPublicApi(rendererApi, [
         'BomTableRenderer',
@@ -85,14 +89,18 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/KicadLayerResolver.mjs')
     await assertFileExists('../src/core/kicad/KicadNetResolver.mjs')
     await assertFileExists('../src/core/kicad/KicadPcbDrawingParser.mjs')
+    await assertFileExists('../src/core/kicad/KicadPcbLayerMetadata.mjs')
     await assertFileExists('../src/core/kicad/KicadPcbPadParser.mjs')
     await assertFileExists('../src/core/kicad/KicadPcbParser.mjs')
     await assertFileExists('../src/core/kicad/KicadProjectLoader.mjs')
+    await assertFileExists('../src/core/kicad/KicadReadinessReport.mjs')
     await assertFileExists('../src/core/kicad/KicadSchematicGraphicParser.mjs')
     await assertFileExists('../src/core/kicad/KicadSchematicParser.mjs')
     await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
+    await assertFileExists('../src/core/kicad/KicadToolkitCapabilities.mjs')
     await assertFileExists('../src/core/kicad/NormalizedModelSchema.mjs')
     await assertFileExists('../src/core/kicad/SExpressionParser.mjs')
+    await assertFileExists('../src/core/kicad/SExpressionTree.mjs')
     await assertFileExists(
         '../src/core/circuit-json/CircuitJsonModelAdapter.mjs'
     )

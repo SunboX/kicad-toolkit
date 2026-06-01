@@ -221,7 +221,16 @@ test('PcbScene3dBuilder maps PCB primitives into KiCad 3D layer space', () => {
                     ]
                 }
             ],
-            texts: [{ x: 44, y: 66, value: 'TOP', layer: 'F.SilkS' }]
+            texts: [
+                { x: 44, y: 66, value: 'TOP', layer: 'F.SilkS' },
+                {
+                    x: 120,
+                    y: 50,
+                    value: 'COPPER',
+                    layer: 'F.Cu',
+                    rotation: 30
+                }
+            ]
         }
     })
 
@@ -243,6 +252,8 @@ test('PcbScene3dBuilder maps PCB primitives into KiCad 3D layer space', () => {
     assert.equal(scene.detail.polygons[0].segments[0].y1, 480)
     assert.equal(scene.detail.polygons[0].segments[0].y2, 380)
     assert.equal(scene.texts[0].y, 434)
+    assert.equal(scene.detail.copperTexts[0].y, 450)
+    assert.equal(scene.detail.copperTexts[0].rotation, 330)
 })
 
 test('PcbScene3dScenePreparator exposes async scene preparation', async () => {
@@ -354,4 +365,140 @@ test('PcbScene3dBuilder carries KiCad model metadata onto scene components', () 
         scale: { x: 2, y: 3, z: 4 }
     })
     assert.equal(scene.components[0].externalModel.name, 'body.step')
+})
+
+test('PcbScene3dBuilder exposes KiCad external model placements', () => {
+    const scene = PcbScene3dBuilder.build(
+        {
+            sourceFormat: 'kicad',
+            kind: 'pcb',
+            fileName: 'model-board.kicad_pcb',
+            pcb: {
+                boardOutline: {
+                    minX: 0,
+                    minY: 0,
+                    widthMil: 1000,
+                    heightMil: 800,
+                    segments: []
+                },
+                components: [
+                    {
+                        designator: 'LED1',
+                        x: 400,
+                        y: 300,
+                        layer: 'TOP',
+                        pattern: 'Fixture:Matrix',
+                        rotation: 90,
+                        modelName: 'matrix.step',
+                        modelPath: '${KIPRJMOD}/parts/matrix.step',
+                        modelTransform: {
+                            rotationDeg: { x: -90, y: 0, z: -90 },
+                            offsetMil: { x: 10, y: -20, z: 30 },
+                            dxMil: 10,
+                            dyMil: -20,
+                            dzMil: 30,
+                            scale: { x: 1.5, y: 2, z: 0.5 }
+                        }
+                    }
+                ],
+                pads: [],
+                tracks: [],
+                vias: [],
+                kicadBoard: {
+                    title: 'KiCad Board',
+                    bounds: { minX: 0, minY: 0, width: 25.4, height: 20.32 },
+                    outlines: [],
+                    pads: [],
+                    drawings: [],
+                    texts: []
+                }
+            },
+            bom: []
+        },
+        {
+            sessionAssets: [
+                {
+                    name: 'matrix.step',
+                    relativePath: 'parts/matrix.step',
+                    format: 'step'
+                }
+            ]
+        }
+    )
+
+    assert.equal(scene.externalPlacements.length, 1)
+    assert.equal(scene.externalPlacements[0].designator, 'LED1')
+    assert.deepEqual(scene.externalPlacements[0].modelTransform, {
+        rotationDeg: { x: -90, y: 0, z: -90 },
+        offsetMil: { x: 10, y: -20, z: 30 },
+        dxMil: 10,
+        dyMil: -20,
+        dzMil: 30,
+        scale: { x: 1.5, y: 2, z: 0.5 }
+    })
+})
+
+test('PcbScene3dBuilder exposes KiCad copper text detail', () => {
+    const scene = PcbScene3dBuilder.build({
+        sourceFormat: 'kicad',
+        kind: 'pcb',
+        fileName: 'copper-text-board.kicad_pcb',
+        pcb: {
+            boardOutline: { widthMil: 1000, heightMil: 500, segments: [] },
+            components: [],
+            pads: [],
+            tracks: [],
+            vias: [],
+            kicadBoard: {
+                title: 'Copper Text Board',
+                bounds: { minX: 0, minY: 0, width: 25.4, height: 12.7 },
+                outlines: [],
+                pads: [],
+                drawings: [],
+                texts: [
+                    {
+                        value: 'COPPER',
+                        x: 2,
+                        y: 3,
+                        rotation: 15,
+                        layer: 'F.Cu',
+                        side: 'front',
+                        hAlign: 'left',
+                        vAlign: 'bottom',
+                        sizeX: 0.5,
+                        sizeY: 0.6,
+                        thickness: 0.12,
+                        visible: true
+                    },
+                    {
+                        value: 'MASK',
+                        x: 2,
+                        y: 3,
+                        layer: 'F.Mask',
+                        side: 'front',
+                        visible: true
+                    }
+                ]
+            }
+        },
+        bom: []
+    })
+
+    assert.deepEqual(scene.detail.copperTexts, [
+        {
+            x: 78.74015748031496,
+            y: 381.8897637795276,
+            value: 'COPPER',
+            layer: 'F.Cu',
+            side: 'front',
+            layerId: 1,
+            rotation: 345,
+            mirrored: false,
+            hAlign: 'left',
+            vAlign: 'bottom',
+            sizeX: 19.68503937007874,
+            sizeY: 23.62204724409449,
+            thickness: 4.724409448818898
+        }
+    ])
 })

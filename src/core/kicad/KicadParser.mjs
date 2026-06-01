@@ -3,6 +3,7 @@
 
 import { strFromU8 } from 'fflate'
 import { KicadArcGeometry } from './KicadArcGeometry.mjs'
+import { KicadPcbLayerMetadata } from './KicadPcbLayerMetadata.mjs'
 import { KicadPcbParser } from './KicadPcbParser.mjs'
 import { KicadSchematicParser } from './KicadSchematicParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
@@ -122,7 +123,7 @@ export class KicadParser {
                 y2: toMil(drawing.end.y),
                 width: toMil(drawing.strokeWidth || 0.2),
                 layerCode: 1,
-                layerId: layerIdForName(drawing.layer),
+                layerId: KicadPcbLayerMetadata.layerIdForName(drawing.layer),
                 ...optionalNetIndex(drawing.netIndex),
                 netName: drawing.netName || ''
             }))
@@ -155,7 +156,9 @@ export class KicadParser {
                     width: toMil(drawing.strokeWidth || 0.2),
                     componentIndex: null,
                     layerCode: 1,
-                    layerId: layerIdForName(drawing.layer),
+                    layerId: KicadPcbLayerMetadata.layerIdForName(
+                        drawing.layer
+                    ),
                     polygonIndex: null,
                     ...optionalNetIndex(drawing.netIndex),
                     netName: drawing.netName || ''
@@ -177,7 +180,12 @@ export class KicadParser {
         ].filter((polygon) => polygon.segments.length > 0)
         const boardOutline = boardOutlineFromBoard(board)
         const bom = groupBoardBomRows(board.footprints || [])
-        const primitiveLayers = primitiveLayersFromBoard(board)
+        const primitiveLayers = KicadPcbLayerMetadata.primitiveLayers(board)
+        const layerDefinitions = Array.isArray(board.layers) ? board.layers : []
+        const documentLayers = KicadPcbLayerMetadata.documentLayers(
+            board,
+            primitiveLayers
+        )
 
         return NormalizedModelSchema.attach({
             sourceFormat: 'kicad',
@@ -188,7 +196,7 @@ export class KicadParser {
                 title:
                     board.title || stripExtension(fileName || board.fileName),
                 componentCount: components.length,
-                layerCount: primitiveLayers.length,
+                layerCount: documentLayers.length,
                 outlineSegmentCount: boardOutline.segments.length,
                 bomRowCount: bom.length,
                 netCount: nets.length,
@@ -212,11 +220,8 @@ export class KicadParser {
             ],
             pcb: {
                 boardOutline,
-                layers: primitiveLayers.map((layer, index) => ({
-                    index,
-                    name: layer.name,
-                    layerId: layer.layerId
-                })),
+                layers: documentLayers,
+                layerDefinitions,
                 primitiveLayers,
                 nets,
                 classes: [],
@@ -782,7 +787,7 @@ function layerNumberForName(layer) {
     const innerMatch = normalized.match(/^In(\d+)\.Cu$/)
     if (innerMatch) return Number(innerMatch[1]) + 1
 
-    return layerIdForName(normalized)
+    return KicadPcbLayerMetadata.layerIdForName(normalized)
 }
 
 /**
@@ -805,18 +810,6 @@ function componentIndexForFootprint(footprints, footprintId) {
         (footprint) => footprint.id === footprintId
     )
     return index >= 0 ? index : null
-}
-
-/**
- * Resolves a rough layer id from a KiCad layer name.
- * @param {string} layer Layer name.
- * @returns {number}
- */
-function layerIdForName(layer) {
-    const normalized = String(layer || '')
-    if (normalized.startsWith('B.')) return 32
-    if (normalized === 'Edge.Cuts') return 44
-    return 1
 }
 
 /**
@@ -930,27 +923,6 @@ function groupBoardBomRows(footprints) {
                 numeric: true
             })
         )
-}
-
-/**
- * Builds primitive layer metadata from parsed board content.
- * @param {object} board Board.
- * @returns {{ layerId: number, name: string }[]}
- */
-function primitiveLayersFromBoard(board) {
-    const names = new Set()
-    for (const drawing of board.drawings || []) names.add(drawing.layer)
-    for (const outline of board.outlines || []) names.add(outline.layer)
-    for (const pad of board.pads || []) {
-        for (const layer of pad.layers || []) names.add(layer)
-    }
-    return [...names]
-        .filter(Boolean)
-        .sort()
-        .map((name) => ({
-            layerId: layerIdForName(name),
-            name
-        }))
 }
 
 /**

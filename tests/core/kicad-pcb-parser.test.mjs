@@ -60,6 +60,94 @@ test('KicadPcbParser extracts footprint 3D model transforms', () => {
     ])
 })
 
+test('KicadPcbParser preserves board metadata and legacy module footprints', () => {
+    const board = KicadPcbParser.parse(boardMetadataFixture(), {
+        fileName: 'board-metadata.kicad_pcb'
+    })
+
+    assert.equal(board.version, 20250101)
+    assert.equal(board.generator, 'fixture-generator')
+    assert.equal(board.generatorVersion, '1.2.3')
+    assert.equal(board.embeddedFonts, true)
+    assert.equal(board.paper.size, 'A4')
+    assert.deepEqual(board.titleBlock, {
+        title: 'Metadata Board',
+        date: '2026-01-02',
+        revision: 'R2',
+        company: 'Example Lab',
+        comments: { 1: 'Assembly note' }
+    })
+    assert.deepEqual(board.general, {
+        thickness: 1.6,
+        legacyTeardrops: true
+    })
+    assert.deepEqual(board.properties, {
+        Project: 'Metadata Fixture',
+        Owner: 'Test Suite'
+    })
+    assert.deepEqual(board.layers, [
+        {
+            ordinal: 0,
+            name: 'F.Cu',
+            type: 'signal',
+            userName: '',
+            uuid: ''
+        },
+        {
+            ordinal: 31,
+            name: 'B.Cu',
+            type: 'signal',
+            userName: 'Back copper',
+            uuid: ''
+        },
+        {
+            ordinal: 32,
+            name: 'B.User',
+            type: 'user',
+            userName: 'Back user',
+            uuid: 'layer-user'
+        }
+    ])
+    assert.deepEqual(board.setup, {
+        padToMaskClearance: 0.05,
+        solderMaskMinWidth: 0.1,
+        padToPasteClearance: -0.01,
+        padToPasteClearanceRatio: -0.05,
+        allowSoldermaskBridgesInFootprints: true,
+        auxAxisOrigin: { x: 1, y: 2 },
+        gridOrigin: { x: 3, y: 4 },
+        stackup: {
+            layers: [
+                {
+                    name: 'F.Cu',
+                    type: 'copper',
+                    color: '#c83434',
+                    thickness: 0.035,
+                    material: 'Cu',
+                    epsilonR: 0,
+                    lossTangent: 0,
+                    uuid: ''
+                }
+            ],
+            copperFinish: 'ENIG',
+            dielectricConstraints: true,
+            edgeConnector: 'bevelled',
+            castellatedPads: true,
+            edgePlating: false
+        },
+        pcbPlotParams: {
+            layerselection: 255,
+            usegerberextensions: true,
+            svgprecision: 4,
+            outputdirectory: 'fab/'
+        }
+    })
+    assert.equal(board.footprints.length, 1)
+    assert.equal(board.footprints[0].sourceType, 'module')
+    assert.equal(board.footprints[0].reference, 'M1')
+    assert.equal(board.pads[0].number, '1')
+})
+
 test('KicadPcbParser extracts copper segments, vias, zones, and rotated rectangles', async () => {
     const source = await readFile(fixtureUrl, 'utf8')
     const board = KicadPcbParser.parse(source, {
@@ -569,6 +657,92 @@ function modelFootprintFixture() {
                 (offset (xyz 1.25 -2 1.5))
                 (scale (xyz 2 3 4))
                 (rotate (xyz -90 0 90))
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a board fixture with metadata declarations and a legacy module node.
+ * @returns {string}
+ */
+function boardMetadataFixture() {
+    return `(kicad_pcb
+        (version 20250101)
+        (generator "fixture-generator")
+        (generator_version "1.2.3")
+        (embedded_fonts yes)
+        (general
+            (thickness 1.6)
+            (legacy_teardrops)
+        )
+        (paper "A4")
+        (title_block
+            (title "Metadata Board")
+            (date "2026-01-02")
+            (rev "R2")
+            (company "Example Lab")
+            (comment 1 "Assembly note")
+        )
+        (property "Project" "Metadata Fixture")
+        (property "Owner" "Test Suite")
+        (layers
+            (0 "F.Cu" signal)
+            (31 "B.Cu" signal "Back copper")
+            (32 "B.User" user "Back user" (uuid "layer-user"))
+        )
+        (setup
+            (pad_to_mask_clearance 0.05)
+            (solder_mask_min_width 0.1)
+            (pad_to_paste_clearance -0.01)
+            (pad_to_paste_clearance_ratio -0.05)
+            (allow_soldermask_bridges_in_footprints yes)
+            (aux_axis_origin 1 2)
+            (grid_origin 3 4)
+            (stackup
+                (layer "F.Cu"
+                    (type "copper")
+                    (color "#c83434")
+                    (thickness 0.035)
+                    (material "Cu")
+                )
+                (copper_finish "ENIG")
+                (dielectric_constraints yes)
+                (edge_connector bevelled)
+                (castellated_pads yes)
+                (edge_plating no)
+            )
+            (pcbplotparams
+                (layerselection 0x0000_00ff)
+                (usegerberextensions yes)
+                (svgprecision 4)
+                (outputdirectory "fab/")
+            )
+        )
+        (gr_rect
+            (start 0 0)
+            (end 10 8)
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (module "Package:Legacy"
+            (layer "F.Cu")
+            (at 5 4 0)
+            (fp_text reference "M1"
+                (at 0 -2 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1)))
+            )
+            (fp_text value "Legacy"
+                (at 0 2 0)
+                (layer "F.Fab")
+                (effects (font (size 1 1)))
+            )
+            (pad "1" smd rect
+                (at 0 0 0)
+                (size 1 1)
+                (layers "F.Cu" "F.Mask" "F.Paste")
             )
         )
     )`

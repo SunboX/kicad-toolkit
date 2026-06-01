@@ -43,6 +43,7 @@ test('required project files exist', async () => {
         'package.json',
         'spec/library-scope.md',
         'docs/api.md',
+        'docs/capabilities.md',
         'docs/model-format.md',
         'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json',
         'docs/testing.md',
@@ -258,6 +259,8 @@ test('API docs describe Altium-style KiCad entrypoints', async () => {
     assert.match(apiDocs, /NormalizedModelSchema/)
     assert.match(apiDocs, /preparePcbSideResolvedRenderModel/)
     assert.match(apiDocs, /PcbScene3dPackages/)
+    assert.match(apiDocs, /KicadToolkitCapabilities/)
+    assert.match(apiDocs, /KicadReadinessReport/)
 })
 
 /**
@@ -267,6 +270,10 @@ test('model docs publish the normalized model JSON schema contract', async () =>
     const readme = await readFile(new URL('README.md', root), 'utf8')
     const modelDocs = await readFile(
         new URL('docs/model-format.md', root),
+        'utf8'
+    )
+    const capabilityDocs = await readFile(
+        new URL('docs/capabilities.md', root),
         'utf8'
     )
     const packageConfig = JSON.parse(
@@ -283,7 +290,11 @@ test('model docs publish the normalized model JSON schema contract', async () =>
     )
 
     assert.match(readme, /Normalized Model Schema/)
+    assert.match(readme, /Capabilities/)
     assert.match(modelDocs, /Schema Contracts/)
+    assert.match(modelDocs, /Helper Report Fields/)
+    assert.match(capabilityDocs, /Capability Inventory/)
+    assert.match(capabilityDocs, /Fabrication Readiness/)
     assert.equal(schema.$id, NormalizedModelSchema.CURRENT_SCHEMA_ID)
     assert.equal(schema.properties.schema.const, schema.$id)
     assert.deepEqual(schema.properties.kind.enum, ['schematic', 'pcb'])
@@ -296,6 +307,7 @@ test('model docs publish the normalized model JSON schema contract', async () =>
             'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json'
         )
     )
+    assert.ok(packageConfig.files.includes('docs/capabilities.md'))
 })
 
 /**

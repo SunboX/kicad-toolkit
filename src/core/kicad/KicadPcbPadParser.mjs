@@ -64,13 +64,68 @@ export class KicadPcbPadParser {
      * @returns {{ x: number, y: number }[]}
      */
     static pointsForPad(pad) {
-        const halfWidth = pad.width / 2
-        const halfHeight = pad.height / 2
-        return [
-            { x: pad.x - halfWidth, y: pad.y - halfHeight },
-            { x: pad.x + halfWidth, y: pad.y + halfHeight }
-        ]
+        return Geometry.pointsForGeometryBounds(
+            KicadPcbPadParser.geometryForPad(pad)
+        )
     }
+
+    /**
+     * Returns the copper geometry descriptor for a pad.
+     * @param {object} pad Pad.
+     * @returns {object}
+     */
+    static geometryForPad(pad) {
+        const center = {
+            x: numberValue(pad?.x, 0),
+            y: numberValue(pad?.y, 0)
+        }
+        const width = Math.max(0, numberValue(pad?.width, 0))
+        const height = Math.max(0, numberValue(pad?.height, width))
+        const rotation = numberValue(pad?.rotation, 0)
+        const shape = String(pad?.shape || '')
+
+        if (shape === 'circle' || (shape === 'oval' && width === height)) {
+            return Geometry.circleGeometry(center, Math.max(width, height) / 2)
+        }
+
+        if (shape === 'oval') {
+            return ovalPadGeometry(center, width, height, rotation)
+        }
+
+        return Geometry.polygonGeometry(
+            Geometry.rotatedRectanglePoints({
+                ...center,
+                width,
+                height,
+                rotation
+            })
+        )
+    }
+}
+
+/**
+ * Builds a rounded slot descriptor for an oval pad.
+ * @param {{ x: number, y: number }} center Center point.
+ * @param {number} width Pad width.
+ * @param {number} height Pad height.
+ * @param {number} rotation Pad rotation.
+ * @returns {object}
+ */
+function ovalPadGeometry(center, width, height, rotation) {
+    const major = Math.max(width, height)
+    const minor = Math.min(width, height)
+    const halfLine = Math.max(0, (major - minor) / 2)
+    const axisRotation = width >= height ? rotation : rotation + 90
+    const start = Geometry.transformPoint(
+        { x: -halfLine, y: 0 },
+        { ...center, rotation: axisRotation }
+    )
+    const end = Geometry.transformPoint(
+        { x: halfLine, y: 0 },
+        { ...center, rotation: axisRotation }
+    )
+
+    return Geometry.segmentGeometry(start, end, minor / 2)
 }
 
 /**

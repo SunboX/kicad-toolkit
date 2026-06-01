@@ -24,6 +24,41 @@ test('KicadParser wraps .kicad_pcb files in the ECAD Forge document model', () =
     assert.deepEqual(document.bom[0].designators, ['U1'])
 })
 
+test('KicadParser exposes declared PCB metadata in the renderer model', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'metadata.kicad_pcb',
+        bytesFor(metadataPcbSource())
+    )
+
+    assert.equal(document.summary.layerCount, 3)
+    assert.deepEqual(document.pcb.layerDefinitions, [
+        {
+            ordinal: 0,
+            name: 'F.Cu',
+            type: 'signal',
+            userName: '',
+            uuid: ''
+        },
+        {
+            ordinal: 31,
+            name: 'B.Cu',
+            type: 'signal',
+            userName: '',
+            uuid: ''
+        },
+        {
+            ordinal: 32,
+            name: 'B.User',
+            type: 'user',
+            userName: 'Back user',
+            uuid: ''
+        }
+    ])
+    assert.equal(document.pcb.kicadBoard.setup.pcbPlotParams.layerselection, 3)
+    assert.equal(document.pcb.kicadBoard.footprints[0].sourceType, 'module')
+    assert.equal(document.pcb.components[0].designator, 'M1')
+})
+
 test('KicadParser exposes KiCad footprint model metadata on PCB components', () => {
     const document = KicadParser.parseArrayBuffer(
         'models.kicad_pcb',
@@ -554,6 +589,47 @@ function minimalPcbSource() {
                 (size 1 1)
                 (layers "F.Cu" "F.Mask" "F.Paste")
                 (net 1 "GND")
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a PCB fixture with declared layers and legacy module syntax.
+ * @returns {string}
+ */
+function metadataPcbSource() {
+    return `(kicad_pcb
+        (version 20250101)
+        (layers
+            (0 "F.Cu" signal)
+            (31 "B.Cu" signal)
+            (32 "B.User" user "Back user")
+        )
+        (setup
+            (pcbplotparams
+                (layerselection 0x03)
+            )
+        )
+        (gr_rect
+            (start 0 0)
+            (end 10 8)
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (module "Package:Metadata"
+            (layer "F.Cu")
+            (at 5 4 0)
+            (fp_text reference "M1"
+                (at 0 -2 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1)))
+            )
+            (pad "1" smd rect
+                (at 0 0 0)
+                (size 1 1)
+                (layers "F.Cu" "F.Mask" "F.Paste")
             )
         )
     )`
