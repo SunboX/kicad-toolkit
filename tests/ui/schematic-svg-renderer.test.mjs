@@ -181,6 +181,17 @@ function strokeTextXOffset() {
 }
 
 /**
+ * Calculates the expected worksheet text baseline after SVG display scaling.
+ * @param {number} y Anchor y in display units.
+ * @param {number} size Text size in display units.
+ * @param {number} strokeWidth Stroke width in display units.
+ * @returns {number}
+ */
+function centeredWorksheetBaseline(y, size, strokeWidth) {
+    return y + size - strokeWidth * 0.052 - (size * 1.17) / 2
+}
+
+/**
  * Mirrors KiCad's local-label schematic text offset.
  * @param {number} size Text height.
  * @returns {number}
@@ -1041,4 +1052,62 @@ test('SchematicSvgRenderer draws KiCad worksheet-sized title block chrome', () =
         /class="sheet-title-value sheet-title-value--title"[^>]*aria-label="Title: Generic A3 Design"/
     )
     assert.match(markup, /class="schematic-text-stroke"/)
+})
+
+test('SchematicSvgRenderer centers worksheet title-block stroke text', () => {
+    const markup = SchematicSvgRenderer.render({
+        fileName: 'generic-a3-title.kicad_sch',
+        summary: { title: 'Generic A3 Design' },
+        schematic: {
+            sheet: {
+                width: 420,
+                height: 297,
+                visibleGrid: 2.54,
+                marginWidth: 10,
+                xZones: 8,
+                yZones: 6,
+                paperSize: 'A3',
+                borderOn: true,
+                titleBlockOn: true,
+                titleBlock: {
+                    title: 'Generic A3 Design',
+                    revision: 'A',
+                    documentNumber: 'Generic Company',
+                    sheetNumber: '1',
+                    sheetTotal: '1',
+                    date: '2026-05-26'
+                }
+            },
+            lines: [],
+            components: [],
+            rectangles: [],
+            pins: [],
+            texts: []
+        }
+    })
+    const titleGroup = renderedTextGroupByClass(
+        markup,
+        'sheet-title-value--title',
+        'Title: Generic A3 Design'
+    )
+    const sheetGroup = renderedTextGroupByClass(
+        markup,
+        'sheet-title-label',
+        'Sheet: /'
+    )
+
+    assert.match(titleGroup, /stroke-width="1\.5"/)
+    assert.match(sheetGroup, /stroke-width="1\.5"/)
+    assert.match(
+        titleGroup,
+        new RegExp(
+            `data-y="${formatSvgNumber(centeredWorksheetBaseline(2763, 20, 1.5))}"`
+        )
+    )
+    assert.match(
+        sheetGroup,
+        new RegExp(
+            `data-y="${formatSvgNumber(centeredWorksheetBaseline(2700, 15, 1.5))}"`
+        )
+    )
 })

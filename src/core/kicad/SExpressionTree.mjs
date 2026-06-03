@@ -54,6 +54,63 @@ export class SExpressionTree {
     }
 
     /**
+     * Counts direct child node names.
+     * @param {Array | undefined} node Parent node.
+     * @returns {Record<string, number>}
+     */
+    static childNameCounts(node) {
+        const counts = new Map()
+        for (const child of SExpressionTree.children(node)) {
+            const name = SExpressionTree.nodeName(child)
+            counts.set(name, (counts.get(name) || 0) + 1)
+        }
+        return Object.fromEntries(counts)
+    }
+
+    /**
+     * Lists direct child node names that occur more than once.
+     * @param {Array | undefined} node Parent node.
+     * @returns {string[]}
+     */
+    static duplicateChildNames(node) {
+        return Object.entries(SExpressionTree.childNameCounts(node))
+            .filter(([, count]) => count > 1)
+            .map(([name]) => name)
+    }
+
+    /**
+     * Describes generic structure and scalar values in one S-expression node.
+     * @param {Array | undefined} node S-expression node.
+     * @returns {{
+     *     rootName: string,
+     *     nodeCount: number,
+     *     maxDepth: number,
+     *     childNameCounts: Record<string, number>,
+     *     duplicateChildNames: string[],
+     *     scalarTypeCounts: Record<string, number>
+     * }}
+     */
+    static describe(node) {
+        const state = {
+            nodeCount: 0,
+            maxDepth: 0,
+            scalarTypeCounts: {}
+        }
+        const depth = Array.isArray(node) ? 1 : 0
+
+        SExpressionTree.#collectDescription(node, depth, state)
+
+        return {
+            rootName: SExpressionTree.nodeName(node),
+            nodeCount: state.nodeCount,
+            maxDepth: state.maxDepth,
+            childNameCounts: SExpressionTree.childNameCounts(node),
+            duplicateChildNames: SExpressionTree.duplicateChildNames(node),
+            scalarTypeCounts: state.scalarTypeCounts
+        }
+    }
+
+    /**
      * Reads the first positional value from a node as text.
      * @param {Array | unknown} value Node or scalar value.
      * @param {string} [fallback] Fallback text.
@@ -173,5 +230,39 @@ export class SExpressionTree {
      */
     static propertyObject(node) {
         return Object.fromEntries(SExpressionTree.properties(node))
+    }
+
+    /**
+     * Accumulates generic node and scalar facts.
+     * @param {unknown} value S-expression subtree or scalar.
+     * @param {number} depth Current array nesting depth.
+     * @param {{
+     *     nodeCount: number,
+     *     maxDepth: number,
+     *     scalarTypeCounts: Record<string, number>
+     * }} state Mutable accumulator.
+     * @returns {void}
+     */
+    static #collectDescription(value, depth, state) {
+        if (Array.isArray(value)) {
+            state.nodeCount += 1
+            state.maxDepth = Math.max(state.maxDepth, depth)
+            for (const child of value) {
+                SExpressionTree.#collectDescription(child, depth + 1, state)
+            }
+            return
+        }
+
+        const type = SExpressionTree.#scalarTypeName(value)
+        state.scalarTypeCounts[type] = (state.scalarTypeCounts[type] || 0) + 1
+    }
+
+    /**
+     * Returns a stable public scalar type name.
+     * @param {unknown} value Scalar value.
+     * @returns {string}
+     */
+    static #scalarTypeName(value) {
+        return value === null ? 'null' : typeof value
     }
 }

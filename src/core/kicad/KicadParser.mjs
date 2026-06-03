@@ -171,12 +171,7 @@ export class KicadParser {
             })),
             ...(board.drawings || [])
                 .filter((drawing) => drawing.type === 'zone')
-                .map((zone) => ({
-                    layer: zone.layer,
-                    ...optionalNetIndex(zone.netIndex),
-                    netName: zone.netName || '',
-                    segments: segmentsFromPoints(zone.points || [])
-                }))
+                .map(zonePolygonFromDrawing)
         ].filter((polygon) => polygon.segments.length > 0)
         const boardOutline = boardOutlineFromBoard(board)
         const bom = groupBoardBomRows(board.footprints || [])
@@ -810,6 +805,27 @@ function componentIndexForFootprint(footprints, footprintId) {
         (footprint) => footprint.id === footprintId
     )
     return index >= 0 ? index : null
+}
+
+/**
+ * Builds a polygon projection for one filled zone drawing.
+ * @param {object} zone Zone drawing.
+ * @returns {object}
+ */
+function zonePolygonFromDrawing(zone) {
+    const contours =
+        Array.isArray(zone.contours) && zone.contours.length > 0
+            ? zone.contours
+            : [zone.points || []]
+    return {
+        layer: zone.layer,
+        ...optionalNetIndex(zone.netIndex),
+        netName: zone.netName || '',
+        segments: segmentsFromPoints(contours[0] || []),
+        contours: contours.map(segmentsFromPoints).filter((entry) => {
+            return entry.length > 0
+        })
+    }
 }
 
 /**

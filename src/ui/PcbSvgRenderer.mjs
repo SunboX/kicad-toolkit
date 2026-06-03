@@ -6,10 +6,12 @@ import { KicadArcGeometry } from '../core/kicad/KicadArcGeometry.mjs'
 import { PcbSvgBoardOutlineBuilder } from './PcbSvgBoardOutlineBuilder.mjs'
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
 import { defaultLayerStyles } from './PcbSvgLayerStyles.mjs'
+import { PcbSvgPadShapeRenderer } from './PcbSvgPadShapeRenderer.mjs'
 import {
     drawingMetadataAttributeList,
     padMetadataAttributeList
 } from './PcbSvgMetadata.mjs'
+import { pathFromContours, pathFromPoints } from './PcbSvgPathBuilder.mjs'
 
 const kicadTextLineSpacingRatio = 1.61
 const kicadFirstLineHeightRatio = 1.17
@@ -337,7 +339,12 @@ function renderZone(zone, layerStyles) {
     if (!style.visible) return ''
 
     const metadata = drawingMetadataAttributeList(zone).join(' ')
-    return `<path class="pcb-zone"${optionalAttribute(metadata)} d="${pathFromPoints(zone.points, true)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0)}/>`
+    const contours =
+        Array.isArray(zone.contours) && zone.contours.length > 0
+            ? zone.contours
+            : [zone.points || []]
+    const fillRule = contours.length > 1 ? ' fill-rule="evenodd"' : ''
+    return `<path class="pcb-zone"${optionalAttribute(metadata)} d="${pathFromContours(contours)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${fillRule}${strokeAttributes(style, 0)}/>`
 }
 
 /** @param {object} image @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
@@ -412,7 +419,7 @@ function renderPad(pad, layerStyles) {
         .filter(Boolean)
         .join(' ')
     const transform = `transform="rotate(${formatNumber(pad.rotation)} ${formatNumber(pad.x)} ${formatNumber(pad.y)})"`
-    return renderPadShape(pad, attributes, transform)
+    return PcbSvgPadShapeRenderer.renderPadShape(pad, attributes, transform)
 }
 
 /**
@@ -440,64 +447,7 @@ function renderPadDrill(pad, layerStyles) {
     ]
         .filter(Boolean)
         .join(' ')
-    return renderPadDrillShape(pad, attributes)
-}
-
-/**
- * Renders circular and oval pad drill geometry.
- * @param {object} pad
- * @param {string} attributes
- * @returns {string}
- */
-function renderPadDrillShape(pad, attributes) {
-    const width = Number(pad.drillWidth || pad.drill || 0)
-    const height = Number(pad.drillHeight || pad.drill || width)
-    const isOval = pad.drillShape === 'oval' && width > 0 && height > 0
-    if (!isOval || Math.abs(width - height) < Number.EPSILON) {
-        return `<circle ${attributes} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(pad.drill / 2)}"/>`
-    }
-    const radius = Math.min(width, height) / 2
-    const x = pad.x - width / 2
-    const y = pad.y - height / 2
-    const transform = `rotate(${formatNumber(pad.rotation || 0)} ${formatNumber(pad.x)} ${formatNumber(pad.y)})`
-    return `<rect ${attributes} transform="${transform}" x="${formatNumber(x)}" y="${formatNumber(y)}" width="${formatNumber(width)}" height="${formatNumber(height)}" rx="${formatNumber(radius)}" ry="${formatNumber(radius)}"/>`
-}
-
-/**
- * Renders pad geometry by shape.
- * @param {object} pad
- * @param {string} attributes
- * @param {string} transform
- * @returns {string}
- */
-function renderPadShape(pad, attributes, transform) {
-    if (pad.shape === 'circle') {
-        return `<circle ${attributes} cx="${formatNumber(pad.x)}" cy="${formatNumber(pad.y)}" r="${formatNumber(Math.max(pad.width, pad.height) / 2)}"/>`
-    }
-
-    const x = pad.x - pad.width / 2
-    const y = pad.y - pad.height / 2
-    const radiusAttributes = padRadiusAttributes(pad)
-
-    return `<rect ${attributes} ${transform} x="${formatNumber(x)}" y="${formatNumber(y)}" width="${formatNumber(pad.width)}" height="${formatNumber(pad.height)}"${radiusAttributes}/>`
-}
-
-/**
- * Renders SVG corner radius attributes for rounded pad shapes.
- * @param {object} pad
- * @returns {string}
- */
-function padRadiusAttributes(pad) {
-    if (pad.shape === 'oval') {
-        const radius = Math.min(pad.width, pad.height) / 2
-        return ` rx="${formatNumber(radius)}" ry="${formatNumber(radius)}"`
-    }
-
-    if (pad.shape === 'roundrect') {
-        return ` rx="${formatNumber(pad.width * pad.roundrectRatio)}" ry="${formatNumber(pad.height * pad.roundrectRatio)}"`
-    }
-
-    return ''
+    return PcbSvgPadShapeRenderer.renderPadDrillShape(pad, attributes)
 }
 
 /**
@@ -877,23 +827,6 @@ function textTransform(text) {
         'scale(-1 1)',
         `translate(${formatNumber(-text.x)} ${formatNumber(-text.y)})`
     ].join(' ')
-}
-
-/**
- * Converts points to an SVG path.
- * @param {{ x: number, y: number }[]} points
- * @param {boolean} close
- * @returns {string}
- */
-function pathFromPoints(points, close) {
-    if (!points.length) return ''
-    const [first, ...rest] = points
-    const commands = [`M ${formatNumber(first.x)} ${formatNumber(first.y)}`]
-    rest.forEach((point) => {
-        commands.push(`L ${formatNumber(point.x)} ${formatNumber(point.y)}`)
-    })
-    if (close) commands.push('Z')
-    return commands.join(' ')
 }
 
 /**

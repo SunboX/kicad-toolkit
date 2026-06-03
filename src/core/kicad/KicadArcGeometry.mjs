@@ -75,6 +75,47 @@ export class KicadArcGeometry {
                 divisor
         }
     }
+
+    /**
+     * Approximates a three-point arc with deterministic polyline points.
+     * @param {{ x: number, y: number }} start Start point.
+     * @param {{ x: number, y: number }} mid Mid point.
+     * @param {{ x: number, y: number }} end End point.
+     * @param {{ maxSegmentDegrees?: number }} [options] Sampling options.
+     * @returns {{ x: number, y: number }[]}
+     */
+    static toPolyline(start, mid, end, options = {}) {
+        const arc = KicadArcGeometry.fromThreePoints(start, mid, end)
+        if (!arc) return [start, mid, end]
+
+        const startRadians = Math.atan2(
+            start.y - arc.center.y,
+            start.x - arc.center.x
+        )
+        const endRadians = Math.atan2(
+            end.y - arc.center.y,
+            end.x - arc.center.x
+        )
+        const clockwiseEnd = normalizeRadians(endRadians - startRadians)
+        const deltaRadians = arc.sweep
+            ? clockwiseEnd
+            : -normalizeRadians(startRadians - endRadians)
+        const maxSegmentRadians =
+            (Math.max(1, Number(options.maxSegmentDegrees) || 10) * Math.PI) /
+            180
+        const segments = Math.max(
+            2,
+            Math.ceil(Math.abs(deltaRadians) / maxSegmentRadians)
+        )
+
+        return Array.from({ length: segments + 1 }, (_, index) => {
+            const angle = startRadians + (deltaRadians * index) / segments
+            return {
+                x: arc.center.x + Math.cos(angle) * arc.radius,
+                y: arc.center.y + Math.sin(angle) * arc.radius
+            }
+        })
+    }
 }
 
 /**

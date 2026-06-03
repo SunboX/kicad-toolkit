@@ -45,7 +45,10 @@ test('root entrypoint exports parser and renderer classes', () => {
     )
     assert.equal(typeof rootApi.KicadProjectLoader.loadEntries, 'function')
     assert.equal(typeof rootApi.SExpressionParser.parse, 'function')
+    assert.equal(typeof rootApi.SExpressionParser.parseWithMetadata, 'function')
+    assert.equal(typeof rootApi.SExpressionSchema.parse, 'function')
     assert.equal(typeof rootApi.SExpressionTree.child, 'function')
+    assert.equal(typeof rootApi.SExpressionTree.describe, 'function')
     assert.equal(typeof rootApi.BomTableRenderer.render, 'function')
     assert.equal(typeof rootApi.PcbSvgRenderer.render, 'function')
     assert.equal(typeof rootApi.PcbSideResolvedRenderModel.resolve, 'function')
@@ -88,7 +91,13 @@ test('specialized entrypoints expose their intended API groups', () => {
     assert.equal(typeof parserApi.KicadPcbPadParser.parsePad, 'function')
     assert.equal(typeof parserApi.KicadPcbParser.parse, 'function')
     assert.equal(typeof parserApi.KicadSchematicParser.parse, 'function')
+    assert.equal(
+        typeof parserApi.SExpressionParser.parseWithMetadata,
+        'function'
+    )
+    assert.equal(typeof parserApi.SExpressionSchema.parse, 'function')
     assert.equal(typeof parserApi.SExpressionTree.child, 'function')
+    assert.equal(typeof parserApi.SExpressionTree.describe, 'function')
     assert.equal(typeof parserApi.PcbSvgRenderer, 'undefined')
     assert.equal(typeof rendererApi.PcbSvgRenderer.render, 'function')
     assert.equal(typeof rendererApi.SchematicSvgRenderer.render, 'function')

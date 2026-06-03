@@ -6,6 +6,7 @@ import { KicadLayerResolver } from './KicadLayerResolver.mjs'
 import { KicadNetResolver } from './KicadNetResolver.mjs'
 import { KicadPcbDrawingParser } from './KicadPcbDrawingParser.mjs'
 import { KicadPcbPadParser } from './KicadPcbPadParser.mjs'
+import { KicadPcbTextVariables } from './KicadPcbTextVariables.mjs'
 import { SExpressionParser } from './SExpressionParser.mjs'
 import { SExpressionTree } from './SExpressionTree.mjs'
 
@@ -26,6 +27,18 @@ export class KicadPcbParser {
         }
 
         const titleBlock = child(root, 'title_block')
+        const fileName = String(options.fileName || '')
+        const title = textValue(child(titleBlock, 'title')) || ''
+        const revision = textValue(child(titleBlock, 'rev')) || ''
+        const boardMetadata = parseBoardMetadata(root)
+        const boardTextContext = {
+            board: {
+                ...boardMetadata,
+                fileName,
+                title,
+                revision
+            }
+        }
         const netResolver = KicadNetResolver.fromNodes(children(root, 'net'))
         const boardGraphicItems = KicadPcbDrawingParser.parseBoardItems(
             root,
@@ -33,7 +46,12 @@ export class KicadPcbParser {
         )
         const footprints = children(root, ['footprint', 'module']).map(
             (node, index) => {
-                return parseFootprint(node, index, netResolver)
+                return parseFootprint(
+                    node,
+                    index,
+                    netResolver,
+                    boardTextContext
+                )
             }
         )
         const pads = footprints.flatMap((footprint) => footprint.pads)
@@ -49,9 +67,11 @@ export class KicadPcbParser {
         ]
         const boardTexts = [
             ...children(root, 'gr_text').map((node, index) => {
-                return parseBoardText(node, index)
+                return parseBoardText(node, index, boardTextContext)
             }),
-            ...boardGraphicItems.texts
+            ...boardGraphicItems.texts.map((text) =>
+                expandTextModel(text, boardTextContext)
+            )
         ]
         const outlines = boardDrawings.filter(
             (drawing) => drawing.layer === 'Edge.Cuts'
@@ -69,10 +89,10 @@ export class KicadPcbParser {
         )
 
         return {
-            ...parseBoardMetadata(root),
-            fileName: String(options.fileName || ''),
-            title: textValue(child(titleBlock, 'title')) || '',
-            revision: textValue(child(titleBlock, 'rev')) || '',
+            ...boardMetadata,
+            fileName,
+            title,
+            revision,
             nets: netResolver.records(),
             outlines,
             drawings,
@@ -345,9 +365,10 @@ function removeUndefinedValues(value) {
  * @param {Array} node
  * @param {number} index
  * @param {KicadNetResolver} netResolver Net resolver.
+ * @param {object} boardTextContext Board text context.
  * @returns {object}
  */
-function parseFootprint(node, index, netResolver) {
+function parseFootprint(node, index, netResolver, boardTextContext) {
     const propertyNodes = children(node, 'property')
     const properties = parseFootprintProperties(propertyNodes)
     const referenceProperty = propertyNodes.find((entry) => {
@@ -380,6 +401,21 @@ function parseFootprint(node, index, netResolver) {
             netResolver
         })
     })
+    const footprintValue = propertyText(properties, 'Value')
+    const footprintName =
+        propertyText(properties, 'Footprint') || String(node[1] || '')
+    const footprintTextContext = {
+        ...boardTextContext,
+        footprint: {
+            reference,
+            value: footprintValue,
+            layer,
+            libraryName: String(node[1] || ''),
+            footprintName,
+            properties,
+            pads
+        }
+    }
     const graphicItems = KicadPcbDrawingParser.parseFootprintItems(node, {
         ownerId: id,
         transform,
@@ -394,21 +430,24 @@ function parseFootprint(node, index, netResolver) {
                 id,
                 transform,
                 side,
-                excludeFromPositionFiles
+                excludeFromPositionFiles,
+                footprintTextContext
             )
         }),
         ...children(node, 'fp_text').map((textNode, textIndex) => {
             return parseFootprintText(
                 textNode,
                 textIndex,
-                reference,
                 id,
                 transform,
                 side,
-                excludeFromPositionFiles
+                excludeFromPositionFiles,
+                footprintTextContext
             )
         }),
-        ...graphicItems.texts
+        ...graphicItems.texts.map((text) =>
+            expandTextModel(text, footprintTextContext)
+        )
     ].filter(Boolean)
     const drawings = graphicItems.drawings
     const bounds = Geometry.boundsFromPoints([
@@ -424,9 +463,8 @@ function parseFootprint(node, index, netResolver) {
         sourceType: String(node[0] || 'footprint'),
         libraryName: String(node[1] || ''),
         reference,
-        value: propertyText(properties, 'Value'),
-        footprintName:
-            propertyText(properties, 'Footprint') || String(node[1] || ''),
+        value: footprintValue,
+        footprintName,
         properties,
         attributes,
         ...attributeFlags,
@@ -490,6 +528,7 @@ function parseNestedXyz(node, name, fallback) {
  * @param {{ x: number, y: number, rotation: number }} transform
  * @param {string} fallbackSide
  * @param {boolean} excludeFromPositionFiles
+ * @param {object} footprintTextContext Text expansion context.
  * @returns {object | null}
  */
 function parseFootprintPropertyText(
@@ -498,7 +537,8 @@ function parseFootprintPropertyText(
     ownerId,
     transform,
     fallbackSide,
-    excludeFromPositionFiles
+    excludeFromPositionFiles,
+    footprintTextContext
 ) {
     return parseTextNode(node, {
         id: `${ownerId}:property:${index}`,
@@ -509,7 +549,8 @@ function parseFootprintPropertyText(
         fallbackSide,
         keepUpright: hasKeepUprightTextRotation(node),
         visible: !hasChild(node, 'hide'),
-        excludeFromPositionFiles
+        excludeFromPositionFiles,
+        textContext: footprintTextContext
     })
 }
 
@@ -517,33 +558,33 @@ function parseFootprintPropertyText(
  * Parses one footprint text node.
  * @param {Array} node
  * @param {number} index
- * @param {string} reference
  * @param {string} ownerId
  * @param {{ x: number, y: number, rotation: number }} transform
  * @param {string} fallbackSide
  * @param {boolean} excludeFromPositionFiles
+ * @param {object} footprintTextContext Text expansion context.
  * @returns {object | null}
  */
 function parseFootprintText(
     node,
     index,
-    reference,
     ownerId,
     transform,
     fallbackSide,
-    excludeFromPositionFiles
+    excludeFromPositionFiles,
+    footprintTextContext
 ) {
     const rawValue = String(node[2] || '')
-    const value = rawValue === '${REFERENCE}' ? reference : rawValue
     return parseTextNode(node, {
         id: `${ownerId}:text:${index}`,
         ownerId,
-        value,
+        value: rawValue,
         transform,
         fallbackSide,
         keepUpright: hasKeepUprightTextRotation(node),
         visible: !hasChild(node, 'hide'),
-        excludeFromPositionFiles
+        excludeFromPositionFiles,
+        textContext: footprintTextContext
     })
 }
 
@@ -551,9 +592,10 @@ function parseFootprintText(
  * Parses board-level text.
  * @param {Array} node
  * @param {number} index
+ * @param {object} boardTextContext Text expansion context.
  * @returns {object}
  */
-function parseBoardText(node, index) {
+function parseBoardText(node, index, boardTextContext) {
     return parseTextNode(node, {
         id: `board:text:${index}`,
         ownerId: 'board',
@@ -563,8 +605,25 @@ function parseBoardText(node, index) {
         fallbackSide: 'both',
         keepUpright: false,
         visible: !hasChild(node, 'hide'),
-        excludeFromPositionFiles: false
+        excludeFromPositionFiles: false,
+        textContext: boardTextContext
     })
+}
+
+/**
+ * Expands a parsed text model value.
+ * @param {object} text Text model.
+ * @param {object} textContext Text expansion context.
+ * @returns {object}
+ */
+function expandTextModel(text, textContext) {
+    return {
+        ...text,
+        value: KicadPcbTextVariables.expand(text.value, {
+            ...textContext,
+            text: { layer: text.layer }
+        })
+    }
 }
 
 /**
@@ -586,12 +645,16 @@ function parseTextNode(node, context) {
         context.transform,
         side
     )
+    const value = KicadPcbTextVariables.expand(context.value, {
+        ...(context.textContext || {}),
+        text: { layer }
+    })
 
     return {
         id: context.id,
         ownerId: context.ownerId,
         propertyName: context.propertyName || '',
-        value: context.value,
+        value,
         x: position.x,
         y: position.y,
         rotation: context.keepUpright

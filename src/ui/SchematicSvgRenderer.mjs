@@ -484,8 +484,7 @@ function renderTitleBlock(titleBlock, width, height, margin, options = {}) {
             x: fromRight(109),
             y: fromBottom(20),
             value: company,
-            color: labelColor,
-            thickness: 2.4
+            color: labelColor
         }),
         renderTitleText({
             className: 'sheet-title-label',
@@ -507,8 +506,7 @@ function renderTitleBlock(titleBlock, width, height, margin, options = {}) {
             y: fromBottom(10.7),
             value: `Title: ${title}`,
             color: wireColor,
-            size: 20,
-            thickness: 4
+            size: 20
         }),
         renderTitleText({
             className: 'sheet-title-label',
@@ -529,8 +527,7 @@ function renderTitleBlock(titleBlock, width, height, margin, options = {}) {
             x: fromRight(24),
             y: fromBottom(6.9),
             value: `Rev: ${revision}`,
-            color: wireColor,
-            thickness: 3
+            color: wireColor
         }),
         renderTitleText({
             className: 'sheet-title-label',
@@ -599,7 +596,7 @@ function renderTitleText(options) {
     return renderWorksheetText({
         size: 15,
         hAlign: 'left',
-        vAlign: 'bottom',
+        vAlign: 'center',
         thickness: 1.5,
         ...options
     })

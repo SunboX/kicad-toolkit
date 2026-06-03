@@ -227,10 +227,15 @@ export class KicadProjectLoader {
             }
         }
 
+        const hierarchy = KicadProjectLoader.#buildProjectHierarchy(
+            rootName,
+            documents
+        )
         const project = KicadProjectLoader.#buildProjectSummary(
             projectEntry?.name || rootName,
             documents,
-            KicadProjectLoader.#buildProjectNets(schematicDocuments)
+            KicadProjectLoader.#buildProjectNets(schematicDocuments),
+            hierarchy
         )
 
         return {
@@ -268,12 +273,16 @@ export class KicadProjectLoader {
      * @param {string} sourceName Source name.
      * @param {object[]} documents Documents.
      * @param {object[]} nets Project nets.
+     * @param {{ rootSchematic: string, pages: object[] } | null} [hierarchy] Hierarchy.
      * @returns {object}
      */
-    static #buildProjectSummary(sourceName, documents, nets) {
+    static #buildProjectSummary(sourceName, documents, nets, hierarchy = null) {
         const schematicDocuments = documents.filter(
             (document) => document.kind === 'schematic'
         )
+        const resolvedHierarchy =
+            hierarchy ||
+            KicadProjectLoader.#buildProjectHierarchy(sourceName, documents)
         const bom = KicadProjectLoader.#groupProjectBomRows(
             schematicDocuments.flatMap((document) => document.bom || [])
         )
@@ -284,9 +293,185 @@ export class KicadProjectLoader {
             schematicCount: schematicDocuments.length,
             pcbCount: documents.filter((document) => document.kind === 'pcb')
                 .length,
+            rootSchematic: resolvedHierarchy.rootSchematic,
+            pages: resolvedHierarchy.pages,
             nets,
             bom
         }
+    }
+
+    /**
+     * Builds schematic and PCB page records for a project summary.
+     * @param {string} rootName Preferred root schematic file.
+     * @param {object[]} documents Parsed documents.
+     * @returns {{ rootSchematic: string, pages: object[] }}
+     */
+    static #buildProjectHierarchy(rootName, documents) {
+        const schematicDocuments = documents.filter((document) => {
+            return document.kind === 'schematic'
+        })
+        const indexes = KicadProjectLoader.#schematicIndexes(schematicDocuments)
+        const rootDocument =
+            KicadProjectLoader.#resolveIndexedSchematic(rootName, indexes) ||
+            schematicDocuments[0] ||
+            null
+        const pages = []
+        const visitedDocuments = new Set()
+
+        if (rootDocument) {
+            KicadProjectLoader.#appendSchematicPages(
+                rootDocument,
+                indexes,
+                pages,
+                visitedDocuments,
+                {
+                    path: '/',
+                    page: '1',
+                    root: true,
+                    active: new Set()
+                }
+            )
+        }
+
+        for (const document of schematicDocuments) {
+            if (visitedDocuments.has(document.fileName)) continue
+            KicadProjectLoader.#appendSchematicPages(
+                document,
+                indexes,
+                pages,
+                visitedDocuments,
+                {
+                    path:
+                        '/' + stripKnownExtension(baseName(document.fileName)),
+                    page: String(schematicPageCount(pages) + 1),
+                    root: false,
+                    active: new Set()
+                }
+            )
+        }
+
+        for (const document of documents.filter(
+            (entry) => entry.kind === 'pcb'
+        )) {
+            pages.push({
+                kind: 'pcb',
+                fileName: document.fileName || '',
+                title: pageTitle(document),
+                path: '',
+                page: '',
+                root: false
+            })
+        }
+
+        return {
+            rootSchematic: rootDocument?.fileName || '',
+            pages
+        }
+    }
+
+    /**
+     * Appends schematic page records recursively.
+     * @param {object} document Schematic document.
+     * @param {object} indexes Schematic indexes.
+     * @param {object[]} pages Accumulated pages.
+     * @param {Set<string>} visitedDocuments Visited file names.
+     * @param {{ path: string, page: string, root: boolean, active: Set<string> }} context Page context.
+     * @returns {void}
+     */
+    static #appendSchematicPages(
+        document,
+        indexes,
+        pages,
+        visitedDocuments,
+        context
+    ) {
+        const fileName = document.fileName || ''
+        if (context.active.has(fileName)) return
+
+        visitedDocuments.add(fileName)
+        pages.push({
+            kind: 'schematic',
+            fileName,
+            title: pageTitle(document),
+            path: context.path,
+            page: context.page,
+            root: context.root
+        })
+
+        const active = new Set(context.active)
+        active.add(fileName)
+        for (const [index, sheet] of (
+            document.schematic?.sheetSymbols || []
+        ).entries()) {
+            const target = KicadProjectLoader.#resolveSheetSchematic(
+                document,
+                sheet,
+                indexes
+            )
+            if (!target) continue
+            KicadProjectLoader.#appendSchematicPages(
+                target,
+                indexes,
+                pages,
+                visitedDocuments,
+                {
+                    path: childSheetPath(context.path, sheet, index),
+                    page: `${context.page}.${index + 1}`,
+                    root: false,
+                    active
+                }
+            )
+        }
+    }
+
+    /**
+     * Builds path indexes for schematic documents.
+     * @param {object[]} documents Schematic documents.
+     * @returns {{ byPath: Map<string, object>, byBase: Map<string, object> }}
+     */
+    static #schematicIndexes(documents) {
+        const byPath = new Map()
+        const byBase = new Map()
+        for (const document of documents) {
+            byPath.set(normalizeEntryPath(document.fileName), document)
+            byBase.set(baseName(document.fileName).toLowerCase(), document)
+        }
+        return { byPath, byBase }
+    }
+
+    /**
+     * Resolves a schematic document by file name.
+     * @param {string} fileName File name.
+     * @param {{ byPath: Map<string, object>, byBase: Map<string, object> }} indexes Indexes.
+     * @returns {object | undefined}
+     */
+    static #resolveIndexedSchematic(fileName, indexes) {
+        if (!fileName) return undefined
+        return (
+            indexes.byPath.get(normalizeEntryPath(fileName)) ||
+            indexes.byBase.get(baseName(fileName).toLowerCase())
+        )
+    }
+
+    /**
+     * Resolves a sheet file reference from its parent schematic.
+     * @param {object} parent Parent schematic document.
+     * @param {object} sheet Sheet symbol.
+     * @param {{ byPath: Map<string, object>, byBase: Map<string, object> }} indexes Indexes.
+     * @returns {object | undefined}
+     */
+    static #resolveSheetSchematic(parent, sheet, indexes) {
+        const fileName = String(sheet.fileName || '')
+        if (!fileName) return undefined
+        return (
+            indexes.byPath.get(
+                normalizeEntryPath(
+                    joinEntryPath(dirName(parent.fileName), fileName)
+                )
+            ) ||
+            indexes.byPath.get(normalizeEntryPath(fileName)) ||
+            indexes.byBase.get(baseName(fileName).toLowerCase())
+        )
     }
 
     /**
@@ -383,6 +568,78 @@ export class KicadProjectLoader {
         }
         return [...grouped.values()]
     }
+}
+
+/**
+ * Returns a display title for one project page.
+ * @param {object} document Parsed document.
+ * @returns {string}
+ */
+function pageTitle(document) {
+    return (
+        document.summary?.title ||
+        document.schematic?.sheet?.title ||
+        document.pcb?.kicadBoard?.title ||
+        stripKnownExtension(baseName(document.fileName))
+    )
+}
+
+/**
+ * Counts schematic page records.
+ * @param {object[]} pages Project pages.
+ * @returns {number}
+ */
+function schematicPageCount(pages) {
+    return pages.filter((page) => page.kind === 'schematic').length
+}
+
+/**
+ * Builds a child sheet path segment.
+ * @param {string} parentPath Parent path.
+ * @param {object} sheet Sheet symbol.
+ * @param {number} index Sheet index.
+ * @returns {string}
+ */
+function childSheetPath(parentPath, sheet, index) {
+    const segment = String(
+        sheet.ownerIndex || sheet.name || `sheet-${index + 1}`
+    )
+    return `${parentPath === '/' ? '' : parentPath}/${segment}`
+}
+
+/**
+ * Returns a slash-normalized directory name.
+ * @param {string} path File path.
+ * @returns {string}
+ */
+function dirName(path) {
+    const normalized = String(path || '').replace(/\\/g, '/')
+    const index = normalized.lastIndexOf('/')
+    return index >= 0 ? normalized.slice(0, index) : ''
+}
+
+/**
+ * Joins an archive directory and file path.
+ * @param {string} directory Directory path.
+ * @param {string} fileName File name.
+ * @returns {string}
+ */
+function joinEntryPath(directory, fileName) {
+    if (!directory) return fileName
+    return `${directory}/${fileName}`
+}
+
+/**
+ * Normalizes an archive entry path for lookup.
+ * @param {string} path Entry path.
+ * @returns {string}
+ */
+function normalizeEntryPath(path) {
+    return String(path || '')
+        .replace(/\\/g, '/')
+        .replace(/^\.\//, '')
+        .replace(/\/+/g, '/')
+        .toLowerCase()
 }
 
 /**

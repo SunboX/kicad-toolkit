@@ -106,18 +106,28 @@ KiCad pad shapes such as `rect`, `circle`, `oval`, `trapezoid`, `roundrect`,
 and `custom`; unknown names remain preserved on the raw pad fields and map to a
 deterministic fallback shape hint. Parser helpers expose geometry-aware pad
 bound points for rectangular, circular, and oval pads so rotated pads contribute
-accurate lower-level footprint and board extents.
+accurate lower-level footprint and board extents. Drill offsets are preserved
+on raw pads and applied by the SVG drill renderer. Custom pad primitives can
+include line, circle, polygon, arc, and cubic curve geometry.
 
 PCB drawing and copper objects use `type` values such as `line`, `circle`,
 `arc`, `curve`, `polygon`, `segment`, `via`, `zone`, `dimension`, `image`,
 `barcode`, `target`, and `point`. They include layer, side, material, stroke,
 fill, geometry, owner, group, generated-item, and net metadata as needed by the
-primitive type.
+primitive type. Polygon and curve point lists preserve source order and flatten
+inline arc segments into deterministic point sequences.
+
+Filled zone objects preserve the first contour on `points` for compatibility
+and expose all recovered contours on `contours` when the source filled polygon
+contains multiple point lists. Circuit JSON polygon projections keep the first
+contour in `segments` and expose additive contour segment groups on `contours`.
 
 Text entries preserve value, transform, layer, side, mirroring, alignment, font
 size, stroke thickness, visibility, and position-file exclusion metadata.
 Multi-line text is preserved and rendered by the SVG renderer using the KiCad
-stroke font helper.
+stroke font helper. Board and footprint text variables are expanded during PCB
+parsing when the referenced board, title-block, footprint, layer, or pad data is
+available; unresolved variables are left unchanged.
 
 ## Project Loading Fields
 
@@ -128,7 +138,9 @@ object shape, a compact `project` summary, companion `assets`, `diagnostics`,
 `sourceFileName`, and `sourceText`. Full project ZIP loads include parsed
 schematic and PCB Circuit JSON `documents`, `rendererDocuments`, a `project`
 summary with document counts, project-level net references, grouped BOM rows,
-companion 3D `assets`, and diagnostics for missing hierarchical sheets.
+companion 3D `assets`, and diagnostics for missing hierarchical sheets. The
+project summary also exposes `rootSchematic` and ordered `pages`; each page
+record includes `kind`, `fileName`, `title`, `path`, `page`, and `root`.
 
 ## Helper Report Fields
 

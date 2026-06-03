@@ -400,6 +400,152 @@ test('PcbSvgRenderer draws filled silkscreen polygons and copper primitives', as
     assert.match(backSvg, /class="pcb-zone"/)
 })
 
+test('PcbSvgRenderer renders multi-contour zones with even-odd fill', () => {
+    const svg = PcbSvgRenderer.render(
+        {
+            title: 'Zone contours',
+            bounds: {
+                minX: 0,
+                minY: 0,
+                maxX: 10,
+                maxY: 10,
+                width: 10,
+                height: 10
+            },
+            outlines: [],
+            drawings: [
+                {
+                    type: 'zone',
+                    side: 'front',
+                    layer: 'F.Cu',
+                    material: 'copper',
+                    fill: true,
+                    contours: [
+                        [
+                            { x: 1, y: 1 },
+                            { x: 9, y: 1 },
+                            { x: 9, y: 9 },
+                            { x: 1, y: 9 }
+                        ],
+                        [
+                            { x: 4, y: 4 },
+                            { x: 6, y: 4 },
+                            { x: 6, y: 6 },
+                            { x: 4, y: 6 }
+                        ]
+                    ]
+                }
+            ],
+            pads: [],
+            texts: [],
+            footprints: []
+        },
+        { side: 'front' }
+    )
+    const zone = svg.match(/<path class="pcb-zone"[^>]+>/u)?.[0] || ''
+
+    assert.match(zone, /fill-rule="evenodd"/)
+    assert.match(
+        zone,
+        /d="M 1 1 L 9 1 L 9 9 L 1 9 Z M 4 4 L 6 4 L 6 6 L 4 6 Z"/
+    )
+})
+
+test('PcbSvgRenderer renders trapezoid and chamfered pads as paths', () => {
+    const svg = PcbSvgRenderer.render({
+        title: 'Detailed pad shapes',
+        bounds: { minX: 0, minY: 0, maxX: 12, maxY: 10, width: 12, height: 10 },
+        outlines: [],
+        drawings: [],
+        texts: [],
+        footprints: [],
+        pads: [
+            {
+                number: '1',
+                type: 'smd',
+                shape: 'trapezoid',
+                x: 5,
+                y: 3,
+                width: 4,
+                height: 2,
+                rotation: 0,
+                drill: 0,
+                rectDelta: { x: 1, y: 0 },
+                side: 'front'
+            },
+            {
+                number: '2',
+                type: 'smd',
+                shape: 'roundrect',
+                x: 5,
+                y: 7,
+                width: 4,
+                height: 2,
+                rotation: 0,
+                drill: 0,
+                chamferRatio: 0.25,
+                chamfers: ['top_left', 'bottom_right'],
+                side: 'front'
+            }
+        ]
+    })
+
+    assert.match(
+        svg,
+        /<path class="pcb-pad"(?=[^>]+data-pad-number="1")(?=[^>]+d="M 2\.5 2 L 7\.5 2 L 6\.5 4 L 3\.5 4 Z")/
+    )
+    assert.match(
+        svg,
+        /<path class="pcb-pad"(?=[^>]+data-pad-number="2")(?=[^>]+d="M 3\.5 6 L 7 6 L 7 7\.5 L 6\.5 8 L 3 8 L 3 6\.5 Z")/
+    )
+})
+
+test('PcbSvgRenderer renders custom pad primitives in pad-local coordinates', () => {
+    const svg = PcbSvgRenderer.render({
+        title: 'Custom pad',
+        bounds: { minX: 0, minY: 0, maxX: 10, maxY: 10, width: 10, height: 10 },
+        outlines: [],
+        drawings: [],
+        texts: [],
+        footprints: [],
+        pads: [
+            {
+                number: '1',
+                type: 'smd',
+                shape: 'custom',
+                x: 5,
+                y: 5,
+                width: 1,
+                height: 1,
+                rotation: 90,
+                drill: 0,
+                side: 'front',
+                customPrimitives: [
+                    {
+                        type: 'polygon',
+                        fill: true,
+                        points: [
+                            { x: -0.5, y: -0.5 },
+                            { x: 0.5, y: -0.5 },
+                            { x: 0.5, y: 0.5 },
+                            { x: -0.5, y: 0.5 }
+                        ]
+                    }
+                ]
+            }
+        ]
+    })
+
+    assert.match(
+        svg,
+        /<g class="pcb-pad pcb-pad--custom"(?=[^>]+data-pad-number="1")(?=[^>]+transform="translate\(5 5\) rotate\(90\)")/
+    )
+    assert.match(
+        svg,
+        /<path class="pcb-pad-primitive pcb-pad-primitive--polygon" d="M -0\.5 -0\.5 L 0\.5 -0\.5 L 0\.5 0\.5 L -0\.5 0\.5 Z"/
+    )
+})
+
 test('PcbSvgRenderer skips fabrication and courtyard drawing layers', () => {
     const svg = PcbSvgRenderer.render({
         title: 'Drawing layer filter',

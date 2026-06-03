@@ -3,6 +3,7 @@
 
 import { Geometry } from './Geometry.mjs'
 import { KicadLayerResolver } from './KicadLayerResolver.mjs'
+import { KicadPcbPointListParser } from './KicadPcbPointListParser.mjs'
 
 /**
  * Parses KiCad PCB pad geometry, drill, custom primitive, and padstack detail.
@@ -384,7 +385,10 @@ function parsePrimitive(node) {
             end: parseVector(child(node, 'end'), { x: 0, y: 0 })
         }
     }
-    return { ...base, points: parsePoints(child(node, 'pts')) }
+    return {
+        ...base,
+        points: KicadPcbPointListParser.parsePoints(child(node, 'pts'))
+    }
 }
 
 /**
@@ -424,17 +428,6 @@ function parseVector(node, fallback) {
         x: numberValue(node?.[1], fallback.x),
         y: numberValue(node?.[2], fallback.y)
     }
-}
-
-/**
- * Parses a KiCad pts node.
- * @param {Array | undefined} node Points node.
- * @returns {{ x: number, y: number }[]}
- */
-function parsePoints(node) {
-    return children(node, 'xy').map((entry) =>
-        parseVector(entry, { x: 0, y: 0 })
-    )
 }
 
 /**

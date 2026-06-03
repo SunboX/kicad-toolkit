@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { SExpressionParser } from '../../src/core/kicad/SExpressionParser.mjs'
+import { SExpressionSchema } from '../../src/core/kicad/SExpressionSchema.mjs'
 import { SExpressionTree } from '../../src/core/kicad/SExpressionTree.mjs'
 
 test('SExpressionParser parses KiCad atoms, strings, comments, and nested lists', () => {
@@ -53,6 +54,70 @@ test('SExpressionParser normalizes KiCad hexadecimal integer atoms', () => {
     assert.deepEqual(parsed, ['root', 31, 10, 255])
 })
 
+test('SExpressionParser returns opt-in structured parse metadata', () => {
+    const source = `
+        (board
+            (version 20240101)
+            (property "Reference" "U1")
+            (property "Value" "MCU")
+            (layers
+                (layer "F.Cu")
+                (layer "B.Cu")
+            )
+            locked
+        )
+    `
+
+    const parsed = SExpressionParser.parseWithMetadata(source)
+
+    assert.deepEqual(parsed.root, SExpressionParser.parse(source))
+    assert.equal(parsed.metadata.rootName, 'board')
+    assert.equal(parsed.metadata.tokenCount, 29)
+    assert.equal(parsed.metadata.nodeCount, 7)
+    assert.equal(parsed.metadata.maxDepth, 3)
+    assert.deepEqual(parsed.metadata.childNameCounts, {
+        version: 1,
+        property: 2,
+        layers: 1
+    })
+    assert.deepEqual(parsed.metadata.duplicateChildNames, ['property'])
+    assert.deepEqual(parsed.metadata.scalarTypeCounts, {
+        string: 14,
+        number: 1
+    })
+})
+
+test('SExpressionTree describes generic S-expression node structure', () => {
+    const parsed = SExpressionParser.parse(`
+        (root
+            (child "one")
+            (child "two")
+            (nested (leaf 1))
+            2
+        )
+    `)
+
+    assert.deepEqual(SExpressionTree.childNameCounts(parsed), {
+        child: 2,
+        nested: 1
+    })
+    assert.deepEqual(SExpressionTree.duplicateChildNames(parsed), ['child'])
+    assert.deepEqual(SExpressionTree.describe(parsed), {
+        rootName: 'root',
+        nodeCount: 5,
+        maxDepth: 3,
+        childNameCounts: {
+            child: 2,
+            nested: 1
+        },
+        duplicateChildNames: ['child'],
+        scalarTypeCounts: {
+            string: 7,
+            number: 2
+        }
+    })
+})
+
 test('SExpressionTree reads nested KiCad list values predictably', () => {
     const parsed = SExpressionParser.parse(`
         (root
@@ -100,4 +165,53 @@ test('SExpressionTree reads nested KiCad list values predictably', () => {
     assert.deepEqual(SExpressionTree.children(parsed, ['layer', 'missing']), [
         ['layer', 31, 'B.Cu', 'signal', 'Back copper']
     ])
+})
+
+test('SExpressionSchema maps common node fields and reports unknown children', () => {
+    const parsed = SExpressionParser.parse(`
+        (pad "1" smd rect
+            (locked)
+            (size 1.2 2.4)
+            (property "Net" "GND")
+            (property "Kind" "signal")
+            (unknown 42)
+        )
+    `)
+    const result = SExpressionSchema.parse(
+        parsed,
+        SExpressionSchema.node('pad', [
+            SExpressionSchema.positional('number', SExpressionSchema.string()),
+            SExpressionSchema.positional('type', SExpressionSchema.string()),
+            SExpressionSchema.positional('shape', SExpressionSchema.string()),
+            SExpressionSchema.flag('locked'),
+            SExpressionSchema.child('size', 'size', SExpressionSchema.vec2()),
+            SExpressionSchema.properties('properties')
+        ])
+    )
+
+    assert.deepEqual(result.value, {
+        number: '1',
+        type: 'smd',
+        shape: 'rect',
+        locked: true,
+        size: { x: 1.2, y: 2.4 },
+        properties: {
+            Net: 'GND',
+            Kind: 'signal'
+        }
+    })
+    assert.deepEqual(
+        result.diagnostics.map((diagnostic) => ({
+            severity: diagnostic.severity,
+            code: diagnostic.code,
+            path: diagnostic.path
+        })),
+        [
+            {
+                severity: 'warning',
+                code: 'unknown_child',
+                path: 'pad.unknown'
+            }
+        ]
+    )
 })

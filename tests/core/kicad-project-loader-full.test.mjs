@@ -33,6 +33,43 @@ test('KicadProjectLoader loads a full KiCad project from named entries', async (
         'expected project nets to merge matching sheet pins and hierarchical labels'
     )
     assert.deepEqual(result.project.bom[0].designators, ['U1'])
+    assert.equal(result.project.rootSchematic, 'demo/demo.kicad_sch')
+    assert.deepEqual(
+        result.project.pages.map((page) => ({
+            kind: page.kind,
+            fileName: page.fileName,
+            title: page.title,
+            path: page.path,
+            page: page.page,
+            root: page.root
+        })),
+        [
+            {
+                kind: 'schematic',
+                fileName: 'demo/demo.kicad_sch',
+                title: 'Root',
+                path: '/',
+                page: '1',
+                root: true
+            },
+            {
+                kind: 'schematic',
+                fileName: 'demo/child.kicad_sch',
+                title: 'Child',
+                path: '/sheet-uuid',
+                page: '1.1',
+                root: false
+            },
+            {
+                kind: 'pcb',
+                fileName: 'demo/demo.kicad_pcb',
+                title: 'Demo Board',
+                path: '',
+                page: '',
+                root: false
+            }
+        ]
+    )
 })
 
 test('KicadProjectLoader loads a full KiCad project from a zip archive', async () => {

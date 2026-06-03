@@ -4,6 +4,9 @@
 
 export { BomTableRenderer } from './ui/BomTableRenderer.mjs'
 export { KicadStrokeFont } from './ui/KicadStrokeFont.mjs'
+export { PcbInteractionIndex } from './ui/PcbInteractionIndex.mjs'
+export { PcbInteractionItemRegistry } from './ui/PcbInteractionItemRegistry.mjs'
+export { PcbInteractionLayerModel } from './ui/PcbInteractionLayerModel.mjs'
 export {
     PcbSideResolvedRenderModel,
     isCopperPrimitive,

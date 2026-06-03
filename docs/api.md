@@ -76,19 +76,27 @@ ZIP archives containing `.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, and companion
 documents, renderer compatibility documents, project summary, assets,
 diagnostics, source file name, and source text. Full project loads return
 Circuit JSON documents, renderer compatibility documents, a project summary,
-companion assets, and diagnostics.
+companion assets, and diagnostics. Project summaries include
+`rootSchematic` and ordered `pages` records for schematic hierarchy pages and
+PCB documents.
 
 Specialized parser helpers are exported for lower-level integrations, including
 `Geometry`, `KicadArcGeometry`, `KicadLayerResolver`, `KicadNetResolver`,
 `KicadPcbDrawingParser`, `KicadPcbLayerMetadata`, `KicadPcbPadParser`,
 `KicadFeatureParity`, `KicadReadinessReport`, `KicadSchematicGraphicParser`,
 `KicadSchematicSymbolParser`, `KicadToolkitCapabilities`, and
-`SExpressionTree`. The layer, net, drawing, pad, schematic, report, capability,
-and S-expression tree helpers expose the same normalization used by
+`SExpressionSchema` and `SExpressionTree`. The layer, net, drawing, pad,
+schematic, report, capability, and S-expression helpers expose the same
+normalization used by
 `.kicad_pcb` and `.kicad_sch` parsing. `KicadFeatureParity` exposes a data-only
 parity inventory for KiCad equivalents and source-format exemptions.
 `SExpressionParser.parse(source)` returns the raw nested S-expression tree used
-by the KiCad parsers.
+by the KiCad parsers. `SExpressionParser.parseWithMetadata(source)` returns the
+same root tree plus generic structural metadata such as root name, token count,
+node count, maximum depth, direct child-name counts, duplicate direct child
+names, and scalar type counts. `SExpressionSchema` provides declarative
+positional, child, flag, property-map, and value-reader helpers for reusable
+node mapping with recoverable diagnostics.
 
 `KicadLayerResolver` resolves standard KiCad aliases such as silkscreen and
 courtyard display names, exposes standard ordinals, layer classes, copper

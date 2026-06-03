@@ -51,11 +51,15 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadToolkitCapabilities',
         'NormalizedModelSchema',
         'SExpressionParser',
+        'SExpressionSchema',
         'SExpressionTree'
     ])
     assertPublicApi(rendererApi, [
         'BomTableRenderer',
         'KicadStrokeFont',
+        'PcbInteractionIndex',
+        'PcbInteractionItemRegistry',
+        'PcbInteractionLayerModel',
         'PcbSideResolvedRenderModel',
         'PcbSvgRenderer',
         'SchematicSvgRenderer',
@@ -101,6 +105,7 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/KicadToolkitCapabilities.mjs')
     await assertFileExists('../src/core/kicad/NormalizedModelSchema.mjs')
     await assertFileExists('../src/core/kicad/SExpressionParser.mjs')
+    await assertFileExists('../src/core/kicad/SExpressionSchema.mjs')
     await assertFileExists('../src/core/kicad/SExpressionTree.mjs')
     await assertFileExists(
         '../src/core/circuit-json/CircuitJsonModelAdapter.mjs'

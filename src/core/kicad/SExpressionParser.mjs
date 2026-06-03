@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { SExpressionTree } from './SExpressionTree.mjs'
+
 const simpleEscapes = Object.freeze({
     a: '\x07',
     b: '\b',
@@ -24,6 +26,44 @@ export class SExpressionParser {
      */
     static parse(source) {
         const tokens = SExpressionParser.tokenize(source)
+        return SExpressionParser.#parseTokens(tokens)
+    }
+
+    /**
+     * Parses one S-expression document and returns generic parse metadata.
+     * @param {string} source
+     * @returns {{
+     *     root: Array,
+     *     metadata: {
+     *         rootName: string,
+     *         tokenCount: number,
+     *         nodeCount: number,
+     *         maxDepth: number,
+     *         childNameCounts: Record<string, number>,
+     *         duplicateChildNames: string[],
+     *         scalarTypeCounts: Record<string, number>
+     *     }
+     * }}
+     */
+    static parseWithMetadata(source) {
+        const tokens = SExpressionParser.tokenize(source)
+        const root = SExpressionParser.#parseTokens(tokens)
+
+        return {
+            root,
+            metadata: {
+                ...SExpressionTree.describe(root),
+                tokenCount: tokens.length
+            }
+        }
+    }
+
+    /**
+     * Builds one S-expression root from tokenized source.
+     * @param {string[]} tokens Token stream.
+     * @returns {Array}
+     */
+    static #parseTokens(tokens) {
         const roots = []
         const stack = []
         let current = null

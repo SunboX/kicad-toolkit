@@ -197,6 +197,35 @@ test('KicadPcbParser extracts copper segments, vias, zones, and rotated rectangl
     )
 })
 
+test('KicadPcbParser preserves all contours from filled zone polygons', () => {
+    const board = KicadPcbParser.parse(zoneContourFixture(), {
+        fileName: 'zone-contour-fixture.kicad_pcb'
+    })
+    const zone = board.drawings.find((drawing) => drawing.type === 'zone')
+
+    assert.ok(zone)
+    assert.deepEqual(zone.points, [
+        { x: 1, y: 1 },
+        { x: 9, y: 1 },
+        { x: 9, y: 9 },
+        { x: 1, y: 9 }
+    ])
+    assert.deepEqual(zone.contours, [
+        [
+            { x: 1, y: 1 },
+            { x: 9, y: 1 },
+            { x: 9, y: 9 },
+            { x: 1, y: 9 }
+        ],
+        [
+            { x: 4, y: 4 },
+            { x: 6, y: 4 },
+            { x: 6, y: 6 },
+            { x: 4, y: 6 }
+        ]
+    ])
+})
+
 test('KicadPcbParser parses a multi-footprint board without throwing', async () => {
     const source = multiFootprintFixture()
     const board = KicadPcbParser.parse(source, {
@@ -496,6 +525,27 @@ test('KicadPcbParser extracts KiCad footprint BOM attributes and properties', ()
     assert.equal(byReference.get('LOGO1').excludeFromPositionFiles, true)
     assert.equal(byReference.get('LOGO1').excludeFromBom, true)
 })
+
+/**
+ * Builds a fake board with a filled zone that has two contours.
+ * @returns {string}
+ */
+function zoneContourFixture() {
+    return `(kicad_pcb
+        (version 20241229)
+        (net 1 "GND")
+        (zone
+            (net 1)
+            (net_name "GND")
+            (layer "F.Cu")
+            (filled_polygon
+                (layer "F.Cu")
+                (pts (xy 1 1) (xy 9 1) (xy 9 9) (xy 1 9))
+                (pts (xy 4 4) (xy 6 4) (xy 6 6) (xy 4 6))
+            )
+        )
+    )`
+}
 
 /**
  * Builds a fake multi-footprint KiCad board fixture.

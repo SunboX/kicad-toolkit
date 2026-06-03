@@ -3,6 +3,8 @@
 
 import { Geometry } from './Geometry.mjs'
 import { KicadLayerResolver } from './KicadLayerResolver.mjs'
+import { KicadPcbPointListParser } from './KicadPcbPointListParser.mjs'
+import { KicadPcbZoneParser } from './KicadPcbZoneParser.mjs'
 
 const graphicNodeNames = new Set([
     'gr_line',
@@ -88,7 +90,7 @@ export class KicadPcbDrawingParser {
     static parseCopperDrawings(root, netResolver) {
         return [
             ...children(root, 'zone').flatMap((node, index) =>
-                parseZone(node, index, netResolver)
+                KicadPcbZoneParser.parseZone(node, index, netResolver)
             ),
             ...children(root, 'segment').map((node, index) =>
                 parseSegment(node, index, netResolver)
@@ -109,7 +111,11 @@ export class KicadPcbDrawingParser {
      */
     static pointsForDrawing(drawing) {
         if (drawing.type === 'polygon') return drawing.points
-        if (drawing.type === 'zone') return drawing.points
+        if (drawing.type === 'zone') {
+            return Array.isArray(drawing.contours)
+                ? drawing.contours.flat()
+                : drawing.points
+        }
         if (drawing.type === 'line') return [drawing.start, drawing.end]
         if (drawing.type === 'segment') return [drawing.start, drawing.end]
         if (drawing.type === 'dimension') return drawing.points
@@ -257,7 +263,10 @@ function parseGraphicShape(node, index, context) {
             {
                 ...base,
                 type: 'curve',
-                points: parsePoints(child(node, 'pts'), context.transform)
+                points: KicadPcbPointListParser.parsePoints(
+                    child(node, 'pts'),
+                    context.transform
+                )
             }
         ]
     }
@@ -266,7 +275,10 @@ function parseGraphicShape(node, index, context) {
             {
                 ...base,
                 type: 'polygon',
-                points: parsePoints(child(node, 'pts'), context.transform)
+                points: KicadPcbPointListParser.parsePoints(
+                    child(node, 'pts'),
+                    context.transform
+                )
             }
         ]
     }
@@ -354,42 +366,6 @@ function parseVia(node, index, netResolver) {
         strokeWidth: 0.08,
         fill: true
     }
-}
-
-/**
- * Parses one filled zone.
- * @param {Array} node Zone node.
- * @param {number} zoneIndex Zone index.
- * @param {object} netResolver Net resolver.
- * @returns {object[]}
- */
-function parseZone(node, zoneIndex, netResolver) {
-    const zoneLayer = textValue(child(node, 'layer')) || ''
-    const net = netResolver.resolveNode(
-        child(node, 'net'),
-        textValue(child(node, 'net_name'))
-    )
-    return children(node, 'filled_polygon')
-        .map((polygonNode, polygonIndex) => {
-            const layer = textValue(child(polygonNode, 'layer')) || zoneLayer
-            return {
-                id: `board:zone:${zoneIndex}:${polygonIndex}`,
-                ownerId: 'board',
-                sourceType: 'zone',
-                type: 'zone',
-                material: 'copper',
-                layer,
-                side: KicadLayerResolver.sideFromLayer(layer),
-                ...net,
-                strokeWidth: 0,
-                fill: true,
-                points: parsePoints(
-                    child(polygonNode, 'pts'),
-                    boardContext().transform
-                )
-            }
-        })
-        .filter((zone) => zone.points.length > 0)
 }
 
 /**
@@ -487,10 +463,10 @@ function parseTable(node, index, context) {
 function parseDimension(node, index, context) {
     const layer = textValue(child(node, 'layer')) || ''
     const side = KicadLayerResolver.sideFromLayer(layer) || context.fallbackSide
-    const points = parsePoints(child(node, 'pts'), context.transform).slice(
-        0,
-        2
-    )
+    const points = KicadPcbPointListParser.parsePoints(
+        child(node, 'pts'),
+        context.transform
+    ).slice(0, 2)
     const drawing = {
         id: `${context.ownerId}:dimension:${index}`,
         ownerId: context.ownerId,
@@ -738,7 +714,10 @@ function parseJustify(node) {
  * @returns {{ x: number, y: number }[]}
  */
 function textBoxPoints(node, context) {
-    const polygon = parsePoints(child(node, 'pts'), context.transform)
+    const polygon = KicadPcbPointListParser.parsePoints(
+        child(node, 'pts'),
+        context.transform
+    )
     return polygon.length > 0 ? polygon : rectPoints(node, context)
 }
 
@@ -802,25 +781,6 @@ function localPoint(node) {
         x: numberValue(node?.[1], 0),
         y: numberValue(node?.[2], 0)
     }
-}
-
-/**
- * Parses a KiCad pts node.
- * @param {Array | undefined} node Points node.
- * @param {{ x: number, y: number, rotation: number }} transform Transform.
- * @returns {{ x: number, y: number }[]}
- */
-function parsePoints(node, transform) {
-    if (!node) return []
-    return children(node, 'xy').map((entry) =>
-        transformLocalPoint(
-            {
-                x: numberValue(entry[1], 0),
-                y: numberValue(entry[2], 0)
-            },
-            transform
-        )
-    )
 }
 
 /**
