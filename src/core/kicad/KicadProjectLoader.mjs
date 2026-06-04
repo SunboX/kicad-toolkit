@@ -3,6 +3,7 @@
 
 import { strFromU8, unzipSync } from 'fflate'
 import { CircuitJsonModelAdapter } from '../circuit-json/CircuitJsonModelAdapter.mjs'
+import { KicadLibraryIndexBuilder } from './KicadLibraryIndexBuilder.mjs'
 import { KicadParser } from './KicadParser.mjs'
 import { KicadPcbParser } from './KicadPcbParser.mjs'
 
@@ -71,15 +72,23 @@ export class KicadProjectLoader {
         const rendererDocument = KicadParser.wrapBoard(board, boardEntry.name)
         const document =
             CircuitJsonModelAdapter.fromRendererModel(rendererDocument)
+        const libraries = KicadLibraryIndexBuilder.build(expandedEntries)
+        const project = KicadProjectLoader.#buildProjectSummary(
+            '',
+            [document],
+            []
+        )
+        project.libraryCount = libraries.summary.libraryCount
+        project.libraryItemCount =
+            libraries.summary.footprintCount +
+            libraries.summary.symbolCount +
+            libraries.summary.designBlockCount
         return {
             board,
             documents: [document],
             rendererDocuments: [rendererDocument],
-            project: KicadProjectLoader.#buildProjectSummary(
-                '',
-                [document],
-                []
-            ),
+            project,
+            libraries,
             assets: [],
             diagnostics: [],
             sourceFileName: boardEntry.name,
@@ -231,12 +240,22 @@ export class KicadProjectLoader {
             rootName,
             documents
         )
+        const libraries = KicadLibraryIndexBuilder.build(entries, {
+            variables: {
+                KIPRJMOD: dirName(projectEntry?.name || rootName || '')
+            }
+        })
         const project = KicadProjectLoader.#buildProjectSummary(
             projectEntry?.name || rootName,
             documents,
             KicadProjectLoader.#buildProjectNets(schematicDocuments),
             hierarchy
         )
+        project.libraryCount = libraries.summary.libraryCount
+        project.libraryItemCount =
+            libraries.summary.footprintCount +
+            libraries.summary.symbolCount +
+            libraries.summary.designBlockCount
 
         return {
             project,
@@ -247,6 +266,7 @@ export class KicadProjectLoader {
             assets: entries.filter((entry) =>
                 /\.(step|stp|wrl|vrml)$/i.test(entry.name)
             ),
+            libraries,
             diagnostics
         }
     }

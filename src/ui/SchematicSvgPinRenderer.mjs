@@ -28,8 +28,11 @@ export class SchematicSvgPinRenderer {
 function renderVisiblePin(pin, options) {
     if (pin.visible === false) return ''
     const end = pinConnectionPoint(pin)
+    const semanticAttributes = options.semanticAttributes
+        ? ' ' + options.semanticAttributes(pin)
+        : ''
     return [
-        `<line class="schematic-pin-line" x1="${options.formatNumber(pin.x)}" y1="${options.formatNumber(pin.y)}" x2="${options.formatNumber(end.x)}" y2="${options.formatNumber(end.y)}" stroke="${options.symbolColor}" stroke-width="0.08"/>`,
+        `<line class="schematic-pin-line"${semanticAttributes} x1="${options.formatNumber(pin.x)}" y1="${options.formatNumber(pin.y)}" x2="${options.formatNumber(end.x)}" y2="${options.formatNumber(end.y)}" stroke="${options.symbolColor}" stroke-width="0.08"/>`,
         renderPinEndpoint(pin, options),
         renderPinName(pin, options),
         renderPinNumber(pin, options)

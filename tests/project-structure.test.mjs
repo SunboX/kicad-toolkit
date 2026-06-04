@@ -56,14 +56,39 @@ test('required project files exist', async () => {
         'src/renderers.mjs',
         'src/styles/kicad-renderers.css',
         'src/core/kicad/Geometry.mjs',
+        'src/core/kicad/KicadAuxiliaryParserRouter.mjs',
+        'src/core/kicad/KicadDesignBlockLibraryParser.mjs',
+        'src/core/kicad/KicadDesignRulesParser.mjs',
+        'src/core/kicad/KicadEmbeddedAssetInventoryBuilder.mjs',
+        'src/core/kicad/KicadFootprintAssociationParser.mjs',
+        'src/core/kicad/KicadFootprintLibraryParser.mjs',
+        'src/core/kicad/KicadJobsetDigestBuilder.mjs',
+        'src/core/kicad/KicadJobsetParser.mjs',
         'src/core/kicad/KicadLayerResolver.mjs',
+        'src/core/kicad/KicadLegacyLibraryParser.mjs',
+        'src/core/kicad/KicadLibraryIndexBuilder.mjs',
+        'src/core/kicad/KicadLibraryRenderManifestBuilder.mjs',
+        'src/core/kicad/KicadLibrarySearchIndex.mjs',
+        'src/core/kicad/KicadLibraryTableParser.mjs',
+        'src/core/kicad/KicadNetlistParser.mjs',
         'src/core/kicad/KicadPcbParser.mjs',
         'src/core/kicad/KicadProjectLoader.mjs',
+        'src/core/kicad/KicadProjectMetadataParser.mjs',
         'src/core/kicad/KicadFeatureParity.mjs',
+        'src/core/kicad/KicadSchematicConnectivityQaBuilder.mjs',
+        'src/core/kicad/KicadSymbolLibraryParser.mjs',
+        'src/core/kicad/ProjectDesignBundleBuilder.mjs',
+        'src/core/kicad/ProjectNetlistExporter.mjs',
+        'src/core/kicad/ProjectVariantViewBuilder.mjs',
         'src/core/kicad/SExpressionParser.mjs',
+        'src/core/kicad/KicadWorksheetParser.mjs',
         'src/ui/KicadStrokeFont.mjs',
         'src/ui/PcbSvgRenderer.mjs',
         'tests/core/kicad-pcb-parser.test.mjs',
+        'tests/core/kicad-auxiliary-file-parsers.test.mjs',
+        'tests/core/kicad-library-index.test.mjs',
+        'tests/core/kicad-library-parsers.test.mjs',
+        'tests/core/kicad-parity-helper-apis.test.mjs',
         'tests/core/kicad-project-loader.test.mjs',
         'tests/core/kicad-sexpression-parser.test.mjs',
         'tests/ui/pcb-svg-renderer.test.mjs',
@@ -263,6 +288,9 @@ test('API docs describe Altium-style KiCad entrypoints', async () => {
     assert.match(apiDocs, /KicadToolkitCapabilities/)
     assert.match(apiDocs, /KicadFeatureParity/)
     assert.match(apiDocs, /KicadReadinessReport/)
+    assert.match(apiDocs, /KicadProjectMetadataParser/)
+    assert.match(apiDocs, /ProjectDesignBundleBuilder/)
+    assert.match(apiDocs, /ProjectNetlistExporter/)
 })
 
 /**
@@ -301,10 +329,46 @@ test('model docs publish the normalized model JSON schema contract', async () =>
     assert.match(capabilityDocs, /Fabrication Readiness/)
     assert.equal(schema.$id, NormalizedModelSchema.CURRENT_SCHEMA_ID)
     assert.equal(schema.properties.schema.const, schema.$id)
-    assert.deepEqual(schema.properties.kind.enum, ['schematic', 'pcb'])
+    assert.deepEqual(schema.properties.kind.enum, [
+        'schematic',
+        'pcb',
+        'footprint-library',
+        'symbol-library',
+        'library-table',
+        'library-index',
+        'project-metadata',
+        'design-bundle',
+        'jobset',
+        'jobset-digest',
+        'design-rules',
+        'worksheet',
+        'netlist',
+        'footprint-associations',
+        'design-block-library',
+        'legacy-library',
+        'asset-inventory'
+    ])
     assert.deepEqual(schema.properties.fileType.enum, [
         'kicad_sch',
-        'kicad_pcb'
+        'kicad_pcb',
+        'kicad_mod',
+        'kicad_sym',
+        'fp_lib_table',
+        'sym_lib_table',
+        'KicadLibraryIndex',
+        'kicad_pro',
+        'KicadProjectDesignBundle',
+        'kicad_jobset',
+        'KicadJobsetDigest',
+        'kicad_dru',
+        'kicad_wks',
+        'net',
+        'cmp',
+        'kicad_blocks',
+        'lib',
+        'dcm',
+        'mod',
+        'KicadAssetInventory'
     ])
     assert.ok(
         packageConfig.files.includes(

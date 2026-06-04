@@ -3,9 +3,12 @@
 
 import { strFromU8 } from 'fflate'
 import { KicadArcGeometry } from './KicadArcGeometry.mjs'
+import { KicadAuxiliaryParserRouter } from './KicadAuxiliaryParserRouter.mjs'
+import { KicadFootprintLibraryParser } from './KicadFootprintLibraryParser.mjs'
 import { KicadPcbLayerMetadata } from './KicadPcbLayerMetadata.mjs'
 import { KicadPcbParser } from './KicadPcbParser.mjs'
 import { KicadSchematicParser } from './KicadSchematicParser.mjs'
+import { KicadSymbolLibraryParser } from './KicadSymbolLibraryParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
 import { CircuitJsonModelAdapter } from '../circuit-json/CircuitJsonModelAdapter.mjs'
 
@@ -31,7 +34,6 @@ export class KicadParser {
             )
         )
     }
-
     /**
      * Parses a KiCad document buffer into the renderer compatibility model.
      * @param {string} fileName Source file name.
@@ -45,7 +47,10 @@ export class KicadParser {
         options = {}
     ) {
         const normalizedName = String(fileName || 'document')
-        const source = decodeSource(arrayBuffer)
+        const source =
+            arrayBuffer instanceof Uint8Array
+                ? strFromU8(arrayBuffer)
+                : strFromU8(new Uint8Array(arrayBuffer))
 
         if (/\.kicad_sch$/i.test(normalizedName)) {
             return KicadSchematicParser.parse(source, {
@@ -63,6 +68,27 @@ export class KicadParser {
                 normalizedName
             )
         }
+
+        if (/\.kicad_mod$/i.test(normalizedName)) {
+            return KicadFootprintLibraryParser.parse(source, {
+                ...options,
+                fileName: normalizedName
+            })
+        }
+
+        if (/\.kicad_sym$/i.test(normalizedName)) {
+            return KicadSymbolLibraryParser.parse(source, {
+                ...options,
+                fileName: normalizedName
+            })
+        }
+
+        const auxiliaryModel = KicadAuxiliaryParserRouter.parseIfSupported(
+            normalizedName,
+            source,
+            options
+        )
+        if (auxiliaryModel) return auxiliaryModel
 
         throw new Error('Unsupported KiCad file type: ' + normalizedName)
     }
@@ -181,6 +207,9 @@ export class KicadParser {
             board,
             primitiveLayers
         )
+        const classes = board.classes || []
+        const rules = board.rules || []
+        const statistics = board.statistics || {}
 
         return NormalizedModelSchema.attach({
             sourceFormat: 'kicad',
@@ -195,8 +224,8 @@ export class KicadParser {
                 outlineSegmentCount: boardOutline.segments.length,
                 bomRowCount: bom.length,
                 netCount: nets.length,
-                classCount: 0,
-                ruleCount: 0,
+                classCount: classes.length,
+                ruleCount: rules.length,
                 polygonCount: polygons.length,
                 trackCount: tracks.length,
                 arcCount: arcs.length,
@@ -219,8 +248,9 @@ export class KicadParser {
                 layerDefinitions,
                 primitiveLayers,
                 nets,
-                classes: [],
-                rules: [],
+                classes,
+                rules,
+                statistics,
                 components,
                 polygons,
                 fills: [],
@@ -240,18 +270,6 @@ export class KicadParser {
             bom
         })
     }
-}
-
-/**
- * Decodes bytes to UTF-8 text.
- * @param {ArrayBuffer | Uint8Array} bytes Bytes.
- * @returns {string}
- */
-function decodeSource(bytes) {
-    if (bytes instanceof Uint8Array) {
-        return strFromU8(bytes)
-    }
-    return strFromU8(new Uint8Array(bytes))
 }
 
 /**

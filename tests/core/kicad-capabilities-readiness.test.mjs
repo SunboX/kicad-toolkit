@@ -37,12 +37,27 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         summary:
             'Summarizes parsed board readiness using recovered model data only.'
     })
+    assert.deepEqual(byId.get('kicad_schematic_connectivity_qa'), {
+        id: 'kicad_schematic_connectivity_qa',
+        label: 'Schematic connectivity QA',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['summary', 'findings'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports schematic-local implicit nets, dangling labels, orphan sheet entries, unconnected pins, and ambiguous junctions.'
+    })
 
     const reporting = KicadToolkitCapabilities.inventory({
         category: 'reporting'
     })
 
-    assert.equal(reporting.total, 2)
+    assert.equal(reporting.total, 4)
     assert.deepEqual(Object.keys(reporting.categories), ['reporting'])
 })
 

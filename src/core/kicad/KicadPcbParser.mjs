@@ -1,15 +1,14 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
-
 import { Geometry } from './Geometry.mjs'
 import { KicadLayerResolver } from './KicadLayerResolver.mjs'
 import { KicadNetResolver } from './KicadNetResolver.mjs'
+import { KicadPcbBoardMetadataParser } from './KicadPcbBoardMetadataParser.mjs'
 import { KicadPcbDrawingParser } from './KicadPcbDrawingParser.mjs'
 import { KicadPcbPadParser } from './KicadPcbPadParser.mjs'
 import { KicadPcbTextVariables } from './KicadPcbTextVariables.mjs'
 import { SExpressionParser } from './SExpressionParser.mjs'
 import { SExpressionTree } from './SExpressionTree.mjs'
-
 /**
  * Converts KiCad PCB S-expressions into a small assembly-rendering model.
  */
@@ -87,13 +86,24 @@ export class KicadPcbParser {
             drawings,
             texts.filter(isVisibleTextModel)
         )
+        const netRecords = netResolver.records()
+        const statistics = KicadPcbBoardMetadataParser.buildStatistics({
+            footprints,
+            pads,
+            nets: netRecords,
+            classes: boardMetadata.classes,
+            rules: boardMetadata.rules,
+            outlines,
+            drawings,
+            texts
+        })
 
         return {
             ...boardMetadata,
             fileName,
             title,
             revision,
-            nets: netResolver.records(),
+            nets: netRecords,
             outlines,
             drawings,
             footprints,
@@ -108,11 +118,11 @@ export class KicadPcbParser {
                 ...footprints.flatMap((footprint) => footprint.generatedItems)
             ],
             bounds,
+            statistics,
             diagnostics: []
         }
     }
 }
-
 /**
  * Parses board-level metadata declarations.
  * @param {Array} root Board root node.
@@ -120,7 +130,8 @@ export class KicadPcbParser {
  */
 function parseBoardMetadata(root) {
     const titleBlock = child(root, 'title_block')
-
+    const setupNode = child(root, 'setup')
+    const setup = parseSetup(setupNode)
     return {
         version: numberValue(child(root, 'version')?.[1], 0),
         generator: textValue(child(root, 'generator')),
@@ -131,10 +142,11 @@ function parseBoardMetadata(root) {
         general: parseGeneral(child(root, 'general')),
         properties: SExpressionTree.propertyObject(root),
         layers: parseLayers(child(root, 'layers')),
-        setup: parseSetup(child(root, 'setup'))
+        setup,
+        classes: KicadPcbBoardMetadataParser.parseNetClasses(root),
+        rules: KicadPcbBoardMetadataParser.parseSetupRules(setupNode)
     }
 }
-
 /**
  * Parses a paper declaration.
  * @param {Array | undefined} node Paper node.
@@ -156,7 +168,6 @@ function parsePaper(node) {
         portrait: node?.map(String).includes('portrait') || false
     }
 }
-
 /**
  * Parses title-block metadata.
  * @param {Array | undefined} node Title block node.
@@ -199,7 +210,6 @@ function parseGeneral(node) {
 function parseLayers(node) {
     return children(node).map(parseLayer)
 }
-
 /**
  * Parses one declared board layer.
  * @param {Array} node Layer node.
@@ -216,7 +226,6 @@ function parseLayer(node) {
         uuid: textValue(child(node, 'uuid'))
     }
 }
-
 /**
  * Parses board setup options.
  * @param {Array | undefined} node Setup node.
@@ -247,7 +256,6 @@ function parseSetup(node) {
         pcbPlotParams: parsePcbPlotParams(child(node, 'pcbplotparams'))
     })
 }
-
 /**
  * Parses stackup metadata.
  * @param {Array | undefined} node Stackup node.
@@ -916,7 +924,6 @@ function parseJustify(node) {
               : 'center'
     }
 }
-
 /**
  * Checks node type.
  * @param {unknown} node

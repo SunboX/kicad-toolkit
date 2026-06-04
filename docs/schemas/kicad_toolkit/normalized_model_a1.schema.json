@@ -23,10 +23,49 @@
             "const": "kicad"
         },
         "kind": {
-            "enum": ["schematic", "pcb"]
+            "enum": [
+                "schematic",
+                "pcb",
+                "footprint-library",
+                "symbol-library",
+                "library-table",
+                "library-index",
+                "project-metadata",
+                "design-bundle",
+                "jobset",
+                "jobset-digest",
+                "design-rules",
+                "worksheet",
+                "netlist",
+                "footprint-associations",
+                "design-block-library",
+                "legacy-library",
+                "asset-inventory"
+            ]
         },
         "fileType": {
-            "enum": ["kicad_sch", "kicad_pcb"]
+            "enum": [
+                "kicad_sch",
+                "kicad_pcb",
+                "kicad_mod",
+                "kicad_sym",
+                "fp_lib_table",
+                "sym_lib_table",
+                "KicadLibraryIndex",
+                "kicad_pro",
+                "KicadProjectDesignBundle",
+                "kicad_jobset",
+                "KicadJobsetDigest",
+                "kicad_dru",
+                "kicad_wks",
+                "net",
+                "cmp",
+                "kicad_blocks",
+                "lib",
+                "dcm",
+                "mod",
+                "KicadAssetInventory"
+            ]
         },
         "fileName": {
             "type": "string"
@@ -340,6 +379,30 @@
             },
             "additionalProperties": true
         },
+        "pcbLibrary": {
+            "type": "object",
+            "properties": {
+                "footprints": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "schematicLibrary": {
+            "type": "object",
+            "properties": {
+                "symbols": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
         "bom": {
             "type": "array",
             "items": {
@@ -367,6 +430,171 @@
                 },
                 "fileType": {
                     "const": "kicad_pcb"
+                }
+            }
+        },
+        {
+            "required": ["pcbLibrary"],
+            "properties": {
+                "kind": {
+                    "const": "footprint-library"
+                },
+                "fileType": {
+                    "const": "kicad_mod"
+                }
+            }
+        },
+        {
+            "required": ["schematicLibrary"],
+            "properties": {
+                "kind": {
+                    "const": "symbol-library"
+                },
+                "fileType": {
+                    "const": "kicad_sym"
+                }
+            }
+        },
+        {
+            "required": ["rows"],
+            "properties": {
+                "kind": {
+                    "const": "library-table"
+                },
+                "fileType": {
+                    "enum": ["fp_lib_table", "sym_lib_table"]
+                }
+            }
+        },
+        {
+            "required": ["libraries", "items"],
+            "properties": {
+                "kind": {
+                    "const": "library-index"
+                },
+                "fileType": {
+                    "const": "KicadLibraryIndex"
+                }
+            }
+        },
+        {
+            "required": ["rawProject"],
+            "properties": {
+                "kind": {
+                    "const": "project-metadata"
+                },
+                "fileType": {
+                    "const": "kicad_pro"
+                }
+            }
+        },
+        {
+            "required": ["jobs", "outputs"],
+            "properties": {
+                "kind": {
+                    "const": "jobset"
+                },
+                "fileType": {
+                    "const": "kicad_jobset"
+                }
+            }
+        },
+        {
+            "required": ["jobsets", "jobs", "destinations"],
+            "properties": {
+                "kind": {
+                    "const": "jobset-digest"
+                },
+                "fileType": {
+                    "const": "KicadJobsetDigest"
+                }
+            }
+        },
+        {
+            "required": ["rules", "componentClassAssignments"],
+            "properties": {
+                "kind": {
+                    "const": "design-rules"
+                },
+                "fileType": {
+                    "const": "kicad_dru"
+                }
+            }
+        },
+        {
+            "required": ["setup", "lines", "rectangles", "texts"],
+            "properties": {
+                "kind": {
+                    "const": "worksheet"
+                },
+                "fileType": {
+                    "const": "kicad_wks"
+                }
+            }
+        },
+        {
+            "required": ["components", "nets"],
+            "properties": {
+                "kind": {
+                    "const": "netlist"
+                },
+                "fileType": {
+                    "const": "net"
+                }
+            }
+        },
+        {
+            "required": ["associations"],
+            "properties": {
+                "kind": {
+                    "const": "footprint-associations"
+                },
+                "fileType": {
+                    "const": "cmp"
+                }
+            }
+        },
+        {
+            "required": ["blocks"],
+            "properties": {
+                "kind": {
+                    "const": "design-block-library"
+                },
+                "fileType": {
+                    "const": "kicad_blocks"
+                }
+            }
+        },
+        {
+            "required": ["rawSource"],
+            "properties": {
+                "kind": {
+                    "const": "legacy-library"
+                },
+                "fileType": {
+                    "enum": ["lib", "dcm", "mod"]
+                }
+            }
+        },
+        {
+            "required": ["assets", "assetsByKind"],
+            "properties": {
+                "kind": {
+                    "const": "asset-inventory"
+                },
+                "fileType": {
+                    "const": "KicadAssetInventory"
+                }
+            }
+        },
+        {
+            "required": ["project", "sheets", "components", "nets"],
+            "properties": {
+                "kind": {
+                    "const": "design-bundle"
+                },
+                "fileType": {
+                    "const": "KicadProjectDesignBundle"
                 }
             }
         }

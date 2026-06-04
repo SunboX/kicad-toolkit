@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+import { SchematicProjectParameterResolver } from './SchematicProjectParameterResolver.mjs'
 import { SchematicSvgPinRenderer } from './SchematicSvgPinRenderer.mjs'
+import { SchematicSvgSemanticMetadata } from './SchematicSvgSemanticMetadata.mjs'
 import { SchematicSvgShapeRenderer } from './SchematicSvgShapeRenderer.mjs'
 import {
     applySchematicTextOffset,
@@ -39,10 +41,14 @@ export class SchematicSvgRenderer {
     /**
      * Renders one schematic document.
      * @param {object | null} documentModel Document model.
+     * @param {{ projectParameters?: Record<string, unknown> }} [options] Render options.
      * @returns {string}
      */
-    static render(documentModel) {
-        const schematic = documentModel?.schematic
+    static render(documentModel, options = {}) {
+        const schematic = SchematicProjectParameterResolver.resolveSchematic(
+            documentModel?.schematic,
+            options.projectParameters
+        )
         if (!schematic) return SchematicSvgRenderer.renderEmpty()
 
         const sheet = schematic.sheet || { width: 100, height: 80 }
@@ -66,10 +72,15 @@ export class SchematicSvgRenderer {
         const connectionLines = (schematic.lines || []).filter(
             (line) => !isShapeLine(line)
         )
+        const semanticContext =
+            SchematicSvgSemanticMetadata.buildContext(schematic)
+        const rootAttributes =
+            SchematicSvgSemanticMetadata.rootAttributes(semanticContext)
         return [
             '<section class="svg-panel">',
             `<header class="svg-panel__header"><h3>${escapeHtml(title)}</h3><p>${lineCount} line segments, ${componentCount} components</p></header>`,
-            `<svg xmlns="http://www.w3.org/2000/svg" class="schematic-svg" viewBox="0 0 ${formatNumber(width)} ${formatNumber(height)}" role="img" aria-label="${escapeAttribute(documentModel.summary?.title || documentModel.fileName || 'Schematic')}">`,
+            `<svg xmlns="http://www.w3.org/2000/svg" class="schematic-svg" viewBox="0 0 ${formatNumber(width)} ${formatNumber(height)}" role="img" aria-label="${escapeAttribute(documentModel.summary?.title || documentModel.fileName || 'Schematic')}" ${rootAttributes}>`,
+            SchematicSvgSemanticMetadata.metadataElement(semanticContext),
             `<rect class="sheet-backdrop" x="0" y="0" width="${formatNumber(width)}" height="${formatNumber(height)}" rx="0"/>`,
             SchematicSvgShapeRenderer.renderGrid(sheet, width, height, {
                 displayScale,
@@ -86,11 +97,11 @@ export class SchematicSvgRenderer {
                 shapePrimitives,
                 shapeTheme
             ),
-            renderLines(connectionLines),
-            renderPins(schematic.pins || []),
+            renderLines(connectionLines, semanticContext),
+            renderPins(schematic.pins || [], semanticContext),
             renderJunctions(schematic.junctions || []),
             renderCrosses(schematic.crosses || []),
-            renderTexts(schematic.texts || []),
+            renderTexts(schematic.texts || [], semanticContext),
             '</g></svg></section>'
         ].join('')
     }
@@ -152,11 +163,11 @@ function isShapeLine(line) {
  * @param {object[]} lines Lines.
  * @returns {string}
  */
-function renderLines(lines) {
+function renderLines(lines, semanticContext) {
     return lines
         .map(
             (line) =>
-                `<line class="schematic-line${line.isBus ? ' schematic-line--bus' : ''}" x1="${formatNumber(line.x1)}" y1="${formatNumber(line.y1)}" x2="${formatNumber(line.x2)}" y2="${formatNumber(line.y2)}" stroke="${resolveSchematicInkColor(line)}" stroke-width="${formatNumber(line.width || 0.15)}" stroke-linecap="round"/>`
+                `<line class="schematic-line${line.isBus ? ' schematic-line--bus' : ''}" ${SchematicSvgSemanticMetadata.primitiveAttributes(line, 'line', semanticContext)} x1="${formatNumber(line.x1)}" y1="${formatNumber(line.y1)}" x2="${formatNumber(line.x2)}" y2="${formatNumber(line.y2)}" stroke="${resolveSchematicInkColor(line)}" stroke-width="${formatNumber(line.width || 0.15)}" stroke-linecap="round"/>`
         )
         .join('')
 }
@@ -194,12 +205,18 @@ function renderSheetSymbols(sheets) {
  * @param {object[]} pins Pins.
  * @returns {string}
  */
-function renderPins(pins) {
+function renderPins(pins, semanticContext) {
     return SchematicSvgPinRenderer.renderPins(pins, {
         formatNumber,
         labelColor,
         pinMarkerFillColor,
         renderStrokeText,
+        semanticAttributes: (pin) =>
+            SchematicSvgSemanticMetadata.primitiveAttributes(
+                pin,
+                'pin',
+                semanticContext
+            ),
         symbolColor
     })
 }
@@ -209,7 +226,7 @@ function renderPins(pins) {
  * @param {object[]} texts Texts.
  * @returns {string}
  */
-function renderTexts(texts) {
+function renderTexts(texts, semanticContext) {
     return texts
         .map((text) => {
             const renderedText = {
@@ -222,7 +239,13 @@ function renderTexts(texts) {
                 sizeY: resolveTextHeight(text),
                 hAlign: resolveTextHAlign(text),
                 vAlign: resolveTextVAlign(text),
-                rotation: resolveRenderedTextRotation(text)
+                rotation: resolveRenderedTextRotation(text),
+                semanticAttributes:
+                    SchematicSvgSemanticMetadata.primitiveAttributes(
+                        text,
+                        'text',
+                        semanticContext
+                    )
             }
             return renderStrokeText(
                 applySchematicTextOffset(
@@ -716,6 +739,7 @@ function renderStrokeText(text) {
         `stroke-width="${formatNumber(strokeWidth)}"`,
         'stroke-linecap="round"',
         'stroke-linejoin="round"',
+        text.semanticAttributes || '',
         renderStrokeTextTransform(text)
     ].join(' ')
 

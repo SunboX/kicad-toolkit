@@ -20,6 +20,9 @@ be reused by other browser or Node-based tools.
 
 - Parse standalone native `.kicad_sch` and `.kicad_pcb` files from
   `ArrayBuffer`
+- Parse standalone `.kicad_mod`, `.kicad_sym`, `fp-lib-table`,
+  `sym-lib-table`, `.kicad_jobset`, `.kicad_dru`, `.kicad_wks`, `.net`,
+  `.cmp`, legacy `.lib`/`.dcm`/`.mod`, and KiCad library/design-block manifests
 - Load browser `File` objects or named byte entries from KiCad board files and
   project ZIP archives
 - Recover schematic symbols, sheet symbols, labels, nets, graphical items,
@@ -30,6 +33,9 @@ be reused by other browser or Node-based tools.
   wildcard sides, rotated pad bounds, and analytic geometry clearances
 - Expose a read-only parser/rendering capability inventory and normalized
   DRC/ERC/readiness report helpers for host diagnostics
+- Search KiCad libraries, build deterministic library render manifests, digest
+  KiCad jobsets, inventory embedded/companion assets, and report
+  schematic-local connectivity QA findings
 - Expose an auditable feature-level parity inventory against Altium Toolkit
   capabilities, including explicit source-format exemptions
 - Preserve raw KiCad board detail through the wrapped `pcb.kicadBoard` model so

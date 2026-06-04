@@ -3,14 +3,17 @@
 
 import { Geometry } from '../core/kicad/Geometry.mjs'
 import { KicadArcGeometry } from '../core/kicad/KicadArcGeometry.mjs'
-import { PcbSvgBoardOutlineBuilder } from './PcbSvgBoardOutlineBuilder.mjs'
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+import { PcbSvgAuxiliaryRenderer } from './PcbSvgAuxiliaryRenderer.mjs'
+import { PcbSvgBoardOutlineBuilder } from './PcbSvgBoardOutlineBuilder.mjs'
 import { defaultLayerStyles } from './PcbSvgLayerStyles.mjs'
 import { PcbSvgPadShapeRenderer } from './PcbSvgPadShapeRenderer.mjs'
 import {
     drawingMetadataAttributeList,
     padMetadataAttributeList
 } from './PcbSvgMetadata.mjs'
+import { PcbSvgSemanticMetadata } from './PcbSvgSemanticMetadata.mjs'
+import { PcbSvgVisibility } from './PcbSvgVisibility.mjs'
 import { pathFromContours, pathFromPoints } from './PcbSvgPathBuilder.mjs'
 
 const kicadTextLineSpacingRatio = 1.61
@@ -40,44 +43,98 @@ export class PcbSvgRenderer {
         const layerStyles = defaultLayerStyles()
         const viewBounds = Geometry.expandBounds(renderBoardModel.bounds, 4)
         const visiblePads = renderBoardModel.pads.filter((pad) =>
-            isVisibleOnSide(pad, side)
+            PcbSvgVisibility.isVisibleOnSide(pad, side)
         )
         const visibleDrawings = renderBoardModel.drawings.filter((drawing) => {
             return (
-                (isVisibleOnSide(drawing, side) &&
-                    isRenderableBoardLayer(drawing)) ||
-                (includeOppositeCopper && isOppositeSideCopper(drawing, side))
+                (PcbSvgVisibility.isVisibleOnSide(drawing, side) &&
+                    PcbSvgVisibility.isRenderableBoardLayer(drawing)) ||
+                (includeOppositeCopper &&
+                    PcbSvgVisibility.isOppositeSideCopper(drawing, side))
             )
         })
         const visibleTexts = renderBoardModel.texts.filter((text) => {
             return (
-                isVisibleOnSide(text, side) &&
-                isVisibleText(text) &&
-                !isExcludedReferenceText(text) &&
-                isRenderableBoardLayer(text)
+                PcbSvgVisibility.isVisibleOnSide(text, side) &&
+                PcbSvgVisibility.isVisibleText(text) &&
+                !PcbSvgVisibility.isExcludedReferenceText(text) &&
+                PcbSvgVisibility.isRenderableBoardLayer(text)
             )
         })
         const visibleViaDrills = visibleDrawings.filter((drawing) => {
             return drawing.type === 'via' && drawing.drill
         })
+        const semanticContext = PcbSvgSemanticMetadata.buildContext(
+            renderBoardModel,
+            {
+                viewKind: options.viewKind || 'top-composite',
+                layerView: options.layerView || null,
+                includedLayerKeys: options.includedLayerKeys
+            }
+        )
+        const rootAttributes =
+            PcbSvgSemanticMetadata.rootAttributes(semanticContext)
 
         return [
-            `<svg xmlns="http://www.w3.org/2000/svg" class="pcb-svg" viewBox="${formatNumber(viewBounds.minX)} ${formatNumber(viewBounds.minY)} ${formatNumber(viewBounds.width)} ${formatNumber(viewBounds.height)}" role="img" aria-label="${escapeAttribute(renderBoardModel.title || renderBoardModel.fileName || 'PCB')}">`,
+            `<svg xmlns="http://www.w3.org/2000/svg" class="pcb-svg" viewBox="${formatNumber(viewBounds.minX)} ${formatNumber(viewBounds.minY)} ${formatNumber(viewBounds.width)} ${formatNumber(viewBounds.height)}" role="img" aria-label="${escapeAttribute(renderBoardModel.title || renderBoardModel.fileName || 'PCB')}"${optionalAttribute(rootAttributes)}>`,
+            PcbSvgSemanticMetadata.metadataElement(semanticContext),
             `<g class="pcb-scene"${sceneTransformAttribute(renderBoardModel.bounds, side)}>`,
-            renderBoard(renderBoardModel, viewBounds, layerStyles),
+            renderBoard(
+                renderBoardModel,
+                viewBounds,
+                layerStyles,
+                semanticContext
+            ),
             visibleDrawings
                 .sort(compareDrawingOrder)
-                .map((drawing) => renderDrawing(drawing, layerStyles))
+                .map((drawing) =>
+                    renderDrawing(drawing, layerStyles, semanticContext)
+                )
                 .join(''),
-            visiblePads.map((pad) => renderPad(pad, layerStyles)).join(''),
-            visibleTexts.map((text) => renderText(text, layerStyles)).join(''),
+            visiblePads
+                .map((pad) => renderPad(pad, layerStyles, semanticContext))
+                .join(''),
+            visibleTexts
+                .map((text) => renderText(text, layerStyles, semanticContext))
+                .join(''),
             visibleViaDrills
-                .map((drawing) => renderViaDrill(drawing, layerStyles))
+                .map((drawing) =>
+                    renderViaDrill(drawing, layerStyles, semanticContext)
+                )
                 .join(''),
-            visiblePads.map((pad) => renderPadDrill(pad, layerStyles)).join(''),
+            visiblePads
+                .map((pad) => renderPadDrill(pad, layerStyles, semanticContext))
+                .join(''),
             '</g>',
             '</svg>'
         ].join('')
+    }
+
+    /**
+     * Renders deterministic one-layer PCB SVG exports.
+     * @param {object} board Board or wrapped document model.
+     * @returns {object[]}
+     */
+    static renderLayerSvgs(board) {
+        const renderBoardModel = PcbSvgRenderer.resolveBoardModel(board)
+        if (!renderBoardModel) return []
+
+        return PcbSvgSemanticMetadata.displayLayerDescriptors(
+            renderBoardModel
+        ).map((layerView) => {
+            const filtered = PcbSvgSemanticMetadata.filterBoardForLayer(
+                renderBoardModel,
+                layerView
+            )
+            return {
+                ...layerView,
+                svg: PcbSvgRenderer.render(filtered, {
+                    viewKind: 'layer',
+                    layerView,
+                    includedLayerKeys: [layerView.layerKey]
+                })
+            }
+        })
     }
 
     /**
@@ -138,7 +195,7 @@ function sceneTransformAttribute(bounds, side) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderBoard(board, bounds, layerStyles) {
+function renderBoard(board, bounds, layerStyles, semanticContext) {
     const boardStyle = layerStyles.board
     const edgeStyle = layerStyles.edgeCuts
     if (!boardStyle.visible && !edgeStyle.visible) return ''
@@ -154,17 +211,23 @@ function renderBoard(board, bounds, layerStyles) {
     const stroke = edgeStyle.visible ? edgeStyle.borderColor : 'none'
 
     if (edgeOutline) {
-        return `<path class="pcb-board" d="${edgeOutline.d}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, edgeOutline.strokeWidth))}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke"/>`
+        const semanticAttributes =
+            PcbSvgSemanticMetadata.boardAttributes(semanticContext)
+        return `<path class="pcb-board"${optionalAttribute(semanticAttributes)} d="${edgeOutline.d}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, edgeOutline.strokeWidth))}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke"/>`
     }
 
     if (polygonOutlines.length === 0) {
-        return `<rect class="pcb-board" x="${formatNumber(bounds.minX)}" y="${formatNumber(bounds.minY)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, 0.12))}" ${roundedStrokeAttributes}/>`
+        const semanticAttributes =
+            PcbSvgSemanticMetadata.boardAttributes(semanticContext)
+        return `<rect class="pcb-board"${optionalAttribute(semanticAttributes)} x="${formatNumber(bounds.minX)}" y="${formatNumber(bounds.minY)}" width="${formatNumber(bounds.width)}" height="${formatNumber(bounds.height)}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, 0.12))}" ${roundedStrokeAttributes}/>`
     }
 
     return polygonOutlines
         .map((outline) => {
             const strokeWidth = Math.max(0.08, outline.strokeWidth || 0.08)
-            return `<path class="pcb-board" d="${pathFromPoints(outline.points, true)}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, strokeWidth))}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke"/>`
+            const semanticAttributes =
+                PcbSvgSemanticMetadata.boardAttributes(semanticContext)
+            return `<path class="pcb-board"${optionalAttribute(semanticAttributes)} d="${pathFromPoints(outline.points, true)}" fill="${fill}"${optionalAttribute(fillOpacity)} stroke="${stroke}" stroke-width="${formatNumber(resolveStrokeWidth(edgeStyle, strokeWidth))}" ${roundedStrokeAttributes} vector-effect="non-scaling-stroke"/>`
         })
         .join('')
 }
@@ -175,21 +238,21 @@ function renderBoard(board, bounds, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderDrawing(drawing, layerStyles) {
+function renderDrawing(drawing, layerStyles, semanticContext) {
     if (drawing.type === 'segment') {
-        return renderSegment(drawing, layerStyles)
+        return renderSegment(drawing, layerStyles, semanticContext)
     }
 
     if (drawing.type === 'via') {
-        return renderVia(drawing, layerStyles)
+        return renderVia(drawing, layerStyles, semanticContext)
     }
 
     if (drawing.type === 'zone') {
-        return renderZone(drawing, layerStyles)
+        return renderZone(drawing, layerStyles, semanticContext)
     }
 
     if (drawing.type === 'arc' && drawing.sourceType === 'arc') {
-        return renderTrackArc(drawing, layerStyles)
+        return renderTrackArc(drawing, layerStyles, semanticContext)
     }
 
     const style = drawingStyle(drawing, layerStyles)
@@ -207,6 +270,11 @@ function renderDrawing(drawing, layerStyles) {
     const base = [
         `class="pcb-drawing pcb-drawing--${style.name}"`,
         ...drawingMetadataAttributeList(drawing),
+        PcbSvgSemanticMetadata.primitiveAttributes(
+            drawing,
+            'drawing',
+            semanticContext
+        ),
         ...componentAttributeList(drawing.ownerId),
         `stroke="${stroke}"`,
         `stroke-width="${formatNumber(strokeWidth)}"`,
@@ -246,19 +314,19 @@ function renderDrawing(drawing, layerStyles) {
     }
 
     if (drawing.type === 'image') {
-        return renderImagePlaceholder(drawing, style)
+        return PcbSvgAuxiliaryRenderer.renderImagePlaceholder(drawing, style)
     }
 
     if (drawing.type === 'barcode') {
-        return renderBarcode(drawing, style)
+        return PcbSvgAuxiliaryRenderer.renderBarcode(drawing, style)
     }
 
     if (drawing.type === 'target') {
-        return renderTarget(drawing, style)
+        return PcbSvgAuxiliaryRenderer.renderTarget(drawing, style)
     }
 
     if (drawing.type === 'point') {
-        return renderPoint(drawing, style)
+        return PcbSvgAuxiliaryRenderer.renderPoint(drawing, style)
     }
 
     return ''
@@ -270,11 +338,18 @@ function renderDrawing(drawing, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderSegment(segment, layerStyles) {
+function renderSegment(segment, layerStyles, semanticContext) {
     const style = layerStyles.traces
     if (!style.visible) return ''
 
-    const metadata = drawingMetadataAttributeList(segment).join(' ')
+    const metadata = [
+        ...drawingMetadataAttributeList(segment),
+        PcbSvgSemanticMetadata.primitiveAttributes(
+            segment,
+            'track',
+            semanticContext
+        )
+    ].join(' ')
     const strokeWidth = resolveStrokeWidth(
         style,
         Math.max(segment.strokeWidth || 0.2, 0.06)
@@ -288,11 +363,14 @@ function renderSegment(segment, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderTrackArc(arc, layerStyles) {
+function renderTrackArc(arc, layerStyles, semanticContext) {
     const style = layerStyles.traces
     if (!style.visible) return ''
 
-    const metadata = drawingMetadataAttributeList(arc).join(' ')
+    const metadata = [
+        ...drawingMetadataAttributeList(arc),
+        PcbSvgSemanticMetadata.primitiveAttributes(arc, 'arc', semanticContext)
+    ].join(' ')
     const strokeWidth = resolveStrokeWidth(
         style,
         Math.max(arc.strokeWidth || 0.2, 0.06)
@@ -306,11 +384,14 @@ function renderTrackArc(arc, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderVia(via, layerStyles) {
+function renderVia(via, layerStyles, semanticContext) {
     const style = layerStyles.vias
     if (!style.visible) return ''
 
-    const metadata = drawingMetadataAttributeList(via).join(' ')
+    const metadata = [
+        ...drawingMetadataAttributeList(via),
+        PcbSvgSemanticMetadata.primitiveAttributes(via, 'via', semanticContext)
+    ].join(' ')
     return `<circle class="pcb-via"${optionalAttribute(metadata)} cx="${formatNumber(via.x)}" cy="${formatNumber(via.y)}" r="${formatNumber(via.size / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))} stroke="${style.borderColor}" stroke-width="${formatNumber(resolveStrokeWidth(style, 0.06))}" vector-effect="non-scaling-stroke"/>`
 }
 
@@ -320,11 +401,23 @@ function renderVia(via, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderViaDrill(via, layerStyles) {
+function renderViaDrill(via, layerStyles, semanticContext) {
     const style = layerStyles.drills
     if (!style.visible) return ''
 
-    const metadata = drawingMetadataAttributeList(via).join(' ')
+    const metadata = [
+        ...drawingMetadataAttributeList(via),
+        PcbSvgSemanticMetadata.primitiveAttributes(
+            via,
+            'via-hole',
+            semanticContext,
+            {
+                'data-hole-owner': 'via',
+                'data-hole-kind': 'via',
+                'data-drill-render-state': 'open'
+            }
+        )
+    ].join(' ')
     return `<circle class="pcb-via-drill"${optionalAttribute(metadata)} cx="${formatNumber(via.x)}" cy="${formatNumber(via.y)}" r="${formatNumber(via.drill / 2)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${strokeAttributes(style, 0)}/>`
 }
 
@@ -334,11 +427,18 @@ function renderViaDrill(via, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderZone(zone, layerStyles) {
+function renderZone(zone, layerStyles, semanticContext) {
     const style = layerStyles.zones
     if (!style.visible) return ''
 
-    const metadata = drawingMetadataAttributeList(zone).join(' ')
+    const metadata = [
+        ...drawingMetadataAttributeList(zone),
+        PcbSvgSemanticMetadata.primitiveAttributes(
+            zone,
+            'zone',
+            semanticContext
+        )
+    ].join(' ')
     const contours =
         Array.isArray(zone.contours) && zone.contours.length > 0
             ? zone.contours
@@ -347,68 +447,20 @@ function renderZone(zone, layerStyles) {
     return `<path class="pcb-zone"${optionalAttribute(metadata)} d="${pathFromContours(contours)}" fill="${fillValue(style)}"${optionalAttribute(fillOpacityAttribute(style))}${fillRule}${strokeAttributes(style, 0)}/>`
 }
 
-/** @param {object} image @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
-function renderImagePlaceholder(image, style) {
-    return `<rect class="pcb-image" x="${formatNumber(image.x)}" y="${formatNumber(image.y)}" width="${formatNumber(image.width)}" height="${formatNumber(image.height)}" fill="none" stroke="${style.stroke}" stroke-width="${formatNumber(resolveStrokeWidth(style.layerStyle, 0.1))}" stroke-dasharray="0.4 0.25"/>`
-}
-
-/** @param {object} barcode @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
-function renderBarcode(barcode, style) {
-    const transform = `rotate(${formatNumber(barcode.rotation || 0)} ${formatNumber(barcode.x)} ${formatNumber(barcode.y)})`
-    return `<rect class="pcb-barcode" aria-label="${escapeAttribute(barcode.text || barcode.barcodeType || 'barcode')}" x="${formatNumber(barcode.x)}" y="${formatNumber(barcode.y)}" width="${formatNumber(barcode.width)}" height="${formatNumber(barcode.height)}" fill="none" stroke="${style.stroke}" stroke-width="${formatNumber(resolveStrokeWidth(style.layerStyle, 0.1))}" transform="${transform}"/>`
-}
-
-/** @param {object} target @param {{ stroke: string, layerStyle: object }} style @returns {string} */
-function renderTarget(target, style) {
-    const half = target.size / 2
-    const strokeWidth = formatNumber(
-        resolveStrokeWidth(style.layerStyle, target.strokeWidth || 0.1)
-    )
-    const lines =
-        target.shape === 'x'
-            ? [
-                  [
-                      target.x - half,
-                      target.y - half,
-                      target.x + half,
-                      target.y + half
-                  ],
-                  [
-                      target.x - half,
-                      target.y + half,
-                      target.x + half,
-                      target.y - half
-                  ]
-              ]
-            : [
-                  [target.x - half, target.y, target.x + half, target.y],
-                  [target.x, target.y - half, target.x, target.y + half]
-              ]
-    return `<g class="pcb-target" stroke="${style.stroke}" stroke-width="${strokeWidth}" ${roundedStrokeAttributes}>${lines
-        .map((line) => {
-            return `<line x1="${formatNumber(line[0])}" y1="${formatNumber(line[1])}" x2="${formatNumber(line[2])}" y2="${formatNumber(line[3])}"/>`
-        })
-        .join('')}</g>`
-}
-
-/** @param {object} point @param {{ stroke: string, fill: string, layerStyle: object }} style @returns {string} */
-function renderPoint(point, style) {
-    return `<circle class="pcb-point" cx="${formatNumber(point.x)}" cy="${formatNumber(point.y)}" r="${formatNumber(point.size / 2)}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${formatNumber(resolveStrokeWidth(style.layerStyle, 0.08))}"/>`
-}
-
 /**
  * Renders one pad.
  * @param {object} pad
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderPad(pad, layerStyles) {
+function renderPad(pad, layerStyles, semanticContext) {
     const style = layerStyles.pads
     if (!style.visible) return ''
 
     const attributes = [
         'class="pcb-pad"',
         ...padMetadataAttributeList(pad),
+        PcbSvgSemanticMetadata.primitiveAttributes(pad, 'pad', semanticContext),
         ...componentAttributeList(pad.footprintId),
         `fill="${fillValue(style)}"`,
         fillOpacityAttribute(style),
@@ -428,13 +480,23 @@ function renderPad(pad, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderPadDrill(pad, layerStyles) {
+function renderPadDrill(pad, layerStyles, semanticContext) {
     if (!pad.drill) return ''
     const style = layerStyles.drills
     if (!style.visible) return ''
 
     const metadata = [
         ...padMetadataAttributeList(pad),
+        PcbSvgSemanticMetadata.primitiveAttributes(
+            pad,
+            'pad-hole',
+            semanticContext,
+            {
+                'data-hole-owner': 'pad',
+                'data-hole-kind': 'pad',
+                'data-drill-render-state': 'open'
+            }
+        ),
         ...componentAttributeList(pad.footprintId)
     ].join(' ')
     const attributes = [
@@ -456,7 +518,7 @@ function renderPadDrill(pad, layerStyles) {
  * @param {Record<string, object>} layerStyles
  * @returns {string}
  */
-function renderText(text, layerStyles) {
+function renderText(text, layerStyles, semanticContext) {
     const style = layerStyles.silkscreen
     if (!style.visible) return ''
 
@@ -466,6 +528,11 @@ function renderText(text, layerStyles) {
     const attrs = [
         'class="pcb-label"',
         ...drawingMetadataAttributeList(text),
+        PcbSvgSemanticMetadata.primitiveAttributes(
+            text,
+            'text',
+            semanticContext
+        ),
         ...componentAttributeList(text.ownerId),
         `aria-label="${escapeAttribute(text.value)}"`,
         'fill="none"',
@@ -827,75 +894,6 @@ function textTransform(text) {
         'scale(-1 1)',
         `translate(${formatNumber(-text.x)} ${formatNumber(-text.y)})`
     ].join(' ')
-}
-
-/**
- * Checks whether an item is opposite-side copper for contextual rendering.
- * @param {object} item Renderable item.
- * @param {'front' | 'back'} side Active side.
- * @returns {boolean}
- */
-function isOppositeSideCopper(item, side) {
-    if (item.material !== 'copper') return false
-    if (!isRenderableBoardLayer(item)) return false
-    return side === 'front'
-        ? isVisibleOnSide(item, 'back')
-        : isVisibleOnSide(item, 'front')
-}
-
-/**
- * Checks side visibility.
- * @param {{ side: string }} item
- * @param {'front' | 'back'} side
- * @returns {boolean}
- */
-function isVisibleOnSide(item, side) {
-    return item.side === 'both' || item.side === side
-}
-
-/**
- * Checks KiCad text visibility.
- * @param {{ visible?: boolean }} text
- * @returns {boolean}
- */
-function isVisibleText(text) {
-    return text.visible !== false
-}
-
-/**
- * Checks whether this is an assembly-excluded footprint reference.
- * @param {{ propertyName?: string, excludeFromPositionFiles?: boolean }} text
- * @returns {boolean}
- */
-function isExcludedReferenceText(text) {
-    return (
-        text.excludeFromPositionFiles === true &&
-        text.propertyName === 'Reference'
-    )
-}
-
-/**
- * Checks whether a KiCad layer belongs in the visible board render.
- * @param {{ layer?: string }} item
- * @returns {boolean}
- */
-function isRenderableBoardLayer(item) {
-    return String(item.layer || '')
-        .split(',')
-        .some((layer) => isRenderableLayerName(layer.trim()))
-}
-
-/**
- * Checks a single KiCad layer name.
- * @param {string} layer
- * @returns {boolean}
- */
-function isRenderableLayerName(layer) {
-    return (
-        layer.endsWith('.Cu') ||
-        layer.endsWith('.Mask') ||
-        layer.endsWith('.SilkS')
-    )
 }
 
 /**

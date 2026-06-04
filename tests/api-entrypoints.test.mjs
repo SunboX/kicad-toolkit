@@ -24,8 +24,34 @@ test('root entrypoint exports parser and renderer classes', () => {
     assert.equal(typeof rootApi.CircuitJsonModelSchema.attach, 'function')
     assert.equal(typeof rootApi.KicadToolkitCapabilities.inventory, 'function')
     assert.equal(typeof rootApi.KicadFeatureParity.inventory, 'function')
+    assert.equal(typeof rootApi.KicadDesignBlockLibraryParser.build, 'function')
+    assert.equal(typeof rootApi.KicadDesignRulesParser.parse, 'function')
+    assert.equal(
+        typeof rootApi.KicadEmbeddedAssetInventoryBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof rootApi.KicadFootprintAssociationParser.parse,
+        'function'
+    )
     assert.equal(typeof rootApi.KicadReadinessReport.parseDrcReport, 'function')
     assert.equal(typeof rootApi.KicadNetResolver.fromNodes, 'function')
+    assert.equal(typeof rootApi.KicadFootprintLibraryParser.parse, 'function')
+    assert.equal(typeof rootApi.KicadJobsetDigestBuilder.build, 'function')
+    assert.equal(typeof rootApi.KicadJobsetParser.parse, 'function')
+    assert.equal(typeof rootApi.KicadLibraryIndexBuilder.build, 'function')
+    assert.equal(
+        typeof rootApi.KicadLibraryRenderManifestBuilder
+            .buildPcbLibraryManifest,
+        'function'
+    )
+    assert.equal(
+        typeof rootApi.KicadLibrarySearchIndex.searchPcbFootprints,
+        'function'
+    )
+    assert.equal(typeof rootApi.KicadLibraryTableParser.parse, 'function')
+    assert.equal(typeof rootApi.KicadLegacyLibraryParser.parse, 'function')
+    assert.equal(typeof rootApi.KicadNetlistParser.parse, 'function')
     assert.equal(typeof rootApi.KicadParser.parseArrayBuffer, 'function')
     assert.equal(
         typeof rootApi.KicadPcbLayerMetadata.primitiveLayers,
@@ -37,6 +63,11 @@ test('root entrypoint exports parser and renderer classes', () => {
     )
     assert.equal(typeof rootApi.KicadPcbPadParser.parsePad, 'function')
     assert.equal(typeof rootApi.KicadPcbParser.parse, 'function')
+    assert.equal(typeof rootApi.KicadProjectMetadataParser.parse, 'function')
+    assert.equal(
+        typeof rootApi.KicadSchematicConnectivityQaBuilder.build,
+        'function'
+    )
     assert.equal(typeof rootApi.KicadSchematicGraphicParser.parse, 'function')
     assert.equal(typeof rootApi.KicadSchematicParser.parse, 'function')
     assert.equal(
@@ -44,6 +75,14 @@ test('root entrypoint exports parser and renderer classes', () => {
         'function'
     )
     assert.equal(typeof rootApi.KicadProjectLoader.loadEntries, 'function')
+    assert.equal(typeof rootApi.ProjectDesignBundleBuilder.build, 'function')
+    assert.equal(
+        typeof rootApi.ProjectNetlistExporter.buildWirelist,
+        'function'
+    )
+    assert.equal(typeof rootApi.ProjectVariantViewBuilder.build, 'function')
+    assert.equal(typeof rootApi.KicadSymbolLibraryParser.parse, 'function')
+    assert.equal(typeof rootApi.KicadWorksheetParser.parse, 'function')
     assert.equal(typeof rootApi.SExpressionParser.parse, 'function')
     assert.equal(typeof rootApi.SExpressionParser.parseWithMetadata, 'function')
     assert.equal(typeof rootApi.SExpressionSchema.parse, 'function')
@@ -80,17 +119,58 @@ test('specialized entrypoints expose their intended API groups', () => {
     )
     assert.equal(typeof parserApi.KicadFeatureParity.inventory, 'function')
     assert.equal(
+        typeof parserApi.KicadDesignBlockLibraryParser.build,
+        'function'
+    )
+    assert.equal(typeof parserApi.KicadDesignRulesParser.parse, 'function')
+    assert.equal(
+        typeof parserApi.KicadEmbeddedAssetInventoryBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.KicadFootprintAssociationParser.parse,
+        'function'
+    )
+    assert.equal(
         typeof parserApi.KicadReadinessReport.fabricationReadiness,
         'function'
     )
     assert.equal(typeof parserApi.KicadParser.parseArrayBuffer, 'function')
+    assert.equal(typeof parserApi.KicadFootprintLibraryParser.parse, 'function')
+    assert.equal(typeof parserApi.KicadJobsetDigestBuilder.build, 'function')
+    assert.equal(typeof parserApi.KicadJobsetParser.parse, 'function')
+    assert.equal(typeof parserApi.KicadLibraryIndexBuilder.build, 'function')
+    assert.equal(
+        typeof parserApi.KicadLibraryRenderManifestBuilder
+            .buildSchematicLibraryManifest,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.KicadLibrarySearchIndex.searchItems,
+        'function'
+    )
+    assert.equal(typeof parserApi.KicadLibraryTableParser.parse, 'function')
+    assert.equal(typeof parserApi.KicadLegacyLibraryParser.parse, 'function')
+    assert.equal(typeof parserApi.KicadNetlistParser.parse, 'function')
     assert.equal(
         typeof parserApi.KicadPcbLayerMetadata.documentLayers,
         'function'
     )
     assert.equal(typeof parserApi.KicadPcbPadParser.parsePad, 'function')
     assert.equal(typeof parserApi.KicadPcbParser.parse, 'function')
+    assert.equal(typeof parserApi.KicadProjectMetadataParser.parse, 'function')
+    assert.equal(
+        typeof parserApi.KicadSchematicConnectivityQaBuilder.build,
+        'function'
+    )
     assert.equal(typeof parserApi.KicadSchematicParser.parse, 'function')
+    assert.equal(typeof parserApi.ProjectDesignBundleBuilder.build, 'function')
+    assert.equal(
+        typeof parserApi.ProjectNetlistExporter.buildNetlistJson,
+        'function'
+    )
+    assert.equal(typeof parserApi.ProjectVariantViewBuilder.build, 'function')
+    assert.equal(typeof parserApi.KicadSymbolLibraryParser.parse, 'function')
     assert.equal(
         typeof parserApi.SExpressionParser.parseWithMetadata,
         'function'
@@ -98,6 +178,7 @@ test('specialized entrypoints expose their intended API groups', () => {
     assert.equal(typeof parserApi.SExpressionSchema.parse, 'function')
     assert.equal(typeof parserApi.SExpressionTree.child, 'function')
     assert.equal(typeof parserApi.SExpressionTree.describe, 'function')
+    assert.equal(typeof parserApi.KicadWorksheetParser.parse, 'function')
     assert.equal(typeof parserApi.PcbSvgRenderer, 'undefined')
     assert.equal(typeof rendererApi.PcbSvgRenderer.render, 'function')
     assert.equal(typeof rendererApi.SchematicSvgRenderer.render, 'function')

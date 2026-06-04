@@ -9,6 +9,13 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 KiCad Toolkit exposes a read-only capability inventory and normalized report
 helpers so host applications can describe parser, rendering, and readiness
 support without probing individual classes.
+The inventory also covers standalone footprint and symbol library parsing,
+library table and manifest parsing, library search and render manifests,
+project metadata parsing, design block indexing, jobset digesting,
+asset inventory, jobset/custom-rule/worksheet/netlist/association sidecar
+parsing, legacy library inspection, design bundle composition, semantic SVG
+metadata, per-layer SVG exports, schematic connectivity QA, and deterministic
+project netlist/wirelist export.
 
 ## Capability Inventory
 
@@ -97,10 +104,20 @@ specific to Altium file storage rather than shared EDA-library behavior. The
 does not apply to native KiCad files, and the closest KiCad equivalent.
 
 Current exemptions cover OLE compound documents, Altium binary primitive
-streams, `.PcbLib` stream parsing, `.PrjPcb` INI parsing, Altium raw record
+streams, `.PcbLib` stream containers, `.PrjPcb` INI parsing, Altium raw record
 registries, and embedded Altium binary payload extraction. KiCad equivalents
-are S-expression parsing, project ZIP loading, raw KiCad AST/model
-preservation, companion asset metadata, and KiCad stroke-font rendering.
+are S-expression parsing, `.kicad_mod` footprint parsing, `.kicad_sym` symbol
+parsing, `fp-lib-table` and `sym-lib-table` parsing, library manifest
+building, project ZIP loading, raw KiCad AST/model preservation, companion
+asset metadata, and KiCad stroke-font rendering.
+
+## Schematic Connectivity QA
+
+`KicadSchematicConnectivityQaBuilder.build(schematicOrDocument)` creates a
+read-only QA report from parsed schematic data. It reports implicit net names,
+dangling labels, orphan sheet entries, unconnected visible pins, and authored
+junctions that do not participate in any recovered net. The helper is intended
+for parser-quality and migration checks; it does not replace KiCad ERC.
 
 ## Report Normalization
 

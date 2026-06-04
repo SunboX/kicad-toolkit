@@ -36,8 +36,16 @@ the object form can call
 - `schema`: normalized model schema id, currently
   `urn:kicad-toolkit:normalized-model:a1`
 - `sourceFormat`: `kicad`
-- `kind`: `schematic` or `pcb`
-- `fileType`: `kicad_sch` or `kicad_pcb`
+- `kind`: `schematic`, `pcb`, `footprint-library`, `symbol-library`,
+  `library-table`, `library-index`, `project-metadata`, `design-bundle`,
+  `jobset`, `jobset-digest`, `design-rules`, `worksheet`, `netlist`,
+  `footprint-associations`, `design-block-library`, `legacy-library`, or
+  `asset-inventory`
+- `fileType`: `kicad_sch`, `kicad_pcb`, `kicad_mod`, `kicad_sym`,
+  `fp_lib_table`, `sym_lib_table`, `KicadLibraryIndex`, `kicad_pro`,
+  `KicadProjectDesignBundle`, `kicad_jobset`, `KicadJobsetDigest`,
+  `kicad_dru`, `kicad_wks`, `net`, `cmp`, `kicad_blocks`, `lib`, `dcm`,
+  `mod`, or `KicadAssetInventory`
 - `fileName`: original file name passed to the parser
 - `summary`: compact document metadata and recovered item counts
 - `diagnostics`: parser warnings and recovery notes
@@ -129,18 +137,106 @@ stroke font helper. Board and footprint text variables are expanded during PCB
 parsing when the referenced board, title-block, footprint, layer, or pad data is
 available; unresolved variables are left unchanged.
 
+## Library Fields
+
+Standalone footprint library files emit a `footprint-library` root with
+`fileType: "kicad_mod"`. The model exposes the recovered `footprint`, a
+single-entry `footprints` array, flattened `pads`, footprint `drawings`,
+`texts`, `models`, and `pcbLibrary.footprints` metadata. The parser reuses the
+same lower-level footprint path as `.kicad_pcb` parsing, so pad geometry,
+text, drawings, attributes, properties, and 3D model transforms follow the
+board parser shapes.
+
+Standalone symbol library files emit a `symbol-library` root with
+`fileType: "kicad_sym"`. The model exposes top-level `symbols` plus
+`schematicLibrary.symbols`. Each symbol preserves its KiCad library name,
+item name, direct properties, pins, nested unit/body symbol records, simple
+graphics grouped by primitive type, and the raw symbol S-expression node.
+
+Library table files emit a `library-table` root with `fileType:
+"fp_lib_table"` or `"sym_lib_table"`. Rows expose KiCad nickname, plugin type,
+URI, resolved URI when variables are provided, pipe-separated options,
+description, enabled state, and raw row nodes.
+
+`KicadLibraryIndexBuilder.build(entries)` emits a `library-index` root. It
+combines parsed table rows with local `.pretty` footprint libraries, packed
+`.kicad_sym` symbol libraries, unpacked `.kicad_symdir` symbol libraries, and
+design block folders. The model exposes `tables`, `tableRows`, `libraries`,
+and searchable `items` for footprints, symbols, and design blocks.
+`KicadLibrarySearchIndex` provides exact, prefix, keyword, and lightweight
+fuzzy lookup over those items or standalone library roots.
+`KicadLibraryRenderManifestBuilder` emits deterministic render/export
+descriptors with stable SVG keys for footprints, symbols, design blocks, and
+mixed library-index items.
+
+## Auxiliary Fields
+
+`.kicad_jobset` files emit a `jobset` root with `jobs`, `outputs`, raw JSON,
+and job/output counts.
+`KicadJobsetDigestBuilder` emits a `jobset-digest` root with `jobsets`,
+`destinations`, normalized `jobs`, `jobsByDestination`, and
+`destinationsById`.
+
+`.kicad_dru` files emit a `design-rules` root with `version`, custom `rules`,
+component class assignments, constraints, disallow records, and raw rule
+S-expression nodes.
+
+`.kicad_wks` files emit a `worksheet` root with setup defaults, worksheet
+lines, rectangles, text blocks, polygons, bitmaps, and raw worksheet AST.
+
+Exported `.net` files emit a `netlist` root with components, component
+properties, library source metadata, nets, and net nodes.
+
+`.cmp` files emit a `footprint-associations` root with component reference,
+value, and footprint association rows.
+
+`.kicad_blocks` and `.kicad_block` folders are indexed by
+`KicadDesignBlockLibraryParser.build(entries)` into a `design-block-library`
+root with block metadata, schematic file references, and board file
+references.
+
+Legacy `.lib`, `.dcm`, and `.mod` files emit a `legacy-library` root with
+lightweight symbol, documentation, and module inspection records. These helper
+records are intentionally not a full conversion to modern `.kicad_sch`,
+`.kicad_sym`, or `.kicad_mod` models.
+
 ## Project Loading Fields
 
 `KicadProjectLoader` returns a loader container rather than a normalized parser
 root. Direct board loads include the lower-level `board`, Circuit JSON
 `documents`, `rendererDocuments` for integrations that still need the legacy
-object shape, a compact `project` summary, companion `assets`, `diagnostics`,
-`sourceFileName`, and `sourceText`. Full project ZIP loads include parsed
+object shape, a compact `project` summary, passive `libraries` manifest,
+companion `assets`, `diagnostics`, `sourceFileName`, and `sourceText`. Full
+project ZIP loads include parsed
 schematic and PCB Circuit JSON `documents`, `rendererDocuments`, a `project`
 summary with document counts, project-level net references, grouped BOM rows,
-companion 3D `assets`, and diagnostics for missing hierarchical sheets. The
-project summary also exposes `rootSchematic` and ordered `pages`; each page
-record includes `kind`, `fileName`, `title`, `path`, `page`, and `root`.
+library counts, local library item counts, companion 3D `assets`, and
+diagnostics for missing hierarchical sheets. The project summary also exposes
+`rootSchematic` and ordered `pages`; each page record includes `kind`,
+`fileName`, `title`, `path`, `page`, and `root`.
+
+`KicadEmbeddedAssetInventoryBuilder` emits an `asset-inventory` root with
+`assets` and `assetsByKind` rows for embedded schematic files, schematic
+images, worksheet bitmaps, PCB 3D model references, and companion project
+assets. Model-reference rows mark `available` when a matching companion asset
+entry is present.
+
+## Project Fields
+
+`KicadProjectMetadataParser` emits a normalized `project-metadata` root for
+`.kicad_pro` JSON. It preserves KiCad `meta`, `boards`, `sheets`,
+`topLevelSheets`, `textVariables`, `libraries`, `netSettings.classes`, and
+`board.designSettings` rows. Board design settings normalize keyed KiCad rules
+into sorted `{ name, value }` rows while preserving track width, via dimension,
+diff-pair, DRC-exclusion, and default-setting collections.
+
+`ProjectDesignBundleBuilder` emits a normalized `design-bundle` root for
+multi-document consumers. Bundle rows include `project`, `variants`, `sheets`,
+`components`, `schematic_hierarchy`, `pnp`, `nets`, `annotations`, `indexes`,
+and `bom`. `ProjectVariantViewBuilder` exposes an effective variant view with
+KiCad DNP flags and project variant overrides applied. `ProjectNetlistExporter`
+emits `kicad-toolkit.netlist.a1` JSON and deterministic line-oriented
+wirelists from either a bundle or an effective variant.
 
 ## Helper Report Fields
 
@@ -163,6 +259,11 @@ small examples list.
 object with `ok`, `readiness`, `score`, `findingCounts`, `findings`,
 `statistics`, `outline`, `connectivity`, and `bounds`. It derives those fields
 from recovered parser data only.
+
+`KicadSchematicConnectivityQaBuilder.build()` returns
+`kicad-toolkit.schematic.connectivity-qa.a1` reports with counts and findings
+for implicit net names, dangling labels, orphan sheet entries, unconnected
+visible pins, and ambiguous junctions.
 
 ## Compatibility Rule
 

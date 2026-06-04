@@ -14,17 +14,17 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
     assert.equal(inventory.filters.category, null)
     assert.equal(inventory.filters.status, null)
     assert.equal(inventory.implemented, true)
-    assert.equal(inventory.total, 17)
-    assert.deepEqual(inventory.statusCounts, { implemented: 17 })
+    assert.equal(inventory.total, 37)
+    assert.deepEqual(inventory.statusCounts, { implemented: 37 })
     assert.deepEqual(inventory.nativeCounts, {
-        adapted_contract: 2,
-        kicad_native: 15
+        adapted_contract: 10,
+        kicad_native: 27
     })
-    assert.equal(inventory.featureCoverage.implemented, 17)
+    assert.equal(inventory.featureCoverage.implemented, 37)
     assert.equal(inventory.featureCoverage.exempted, 6)
-    assert.equal(inventory.featureCoverage.totalDocumented, 23)
-    assert.equal(inventory.categories.parser_roots.count, 2)
-    assert.equal(inventory.categories.project_loading.count, 1)
+    assert.equal(inventory.featureCoverage.totalDocumented, 43)
+    assert.equal(inventory.categories.parser_roots.count, 11)
+    assert.equal(inventory.categories.project_loading.count, 9)
     assert.equal(inventory.categories.scene3d.count, 2)
     assert.equal(inventory.exemptions.length, 6)
 
@@ -63,6 +63,22 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
         ],
         summary:
             'PcbSideResolvedRenderModel and preparePcbSideResolvedRenderModel support front and back KiCad views.'
+    })
+
+    assert.deepEqual(byId.get('parse_kicad_design_rules'), {
+        id: 'parse_kicad_design_rules',
+        label: 'Parse KiCad custom design rules',
+        category: 'parser_roots',
+        status: 'implemented',
+        kicadNative: true,
+        altiumCapability: 'Parse project design rules.',
+        kicadCapability:
+            'Parse KiCad .kicad_dru custom DRC rules and component class assignments.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadDesignRulesParser.parse() exposes custom rule names, conditions, layers, severities, constraints, disallow rows, and component class assignments.'
     })
 })
 
@@ -112,9 +128,8 @@ test('KicadFeatureParity records Altium-only source-format exemptions', () => {
         id: 'pcb_library_streams',
         label: 'Altium PCB library stream parsing',
         altiumCapability: 'Parse .PcbLib footprint library streams.',
-        reason: 'KiCad footprint libraries use KiCad-specific .kicad_mod or symbol-library workflows outside the current parser roots.',
-        kicadEquivalent:
-            'Footprint instances embedded in .kicad_pcb files are parsed through KicadPcbParser.',
+        reason: 'KiCad footprint libraries are text .kicad_mod files in .pretty folders rather than Altium .PcbLib compound streams.',
+        kicadEquivalent: 'KicadFootprintLibraryParser and KicadPcbParser',
         docs: ['spec/library-scope.md']
     })
 })

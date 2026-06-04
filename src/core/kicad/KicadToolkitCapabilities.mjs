@@ -49,6 +49,72 @@ const capabilities = Object.freeze([
         summary: 'Parses native .kicad_sch S-expression schematic data.'
     }),
     capability({
+        id: 'kicad_footprint_library_parser',
+        label: 'Footprint library parser',
+        category: 'parser',
+        outputs: ['footprint-library', 'Circuit JSON'],
+        summary:
+            'Parses standalone .kicad_mod footprint library S-expression data.'
+    }),
+    capability({
+        id: 'kicad_symbol_library_parser',
+        label: 'Symbol library parser',
+        category: 'parser',
+        outputs: ['symbol-library', 'Circuit JSON'],
+        summary:
+            'Parses standalone .kicad_sym symbol library S-expression data.'
+    }),
+    capability({
+        id: 'kicad_library_table_parser',
+        label: 'Library table parser',
+        category: 'parser',
+        outputs: ['library-table'],
+        summary: 'Parses KiCad fp-lib-table and sym-lib-table rows.'
+    }),
+    capability({
+        id: 'kicad_jobset_parser',
+        label: 'Jobset parser',
+        category: 'parser',
+        outputs: ['jobset'],
+        summary: 'Parses KiCad .kicad_jobset output job metadata.'
+    }),
+    capability({
+        id: 'kicad_design_rules_parser',
+        label: 'Custom design rules parser',
+        category: 'parser',
+        outputs: ['design-rules'],
+        summary: 'Parses KiCad .kicad_dru custom rule files.'
+    }),
+    capability({
+        id: 'kicad_worksheet_parser',
+        label: 'Worksheet parser',
+        category: 'parser',
+        outputs: ['worksheet'],
+        summary: 'Parses KiCad .kicad_wks page layout files.'
+    }),
+    capability({
+        id: 'kicad_netlist_parser',
+        label: 'Netlist parser',
+        category: 'parser',
+        outputs: ['netlist'],
+        summary: 'Parses KiCad exported S-expression .net files.'
+    }),
+    capability({
+        id: 'kicad_footprint_association_parser',
+        label: 'Footprint association parser',
+        category: 'parser',
+        outputs: ['footprint-associations'],
+        summary: 'Parses KiCad .cmp footprint association files.'
+    }),
+    capability({
+        id: 'kicad_legacy_library_parser',
+        label: 'Legacy library parser',
+        category: 'parser',
+        outputs: ['legacy-library'],
+        summary:
+            'Exposes lightweight inspection metadata for legacy .lib, .dcm, and .mod files.'
+    }),
+    capability({
         id: 'circuit_json_adapter',
         label: 'Circuit JSON adapter',
         category: 'parser',
@@ -63,6 +129,61 @@ const capabilities = Object.freeze([
         requires: ['fflate'],
         outputs: ['documents', 'assets', 'diagnostics'],
         summary: 'Loads local KiCad project archives and companion assets.'
+    }),
+    capability({
+        id: 'project_metadata_parser',
+        label: 'Project metadata parser',
+        category: 'project_loading',
+        outputs: ['project metadata', 'net classes', 'rules'],
+        summary:
+            'Parses .kicad_pro JSON metadata, text variables, board settings, and net classes.'
+    }),
+    capability({
+        id: 'project_design_bundle',
+        label: 'Project design bundle',
+        category: 'project_loading',
+        outputs: ['design bundle', 'variant view'],
+        summary:
+            'Composes loaded KiCad project documents into bundle-level sheets, components, nets, BOM, PnP, and variants.'
+    }),
+    capability({
+        id: 'kicad_library_index_builder',
+        label: 'Library index builder',
+        category: 'project_loading',
+        outputs: ['library-index'],
+        summary:
+            'Builds searchable manifests for KiCad library tables, .pretty folders, .kicad_sym files, .kicad_symdir folders, and design blocks.'
+    }),
+    capability({
+        id: 'kicad_library_search_index',
+        label: 'Library search index',
+        category: 'project_loading',
+        outputs: ['search matches'],
+        summary:
+            'Searches KiCad footprint, symbol, and design block library items with exact, keyword, and fuzzy matching.'
+    }),
+    capability({
+        id: 'kicad_jobset_digest_builder',
+        label: 'Jobset digest builder',
+        category: 'project_loading',
+        outputs: ['jobset digest'],
+        summary:
+            'Builds project-level job and destination lookups from parsed KiCad jobsets.'
+    }),
+    capability({
+        id: 'kicad_asset_inventory_builder',
+        label: 'Asset inventory builder',
+        category: 'project_loading',
+        outputs: ['asset inventory'],
+        summary:
+            'Inventories embedded files, schematic images, worksheet bitmaps, 3D model references, and companion assets.'
+    }),
+    capability({
+        id: 'kicad_design_block_library_parser',
+        label: 'Design block library parser',
+        category: 'project_loading',
+        outputs: ['design-block-library'],
+        summary: 'Indexes KiCad .kicad_blocks and .kicad_block folders.'
     }),
     capability({
         id: 's_expression_parser',
@@ -95,12 +216,28 @@ const capabilities = Object.freeze([
             'Computes board-coordinate primitive bounds and supported shape clearances.'
     }),
     capability({
+        id: 'semantic_svg_metadata',
+        label: 'Semantic SVG metadata',
+        category: 'geometry_metadata',
+        outputs: ['SVG metadata', 'semantic attributes'],
+        summary:
+            'Builds KiCad PCB and schematic semantic metadata sidecars for rendered SVG output.'
+    }),
+    capability({
         id: 'pcb_svg_renderer',
         label: 'PCB SVG renderer',
         category: 'rendering',
         outputs: ['SVG'],
         summary:
             'Renders deterministic PCB SVG markup from recovered board models.'
+    }),
+    capability({
+        id: 'pcb_layer_svg_exports',
+        label: 'PCB layer SVG exports',
+        category: 'rendering',
+        outputs: ['layer SVG'],
+        summary:
+            'Renders deterministic per-layer KiCad PCB SVG exports from declared board layers.'
     }),
     capability({
         id: 'schematic_svg_renderer',
@@ -116,6 +253,14 @@ const capabilities = Object.freeze([
         category: 'rendering',
         outputs: ['HTML'],
         summary: 'Renders deterministic grouped BOM table markup.'
+    }),
+    capability({
+        id: 'kicad_library_render_manifest_builder',
+        label: 'Library render manifest builder',
+        category: 'rendering',
+        outputs: ['render manifest'],
+        summary:
+            'Builds deterministic render/export manifests for KiCad footprint, symbol, design-block, and mixed library indexes.'
     }),
     capability({
         id: 'pcb_scene3d_description',
@@ -139,6 +284,22 @@ const capabilities = Object.freeze([
         outputs: ['summary', 'findings'],
         summary:
             'Summarizes parsed board readiness using recovered model data only.'
+    }),
+    capability({
+        id: 'kicad_schematic_connectivity_qa',
+        label: 'Schematic connectivity QA',
+        category: 'reporting',
+        outputs: ['summary', 'findings'],
+        summary:
+            'Reports schematic-local implicit nets, dangling labels, orphan sheet entries, unconnected pins, and ambiguous junctions.'
+    }),
+    capability({
+        id: 'project_netlist_exporter',
+        label: 'Project netlist exporter',
+        category: 'reporting',
+        outputs: ['netlist JSON', 'wirelist'],
+        summary:
+            'Builds deterministic KiCad project netlist JSON and wirelist exports from design bundles.'
     })
 ])
 

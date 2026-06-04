@@ -52,6 +52,14 @@ export class CircuitJsonModelAdapter {
             )
         }
 
+        if (model.schematicLibrary) {
+            CircuitJsonModelAdapter.#appendSchematicLibrary(
+                circuitJson,
+                model,
+                idScope
+            )
+        }
+
         CircuitJsonModelAdapter.#appendBom(circuitJson, model, idScope)
         CircuitJsonModelAdapter.#attachCompatibility(circuitJson, model)
 
@@ -604,6 +612,55 @@ export class CircuitJsonModelAdapter {
                 ),
                 ftype: 'simple_chip'
             })
+        }
+    }
+
+    /**
+     * Appends minimal schematic symbol library elements as metadata.
+     * @param {object[]} circuitJson
+     * @param {Record<string, unknown>} model
+     * @param {string} idScope
+     * @returns {void}
+     */
+    static #appendSchematicLibrary(circuitJson, model, idScope) {
+        for (const [symbolIndex, symbol] of Primitives.array(
+            model.schematicLibrary?.symbols
+        ).entries()) {
+            const sourceComponentId = Primitives.id(idScope, [
+                'library_symbol',
+                symbol.name || symbol.itemName || symbolIndex
+            ])
+            circuitJson.push({
+                type: 'source_component',
+                source_component_id: sourceComponentId,
+                name: Primitives.string(
+                    symbol.name || symbol.itemName,
+                    `SYMBOL_${symbolIndex + 1}`
+                ),
+                ftype: 'simple_chip'
+            })
+
+            for (const [pinIndex, pin] of Primitives.array(
+                symbol.pins
+            ).entries()) {
+                circuitJson.push({
+                    type: 'source_port',
+                    source_port_id: Primitives.id(idScope, [
+                        'library_symbol_port',
+                        symbol.name || symbol.itemName || symbolIndex,
+                        pin.number || pin.name || pinIndex
+                    ]),
+                    source_component_id: sourceComponentId,
+                    name: Primitives.string(
+                        pin.name || pin.number,
+                        String(pinIndex + 1)
+                    ),
+                    pin_number: Primitives.string(
+                        pin.number || pin.name,
+                        String(pinIndex + 1)
+                    )
+                })
+            }
         }
     }
 

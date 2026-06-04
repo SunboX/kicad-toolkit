@@ -5,7 +5,7 @@ const categoryInfo = Object.freeze({
     parser_roots: {
         label: 'Parser roots',
         description:
-            'Native KiCad schematic and PCB parser roots exposed as Circuit JSON.'
+            'Native KiCad schematic, PCB, footprint, and symbol parser roots exposed as Circuit JSON.'
     },
     project_loading: {
         label: 'Project loading',
@@ -97,6 +97,120 @@ const features = Object.freeze([
             'KicadParser.parseArrayBuffer() returns Circuit JSON with PCB renderer compatibility fields.'
     }),
     feature({
+        id: 'parse_kicad_footprint_library',
+        label: 'Parse KiCad footprint libraries',
+        category: 'parser_roots',
+        altiumCapability: 'Parse native .PcbLib footprint libraries.',
+        kicadCapability:
+            'Parse standalone .kicad_mod S-expression footprint library files.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#library-fields'],
+        tests: ['tests/core/kicad-library-parsers.test.mjs'],
+        summary:
+            'KicadFootprintLibraryParser.parse() and KicadParser.parseArrayBufferToRendererModel() recover standalone footprint pads, graphics, text, and models.'
+    }),
+    feature({
+        id: 'parse_kicad_symbol_library',
+        label: 'Parse KiCad symbol libraries',
+        category: 'parser_roots',
+        altiumCapability: 'Parse native schematic symbol libraries.',
+        kicadCapability:
+            'Parse standalone .kicad_sym S-expression symbol library files.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#library-fields'],
+        tests: ['tests/core/kicad-library-parsers.test.mjs'],
+        summary:
+            'KicadSymbolLibraryParser.parse() and KicadParser.parseArrayBufferToRendererModel() recover standalone symbol properties, pins, units, and graphics.'
+    }),
+    feature({
+        id: 'parse_kicad_library_tables',
+        label: 'Parse KiCad library tables',
+        category: 'parser_roots',
+        altiumCapability: 'Parse project library references and search paths.',
+        kicadCapability:
+            'Parse KiCad fp-lib-table and sym-lib-table S-expression library rows.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#library-fields'],
+        tests: ['tests/core/kicad-library-index.test.mjs'],
+        summary:
+            'KicadLibraryTableParser.parse() exposes library names, plugin types, URIs, options, descriptions, disabled flags, and resolved variables.'
+    }),
+    feature({
+        id: 'parse_kicad_jobset',
+        label: 'Parse KiCad jobsets',
+        category: 'parser_roots',
+        altiumCapability: 'Parse output job definitions.',
+        kicadCapability:
+            'Parse KiCad .kicad_jobset JSON job and output metadata.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadJobsetParser.parse() exposes KiCad output job rows and output destinations.'
+    }),
+    feature({
+        id: 'parse_kicad_design_rules',
+        label: 'Parse KiCad custom design rules',
+        category: 'parser_roots',
+        altiumCapability: 'Parse project design rules.',
+        kicadCapability:
+            'Parse KiCad .kicad_dru custom DRC rules and component class assignments.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadDesignRulesParser.parse() exposes custom rule names, conditions, layers, severities, constraints, disallow rows, and component class assignments.'
+    }),
+    feature({
+        id: 'parse_kicad_worksheet',
+        label: 'Parse KiCad worksheets',
+        category: 'parser_roots',
+        altiumCapability: 'Parse sheet/page template metadata.',
+        kicadCapability: 'Parse KiCad .kicad_wks worksheet page-layout files.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadWorksheetParser.parse() exposes worksheet setup defaults and line, rectangle, text, polygon, and bitmap item metadata.'
+    }),
+    feature({
+        id: 'parse_kicad_netlist',
+        label: 'Parse KiCad netlists',
+        category: 'parser_roots',
+        altiumCapability: 'Parse exported netlists.',
+        kicadCapability: 'Parse KiCad exported S-expression .net files.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadNetlistParser.parse() exposes exported components, component properties, nets, and net nodes.'
+    }),
+    feature({
+        id: 'parse_kicad_footprint_associations',
+        label: 'Parse KiCad footprint associations',
+        category: 'parser_roots',
+        altiumCapability: 'Parse component-to-footprint association files.',
+        kicadCapability: 'Parse KiCad .cmp footprint association files.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadFootprintAssociationParser.parse() exposes reference, value, and footprint association rows.'
+    }),
+    feature({
+        id: 'parse_kicad_legacy_libraries',
+        label: 'Inspect legacy KiCad libraries',
+        category: 'parser_roots',
+        altiumCapability: 'Expose older library formats for inspection.',
+        kicadCapability:
+            'Expose lightweight inspection metadata for KiCad legacy .lib, .dcm, and .mod files.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadLegacyLibraryParser.parse() recovers legacy symbol, documentation, and footprint module summaries without converting them to modern documents.'
+    }),
+    feature({
         id: 'project_zip_loading',
         label: 'KiCad project ZIP loading',
         category: 'project_loading',
@@ -115,6 +229,113 @@ const features = Object.freeze([
         ],
         summary:
             'KicadProjectLoader.loadEntries() and loadFiles() provide local-first project loading.'
+    }),
+    feature({
+        id: 'project_metadata_parser',
+        label: 'KiCad project metadata parser',
+        category: 'project_loading',
+        altiumCapability:
+            'Parse project-level native metadata, rules, classes, and variables.',
+        kicadCapability:
+            'Parse .kicad_pro JSON metadata, text variables, board design settings, net classes, sheets, and boards.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#project-fields'],
+        tests: ['tests/core/kicad-project-metadata.test.mjs'],
+        summary:
+            'KicadProjectMetadataParser.parse() exposes KiCad project JSON in a normalized model root.'
+    }),
+    feature({
+        id: 'project_design_bundle',
+        label: 'Project design bundle',
+        category: 'project_loading',
+        kicadNative: false,
+        altiumCapability:
+            'Compose parsed project, schematic, PCB, BOM, PnP, variant, and net rows into one design bundle.',
+        kicadCapability:
+            'Compose parsed KiCad project, schematic, PCB, BOM, PnP, variant, and net rows into one design bundle.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#project-loading-fields'
+        ],
+        tests: ['tests/core/kicad-project-bundle.test.mjs'],
+        summary:
+            'ProjectDesignBundleBuilder and ProjectVariantViewBuilder expose a shared multi-document API.'
+    }),
+    feature({
+        id: 'kicad_library_index',
+        label: 'KiCad library index',
+        category: 'project_loading',
+        altiumCapability:
+            'Build searchable library manifests for project/library browsers.',
+        kicadCapability:
+            'Build searchable manifests from KiCad library tables, .pretty folders, .kicad_sym files, .kicad_symdir folders, and design blocks.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#library-fields'],
+        tests: ['tests/core/kicad-library-index.test.mjs'],
+        summary:
+            'KicadLibraryIndexBuilder.build() composes table rows and local library items into one searchable manifest.'
+    }),
+    feature({
+        id: 'kicad_library_search_index',
+        label: 'KiCad library search index',
+        category: 'project_loading',
+        kicadNative: false,
+        altiumCapability:
+            'Search parsed library symbols and footprints with exact, keyword, and fuzzy matching.',
+        kicadCapability:
+            'Search KiCad footprint, symbol, and design block library items with exact, keyword, and fuzzy matching.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#library-fields'],
+        tests: ['tests/core/kicad-parity-helper-apis.test.mjs'],
+        summary:
+            'KicadLibrarySearchIndex exposes Altium-style library search helpers over KiCad library indexes and standalone libraries.'
+    }),
+    feature({
+        id: 'kicad_jobset_digest',
+        label: 'KiCad jobset digest',
+        category: 'project_loading',
+        kicadNative: false,
+        altiumCapability:
+            'Build output-job digests with jobs grouped by destination document.',
+        kicadCapability:
+            'Build jobset digests with KiCad jobs grouped by output destination.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#auxiliary-fields'],
+        tests: ['tests/core/kicad-parity-helper-apis.test.mjs'],
+        summary:
+            'KicadJobsetDigestBuilder indexes parsed .kicad_jobset jobs, destinations, and output paths.'
+    }),
+    feature({
+        id: 'kicad_asset_inventory',
+        label: 'KiCad asset inventory',
+        category: 'project_loading',
+        kicadNative: false,
+        altiumCapability:
+            'Inventory embedded and companion binary payloads from parsed documents.',
+        kicadCapability:
+            'Inventory KiCad embedded files, schematic images, worksheet bitmaps, 3D model references, and companion assets.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#project-loading-fields'
+        ],
+        tests: ['tests/core/kicad-parity-helper-apis.test.mjs'],
+        summary:
+            'KicadEmbeddedAssetInventoryBuilder exposes a unified read-only asset inventory.'
+    }),
+    feature({
+        id: 'parse_kicad_design_blocks',
+        label: 'Parse KiCad design blocks',
+        category: 'project_loading',
+        altiumCapability: 'Expose reusable design snippets and library items.',
+        kicadCapability:
+            'Index KiCad .kicad_blocks and .kicad_block folder metadata.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#library-fields'],
+        tests: ['tests/core/kicad-auxiliary-file-parsers.test.mjs'],
+        summary:
+            'KicadDesignBlockLibraryParser.build() exposes design block metadata, schematic files, and board files.'
     }),
     feature({
         id: 'circuit_json_model_contract',
@@ -157,6 +378,24 @@ const features = Object.freeze([
         ],
         summary:
             'NormalizedModelSchema.CURRENT_SCHEMA_ID identifies the KiCad compatibility contract.'
+    }),
+    feature({
+        id: 'semantic_svg_metadata',
+        label: 'Semantic SVG metadata',
+        category: 'model_contracts',
+        kicadNative: false,
+        altiumCapability:
+            'Attach semantic SVG data attributes and metadata sidecars to rendered documents.',
+        kicadCapability:
+            'Attach KiCad PCB and schematic semantic SVG data attributes, metadata sidecars, and deterministic layer SVG exports.',
+        entrypoints: ['kicad-toolkit/renderers', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#renderers',
+            'docs/model-format.md#schema-contracts'
+        ],
+        tests: ['tests/ui/kicad-svg-semantic-metadata.test.mjs'],
+        summary:
+            'PCB and schematic SVG renders expose semantic element, layer, net, component, pin, pad, and drill metadata.'
     }),
     feature({
         id: 'raw_kicad_inspectability',
@@ -238,6 +477,21 @@ const features = Object.freeze([
             'BomTableRenderer.render() accepts grouped parser BOM rows and returns deterministic HTML.'
     }),
     feature({
+        id: 'kicad_library_render_manifests',
+        label: 'KiCad library render manifests',
+        category: 'project_loading',
+        kicadNative: false,
+        altiumCapability:
+            'Build deterministic render/export manifests for parsed libraries.',
+        kicadCapability:
+            'Build deterministic render/export manifests for KiCad footprint, symbol, design-block, and mixed library indexes.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#library-fields'],
+        tests: ['tests/core/kicad-parity-helper-apis.test.mjs'],
+        summary:
+            'KicadLibraryRenderManifestBuilder gives library browsers stable SVG/export keys.'
+    }),
+    feature({
         id: 'loaded_design_netlist_query',
         label: 'Loaded-design netlist query',
         category: 'netlist_query',
@@ -250,6 +504,24 @@ const features = Object.freeze([
         tests: ['tests/core/netlist-query.test.mjs'],
         summary:
             'LoadedDesignNetlistService exposes browser-safe query helpers over host-provided documents.'
+    }),
+    feature({
+        id: 'project_netlist_export',
+        label: 'Project netlist export',
+        category: 'netlist_query',
+        kicadNative: false,
+        altiumCapability:
+            'Build deterministic project netlist JSON and wirelist exports.',
+        kicadCapability:
+            'Build deterministic KiCad project netlist JSON and wirelist exports from design bundles or variant views.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#project-loading-fields'
+        ],
+        tests: ['tests/core/kicad-project-bundle.test.mjs'],
+        summary:
+            'ProjectNetlistExporter emits kicad-toolkit.netlist.a1 JSON and line-oriented wirelists.'
     }),
     feature({
         id: 'pcb_scene3d_description',
@@ -318,6 +590,21 @@ const features = Object.freeze([
             'KicadToolkitCapabilities and KicadReadinessReport provide data-only diagnostics support.'
     }),
     feature({
+        id: 'kicad_schematic_connectivity_qa',
+        label: 'KiCad schematic connectivity QA',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Build read-only schematic connectivity QA reports from parsed schematic models.',
+        kicadCapability:
+            'Build read-only KiCad schematic connectivity QA reports for implicit nets, dangling labels, orphan sheet entries, unconnected pins, and ambiguous junctions.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#capabilities-and-reports'],
+        tests: ['tests/core/kicad-parity-helper-apis.test.mjs'],
+        summary:
+            'KicadSchematicConnectivityQaBuilder exposes schematic-local connectivity findings without invoking KiCad.'
+    }),
+    feature({
         id: 'documentation_and_tests',
         label: 'Documentation and tests',
         category: 'documentation_testing',
@@ -364,9 +651,8 @@ const exemptions = Object.freeze([
         id: 'pcb_library_streams',
         label: 'Altium PCB library stream parsing',
         altiumCapability: 'Parse .PcbLib footprint library streams.',
-        reason: 'KiCad footprint libraries use KiCad-specific .kicad_mod or symbol-library workflows outside the current parser roots.',
-        kicadEquivalent:
-            'Footprint instances embedded in .kicad_pcb files are parsed through KicadPcbParser.'
+        reason: 'KiCad footprint libraries are text .kicad_mod files in .pretty folders rather than Altium .PcbLib compound streams.',
+        kicadEquivalent: 'KicadFootprintLibraryParser and KicadPcbParser'
     }),
     exemption({
         id: 'prjpcb_ini_parser',

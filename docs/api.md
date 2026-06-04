@@ -28,12 +28,17 @@ import { KicadParser } from 'kicad-toolkit/parser'
 const circuitJson = KicadParser.parseArrayBuffer(fileName, arrayBuffer)
 ```
 
-`fileName` is used to infer schematic or PCB parsing from the extension. The
-parser accepts native `.kicad_sch` and `.kicad_pcb` bytes as an `ArrayBuffer`
-and returns a Circuit JSON element array. The returned array carries
-non-serialized renderer-compatibility fields such as `sourceFormat`, `kind`,
-`fileType`, `schematic`, `pcb`, `summary`, `diagnostics`, and `bom` so existing
-renderers can consume parser output directly during the migration.
+`fileName` is used to infer schematic, PCB, library, project-sidecar, and
+legacy helper parsing from the extension or KiCad table basename. The parser
+accepts native `.kicad_sch`, `.kicad_pcb`, `.kicad_mod`, `.kicad_sym`,
+`.kicad_jobset`, `.kicad_dru`, `.kicad_wks`, `.net`, `.cmp`, legacy `.lib`,
+`.dcm`, `.mod`, plus `fp-lib-table` and `sym-lib-table` bytes as an
+`ArrayBuffer`. It returns a Circuit JSON element array with non-serialized
+renderer-compatibility fields such as `sourceFormat`, `kind`, `fileType`,
+`schematic`, `pcb`, `pcbLibrary`, `schematicLibrary`, `summary`,
+`diagnostics`, and `bom` so existing renderers can consume parser output
+directly during the migration. Sidecar-only files emit project metadata
+elements plus their normalized compatibility roots.
 
 PCB parsing reads KiCad S-expression board data, including layer declarations,
 setup metadata, plot parameters, net declarations, footprints, legacy module
@@ -47,6 +52,32 @@ Schematic parsing reads KiCad S-expression sheet data, including sheet
 metadata, symbols, embedded library graphics, labels, hierarchical sheets,
 junctions, no-connect markers, graphical items, embedded file metadata, simple
 net recovery, and grouped BOM rows.
+
+Standalone library parsing reads KiCad `.kicad_mod` footprint roots and
+`.kicad_sym` `kicad_symbol_lib` roots. Footprint libraries expose recovered
+pads, footprint graphics, text, 3D model references, and `pcbLibrary`
+metadata. Symbol libraries expose recovered symbol properties, pins, nested
+unit/body symbols, graphics, and `schematicLibrary` metadata.
+
+Library table and manifest parsing reads `fp-lib-table`, `sym-lib-table`,
+`.pretty` footprint folders, packed `.kicad_sym` files, unpacked
+`.kicad_symdir` folders, and `.kicad_blocks` design block folders.
+`KicadLibraryIndexBuilder.build(entries)` returns a searchable manifest with
+library rows, resolved local items, table metadata, and design block entries.
+`KicadLibrarySearchIndex` searches footprint, symbol, design block, and mixed
+index items with exact, prefix, keyword, and lightweight fuzzy matching.
+`KicadLibraryRenderManifestBuilder` builds deterministic render/export
+manifests for footprint libraries, symbol libraries, design block libraries,
+and mixed library indexes.
+
+Auxiliary KiCad parser helpers expose `.kicad_jobset` output jobs,
+`.kicad_dru` custom rules, `.kicad_wks` worksheets, exported `.net` netlists,
+`.cmp` footprint associations, and lightweight legacy `.lib`, `.dcm`, and
+`.mod` inspection metadata.
+`KicadJobsetDigestBuilder` composes parsed jobsets into job, destination, and
+jobs-by-destination lookup rows. `KicadEmbeddedAssetInventoryBuilder` builds a
+read-only inventory of embedded schematic files, schematic images, worksheet
+bitmaps, PCB 3D model references, and companion project assets.
 
 ```js
 import { CircuitJsonModelSchema } from 'kicad-toolkit/parser'
@@ -68,25 +99,65 @@ and returns the lower-level board model that is wrapped by
 `KicadParser.parseArrayBuffer()`. `options.fileName` is copied into the model
 for host metadata and accessible renderer labels.
 
+`KicadProjectMetadataParser.parse(source, options)` accepts KiCad `.kicad_pro`
+JSON text and returns a normalized project metadata root with `textVariables`,
+`netSettings.classes`, `board.designSettings.rules`, boards, sheets, and
+top-level sheet metadata.
+
+`KicadFootprintLibraryParser.parse(source, options)` accepts standalone
+`.kicad_mod` source text and returns a normalized `footprint-library` root.
+`KicadSymbolLibraryParser.parse(source, options)` accepts standalone
+`.kicad_sym` source text and returns a normalized `symbol-library` root.
+`KicadLibraryTableParser.parse(source, options)` accepts `fp-lib-table` or
+`sym-lib-table` source text. `KicadLibraryIndexBuilder`,
+`KicadLibrarySearchIndex`, and `KicadLibraryRenderManifestBuilder` provide
+project-library manifests, search, and deterministic render/export manifests.
+`KicadJobsetParser`, `KicadJobsetDigestBuilder`, `KicadDesignRulesParser`,
+`KicadWorksheetParser`, `KicadNetlistParser`,
+`KicadFootprintAssociationParser`, and `KicadLegacyLibraryParser` parse their
+corresponding sidecar or legacy source text or compose sidecar digests.
+
 `KicadProjectLoader.loadFiles(files)` accepts browser `FileList` or `File[]`
 values. `KicadProjectLoader.loadEntries(entries)` accepts named byte entries in
 the shape `{ name, bytes }`. Both methods support direct `.kicad_pcb` files and
 ZIP archives containing `.kicad_pro`, `.kicad_sch`, `.kicad_pcb`, and companion
-3D asset files. Direct board loads return the raw board, Circuit JSON
-documents, renderer compatibility documents, project summary, assets,
-diagnostics, source file name, and source text. Full project loads return
+3D asset files. They also build a passive `libraries` manifest from local
+library tables, `.pretty` folders, `.kicad_sym` files, `.kicad_symdir` folders,
+and `.kicad_blocks` folders when those entries are present. Direct board loads
+return the raw board, Circuit JSON documents, renderer compatibility documents,
+project summary, library manifest, assets, diagnostics, source file name, and
+source text. Full project loads return
 Circuit JSON documents, renderer compatibility documents, a project summary,
-companion assets, and diagnostics. Project summaries include
-`rootSchematic` and ordered `pages` records for schematic hierarchy pages and
-PCB documents.
+library manifest, companion assets, and diagnostics. Project summaries include
+`rootSchematic`, ordered `pages` records for schematic hierarchy pages and PCB
+documents, plus library and local library item counts.
+
+`ProjectDesignBundleBuilder.build({ projectModel, documentModels })` composes
+loaded KiCad project, schematic, and PCB models into one normalized
+`KicadProjectDesignBundle` with sheets, components, nets, BOM, PnP rows,
+indexes, and optional `effectiveVariant`. `ProjectVariantViewBuilder.build()`
+applies KiCad DNP flags and project variant DNP/parameter overrides.
+`ProjectNetlistExporter.buildNetlistJson()` and `buildWirelist()` emit
+deterministic KiCad project netlist exports.
 
 Specialized parser helpers are exported for lower-level integrations, including
 `Geometry`, `KicadArcGeometry`, `KicadLayerResolver`, `KicadNetResolver`,
+`KicadDesignBlockLibraryParser`, `KicadDesignRulesParser`,
+`KicadEmbeddedAssetInventoryBuilder`,
+`KicadFootprintAssociationParser`, `KicadFootprintLibraryParser`,
+`KicadJobsetDigestBuilder`, `KicadJobsetParser`,
+`KicadLegacyLibraryParser`, `KicadLibraryIndexBuilder`,
+`KicadLibraryRenderManifestBuilder`, `KicadLibrarySearchIndex`,
+`KicadLibraryTableParser`, `KicadNetlistParser`,
 `KicadPcbDrawingParser`, `KicadPcbLayerMetadata`, `KicadPcbPadParser`,
-`KicadFeatureParity`, `KicadReadinessReport`, `KicadSchematicGraphicParser`,
-`KicadSchematicSymbolParser`, `KicadToolkitCapabilities`, and
+`KicadProjectMetadataParser`, `KicadFeatureParity`, `KicadReadinessReport`,
+`KicadSchematicConnectivityQaBuilder`, `KicadSchematicGraphicParser`,
+`KicadSchematicSymbolParser`,
+`KicadSymbolLibraryParser`, `KicadToolkitCapabilities`,
+`KicadWorksheetParser`, `ProjectDesignBundleBuilder`,
+`ProjectNetlistExporter`, `ProjectVariantViewBuilder`, and
 `SExpressionSchema` and `SExpressionTree`. The layer, net, drawing, pad,
-schematic, report, capability, and S-expression helpers expose the same
+schematic, report, capability, library, sidecar, and S-expression helpers expose the same
 normalization used by
 `.kicad_pcb` and `.kicad_sch` parsing. `KicadFeatureParity` exposes a data-only
 parity inventory for KiCad equivalents and source-format exemptions.
@@ -152,6 +223,11 @@ footprints, unrouted multi-pad nets, no-net pads, and visible 3D model metadata.
 It does not invoke external commands or replace a complete design-rule,
 electrical, or fabrication review.
 
+`KicadSchematicConnectivityQaBuilder.build(schematicOrDocument)` returns
+schematic-local connectivity findings for implicit net names, dangling labels,
+orphan sheet entries, unconnected visible pins, and ambiguous junctions. It
+uses parsed schematic model data only and does not invoke KiCad.
+
 See [Capabilities](capabilities.md) for the full inventory and report shapes.
 
 ## Netlist Query
@@ -198,6 +274,8 @@ import {
 - `SchematicSvgRenderer.render(documentModel)` returns schematic SVG markup.
 - `PcbSvgRenderer.render(documentModel, options)` returns PCB SVG markup.
   Passing `null` renders the empty drop prompt SVG.
+- `PcbSvgRenderer.renderLayerSvgs(documentModel)` returns deterministic
+  per-layer KiCad SVG exports keyed by declared display layer.
 - `PcbSideResolvedRenderModel.resolve(documentModel, { side })` and
   `preparePcbSideResolvedRenderModel(documentModel, { side })` return a
   side-specific PCB render model for top-oriented renderers. Use
@@ -209,7 +287,9 @@ import {
   by the SVG renderer.
 
 Renderer output is deterministic string markup. The library does not attach DOM
-events or mutate a host document.
+events or mutate a host document. PCB and schematic SVG output includes
+semantic `data-*` attributes plus metadata sidecars for layers, nets,
+components, pins, pads, drills, and rendered view context.
 
 ## 3D Scene Data
 

@@ -11,11 +11,16 @@ rendering primitives.
 
 ## In Scope
 
-- `.kicad_sch` and `.kicad_pcb` parsing from `ArrayBuffer`
+- `.kicad_sch`, `.kicad_pcb`, `.kicad_mod`, `.kicad_sym`,
+  `.kicad_jobset`, `.kicad_dru`, `.kicad_wks`, `.net`, `.cmp`, legacy
+  `.lib`/`.dcm`/`.mod`, `fp-lib-table`, and `sym-lib-table` parsing from
+  `ArrayBuffer`
 - S-expression parser utilities needed by KiCad files
 - Direct board-file and project ZIP loading helpers
-- Project summary, grouped BOM, companion asset, and hierarchical schematic
-  diagnostics for loaded KiCad projects
+- KiCad library table, `.pretty`, `.kicad_symdir`, `.kicad_blocks`, and
+  `.kicad_block` manifest, search, and render-manifest helpers
+- Project summary, grouped BOM, companion asset, asset inventory, jobset
+  digest, and hierarchical schematic diagnostics for loaded KiCad projects
 - Board geometry helpers
 - KiCad layer side/class metadata, standard ordinal, alias, wildcard, and net
   resolution
@@ -25,6 +30,7 @@ rendering primitives.
   dry-run, and backup support metadata
 - Normalized caller-supplied DRC/ERC report summaries and parsed-board
   fabrication-readiness summaries
+- Schematic-local connectivity QA summaries from parsed KiCad model data
 - Schematic SVG rendering
 - PCB SVG rendering
 - BOM HTML rendering
