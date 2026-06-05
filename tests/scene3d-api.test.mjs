@@ -438,6 +438,80 @@ test('PcbScene3dBuilder exposes KiCad external model placements', () => {
     })
 })
 
+test('PcbScene3dBuilder anchors external model placements on board faces', () => {
+    const scene = PcbScene3dBuilder.build(
+        {
+            sourceFormat: 'kicad',
+            kind: 'pcb',
+            fileName: 'model-face-board.kicad_pcb',
+            pcb: {
+                boardOutline: {
+                    minX: 0,
+                    minY: 0,
+                    widthMil: 1000,
+                    heightMil: 800,
+                    segments: []
+                },
+                components: [
+                    {
+                        designator: 'U1',
+                        x: 400,
+                        y: 300,
+                        layer: 'TOP',
+                        pattern: 'Package_SO:SOIC-8',
+                        modelName: 'body.step',
+                        modelPath: '${KIPRJMOD}/parts/body.step',
+                        modelTransform: {
+                            rotationDeg: { x: -90, y: 0, z: 0 }
+                        }
+                    },
+                    {
+                        designator: 'U2',
+                        x: 500,
+                        y: 350,
+                        layer: 'BOTTOM',
+                        pattern: 'Package_SO:SOIC-8',
+                        modelName: 'body.step',
+                        modelPath: '${KIPRJMOD}/parts/body.step',
+                        modelTransform: {
+                            rotationDeg: { x: -90, y: 0, z: 0 }
+                        }
+                    }
+                ],
+                pads: [],
+                tracks: [],
+                vias: [],
+                kicadBoard: {
+                    title: 'KiCad Board',
+                    bounds: { minX: 0, minY: 0, width: 25.4, height: 20.32 },
+                    outlines: [],
+                    pads: [],
+                    drawings: [],
+                    texts: []
+                }
+            },
+            bom: []
+        },
+        {
+            sessionAssets: [
+                {
+                    name: 'body.step',
+                    relativePath: 'parts/body.step',
+                    format: 'step'
+                }
+            ],
+            boardThicknessMil: 80
+        }
+    )
+
+    assert.equal(scene.components[0].positionMil.z > 40, true)
+    assert.equal(scene.components[1].positionMil.z < -40, true)
+    assert.deepEqual(
+        scene.externalPlacements.map((placement) => placement.positionMil.z),
+        [40, -40]
+    )
+})
+
 test('PcbScene3dBuilder exposes KiCad copper text detail', () => {
     const scene = PcbScene3dBuilder.build({
         sourceFormat: 'kicad',

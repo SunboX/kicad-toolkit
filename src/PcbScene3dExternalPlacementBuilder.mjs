@@ -9,25 +9,30 @@ export class PcbScene3dExternalPlacementBuilder {
     /**
      * Builds placement records for components with resolved external models.
      * @param {object[]} components Scene components.
+     * @param {{ thicknessMil?: number }} [board] Scene board metadata.
      * @returns {object[]}
      */
-    static build(components) {
+    static build(components, board = {}) {
         return (Array.isArray(components) ? components : [])
             .filter(
                 (component) =>
                     component?.externalModel && component?.modelTransform
             )
             .map((component) =>
-                PcbScene3dExternalPlacementBuilder.#buildPlacement(component)
+                PcbScene3dExternalPlacementBuilder.#buildPlacement(
+                    component,
+                    board
+                )
             )
     }
 
     /**
      * Builds one placement shape used by host 3D runtimes.
      * @param {object} component Scene component.
+     * @param {{ thicknessMil?: number }} board Scene board metadata.
      * @returns {object}
      */
-    static #buildPlacement(component) {
+    static #buildPlacement(component, board) {
         return {
             designator: String(component?.designator || ''),
             mountSide: String(component?.mountSide || 'top'),
@@ -35,7 +40,10 @@ export class PcbScene3dExternalPlacementBuilder {
             positionMil: {
                 x: Number(component?.positionMil?.x || 0),
                 y: Number(component?.positionMil?.y || 0),
-                z: Number(component?.positionMil?.z || 0)
+                z: PcbScene3dExternalPlacementBuilder.#resolveBoardFaceZ(
+                    component,
+                    board
+                )
             },
             bodyPositionMil: { x: 0, y: 0 },
             bodyRotationDeg: 0,
@@ -45,6 +53,24 @@ export class PcbScene3dExternalPlacementBuilder {
                 ),
             externalModel: component.externalModel
         }
+    }
+
+    /**
+     * Resolves the PCB face anchor for KiCad footprint 3D models.
+     * @param {{ mountSide?: string, positionMil?: { z?: number } }} component Scene component.
+     * @param {{ thicknessMil?: number }} board Scene board metadata.
+     * @returns {number}
+     */
+    static #resolveBoardFaceZ(component, board) {
+        const thicknessMil = Number(board?.thicknessMil)
+        if (!Number.isFinite(thicknessMil) || thicknessMil <= 0) {
+            return Number(component?.positionMil?.z || 0)
+        }
+
+        const faceZ = thicknessMil / 2
+        return String(component?.mountSide || 'top').toLowerCase() === 'bottom'
+            ? -faceZ
+            : faceZ
     }
 
     /**

@@ -231,6 +231,6 @@ test('routes standalone KiCad symbol files through the parser facade', () => {
         circuitJson
             .filter((element) => element.type === 'source_port')
             .map((element) => element.pin_number),
-        ['1', '2']
+        [1, 2]
     )
 })

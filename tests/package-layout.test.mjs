@@ -35,6 +35,7 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'CircuitJsonModelSchema',
         'Geometry',
         'KicadArcGeometry',
+        'KicadCiArtifactBundleBuilder',
         'KicadDesignBlockLibraryParser',
         'KicadDesignRulesParser',
         'KicadEmbeddedAssetInventoryBuilder',
@@ -52,11 +53,13 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadNetResolver',
         'KicadNetlistParser',
         'KicadParser',
+        'KicadParserCompatibilityFuzzer',
         'KicadPcbDrawingParser',
         'KicadPcbLayerMetadata',
         'KicadPcbPadParser',
         'KicadPcbParser',
         'KicadProjectLoader',
+        'KicadProjectDocumentGraphBuilder',
         'KicadProjectMetadataParser',
         'KicadReadinessReport',
         'KicadSchematicConnectivityQaBuilder',
@@ -64,6 +67,7 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadSchematicParser',
         'KicadSchematicSymbolParser',
         'KicadSymbolLibraryParser',
+        'KicadSvgModelCrossLinkValidator',
         'KicadToolkitCapabilities',
         'KicadWorksheetParser',
         'NormalizedModelSchema',
@@ -77,12 +81,17 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
     assertPublicApi(rendererApi, [
         'BomTableRenderer',
         'KicadStrokeFont',
+        'KicadSvgUtils',
         'PcbInteractionIndex',
         'PcbInteractionItemRegistry',
         'PcbInteractionLayerModel',
         'PcbSideResolvedRenderModel',
+        'PcbSvgSemanticMetadata',
         'PcbSvgRenderer',
+        'SchematicProjectParameterResolver',
+        'SchematicSvgSemanticMetadata',
         'SchematicSvgRenderer',
+        'SchematicSvgTextMetrics',
         'isCopperPrimitive',
         'preparePcbSideResolvedRenderModel'
     ])
@@ -118,6 +127,7 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists(
         '../src/core/kicad/KicadEmbeddedAssetInventoryBuilder.mjs'
     )
+    await assertFileExists('../src/core/kicad/KicadCiArtifactBundleBuilder.mjs')
     await assertFileExists(
         '../src/core/kicad/KicadFootprintAssociationParser.mjs'
     )
@@ -135,10 +145,16 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/KicadLibraryTableParser.mjs')
     await assertFileExists('../src/core/kicad/KicadNetResolver.mjs')
     await assertFileExists('../src/core/kicad/KicadNetlistParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadParserCompatibilityFuzzer.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadPcbDrawingParser.mjs')
     await assertFileExists('../src/core/kicad/KicadPcbLayerMetadata.mjs')
     await assertFileExists('../src/core/kicad/KicadPcbPadParser.mjs')
     await assertFileExists('../src/core/kicad/KicadPcbParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadProjectDocumentGraphBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadProjectMetadataParser.mjs')
     await assertFileExists('../src/core/kicad/KicadProjectLoader.mjs')
     await assertFileExists('../src/core/kicad/KicadReadinessReport.mjs')
@@ -149,6 +165,9 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/KicadSchematicParser.mjs')
     await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
     await assertFileExists('../src/core/kicad/KicadSymbolLibraryParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadSvgModelCrossLinkValidator.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadToolkitCapabilities.mjs')
     await assertFileExists('../src/core/kicad/KicadWorksheetParser.mjs')
     await assertFileExists('../src/core/kicad/NormalizedModelSchema.mjs')

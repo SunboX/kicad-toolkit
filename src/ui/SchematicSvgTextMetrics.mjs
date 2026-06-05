@@ -11,6 +11,98 @@ const kicadTextBoxFudgeRatio = 0.17
 const kicadLocalLabelTextOffsetRatio = 0.15
 
 /**
+ * Exposes KiCad schematic stroke-text placement metrics for renderer consumers.
+ */
+export class SchematicSvgTextMetrics {
+    /**
+     * Applies KiCad's symbol-field placement transform.
+     * @param {object} sourceText Source schematic text.
+     * @param {object} renderedText Render-ready text.
+     * @returns {object}
+     */
+    static applySymbolFieldPlacement(sourceText, renderedText) {
+        return applySymbolFieldPlacement(sourceText, renderedText)
+    }
+
+    /**
+     * Applies schematic-item text offsets before stroke-font positioning.
+     * @param {object} sourceText Source schematic text.
+     * @param {object} renderedText Render-ready text.
+     * @returns {object}
+     */
+    static applySchematicTextOffset(sourceText, renderedText) {
+        return applySchematicTextOffset(sourceText, renderedText)
+    }
+
+    /**
+     * Resolves the SVG rotation direction for one rendered text node.
+     * @param {object} text Text primitive.
+     * @returns {number}
+     */
+    static resolveRenderedTextRotation(text) {
+        return resolveRenderedTextRotation(text)
+    }
+
+    /**
+     * Calculates KiCad-like baseline spacing for multiline text.
+     * @param {object} text Text item.
+     * @returns {number}
+     */
+    static textLineSpacing(text) {
+        return textLineSpacing(text)
+    }
+
+    /**
+     * Resolves KiCad's vertical stroke size for font and baseline metrics.
+     * @param {object} text Text item.
+     * @returns {number}
+     */
+    static textHeight(text) {
+        return textHeight(text)
+    }
+
+    /**
+     * Resolves KiCad's horizontal stroke size for glyph scaling.
+     * @param {object} text Text item.
+     * @returns {number}
+     */
+    static textWidth(text) {
+        return textWidth(text)
+    }
+
+    /**
+     * Calculates line origin from KiCad horizontal justification.
+     * @param {object} text Text item.
+     * @param {number} lineWidth Line width.
+     * @returns {number}
+     */
+    static textLineX(text, lineWidth) {
+        return textLineX(text, lineWidth)
+    }
+
+    /**
+     * Calculates one line baseline from KiCad vertical justification.
+     * @param {object} text Text item.
+     * @param {number} index Line index.
+     * @param {number} lineCount Total line count.
+     * @param {number} lineSpacing Line spacing.
+     * @returns {number}
+     */
+    static textLineY(text, index, lineCount, lineSpacing) {
+        return textLineY(text, index, lineCount, lineSpacing)
+    }
+
+    /**
+     * Resolves KiCad text stroke width.
+     * @param {object} text Text item.
+     * @returns {number}
+     */
+    static textStrokeWidth(text) {
+        return textStrokeWidth(text)
+    }
+}
+
+/**
  * Applies KiCad's symbol-field box transform and center-justified draw point.
  * @param {object} sourceText Source schematic text.
  * @param {object} renderedText Render-ready text.

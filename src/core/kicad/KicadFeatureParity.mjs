@@ -263,6 +263,24 @@ const features = Object.freeze([
             'ProjectDesignBundleBuilder and ProjectVariantViewBuilder expose a shared multi-document API.'
     }),
     feature({
+        id: 'project_document_graph',
+        label: 'Project document graph',
+        category: 'project_loading',
+        kicadNative: false,
+        altiumCapability:
+            'Build a read-only graph of project documents, libraries, generated outputs, and missing paths.',
+        kicadCapability:
+            'Build a read-only graph of KiCad project documents, libraries, design blocks, jobsets, generated outputs, assets, and missing paths.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#project-loading-fields'
+        ],
+        tests: ['tests/core/kicad-ci-parity-helpers.test.mjs'],
+        summary:
+            'KicadProjectDocumentGraphBuilder indexes parsed project relationships without touching the filesystem.'
+    }),
+    feature({
         id: 'kicad_library_index',
         label: 'KiCad library index',
         category: 'project_loading',
@@ -396,6 +414,39 @@ const features = Object.freeze([
         tests: ['tests/ui/kicad-svg-semantic-metadata.test.mjs'],
         summary:
             'PCB and schematic SVG renders expose semantic element, layer, net, component, pin, pad, and drill metadata.'
+    }),
+    feature({
+        id: 'renderer_helper_api',
+        label: 'Renderer helper API',
+        category: 'model_contracts',
+        kicadNative: false,
+        altiumCapability:
+            'Expose public SVG, schematic parameter, semantic metadata, and text metric helpers.',
+        kicadCapability:
+            'Expose KiCad SVG utilities, PCB/schematic semantic metadata builders, schematic project parameter resolution, and schematic stroke-text metrics.',
+        entrypoints: ['kicad-toolkit/renderers', 'kicad-toolkit'],
+        docs: ['docs/api.md#renderers', 'docs/capabilities.md'],
+        tests: [
+            'tests/api-entrypoints.test.mjs',
+            'tests/ui/kicad-renderers-api.test.mjs'
+        ],
+        summary:
+            'Renderer helper exports let host applications use KiCad-native formatting, metadata, parameter, and text metric contracts without importing internal paths.'
+    }),
+    feature({
+        id: 'svg_model_cross_link_validation',
+        label: 'SVG model cross-link validation',
+        category: 'model_contracts',
+        kicadNative: false,
+        altiumCapability:
+            'Validate semantic SVG links against normalized parser model records.',
+        kicadCapability:
+            'Validate KiCad semantic SVG data-element-key attributes and references against parsed schematic and PCB models.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/model-format.md#schema-contracts'],
+        tests: ['tests/core/kicad-ci-parity-helpers.test.mjs'],
+        summary:
+            'KicadSvgModelCrossLinkValidator reports missing, orphaned, and unresolved semantic SVG links.'
     }),
     feature({
         id: 'raw_kicad_inspectability',
@@ -605,6 +656,36 @@ const features = Object.freeze([
             'KicadSchematicConnectivityQaBuilder exposes schematic-local connectivity findings without invoking KiCad.'
     }),
     feature({
+        id: 'ci_artifact_bundle',
+        label: 'CI artifact bundle',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Build deterministic CI artifact packages from parsed project documents.',
+        kicadCapability:
+            'Build deterministic KiCad CI artifact packages with design bundles, document graphs, netlists, SVGs, asset inventories, readiness reports, and schematic QA.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/capabilities.md'],
+        tests: ['tests/core/kicad-ci-parity-helpers.test.mjs'],
+        summary:
+            'KicadCiArtifactBundleBuilder composes data-only parser, renderer, report, and netlist artifacts for CI workflows.'
+    }),
+    feature({
+        id: 'parser_compatibility_fuzzer',
+        label: 'Parser compatibility fuzzer',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Run deterministic synthetic parser compatibility smoke cases.',
+        kicadCapability:
+            'Run deterministic synthetic KiCad parser compatibility smoke cases.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: ['docs/api.md#parser', 'docs/capabilities.md'],
+        tests: ['tests/core/kicad-ci-parity-helpers.test.mjs'],
+        summary:
+            'KicadParserCompatibilityFuzzer exercises schematic, PCB, project metadata, and jobset parser entrypoints.'
+    }),
+    feature({
         id: 'documentation_and_tests',
         label: 'Documentation and tests',
         category: 'documentation_testing',
@@ -661,6 +742,14 @@ const exemptions = Object.freeze([
             'Parse .PrjPcb sections, document groups, variants, configurations, and output groups.',
         reason: 'KiCad project loading is file/archive based and currently exposes project summaries, documents, BOM rows, nets, assets, and diagnostics.',
         kicadEquivalent: 'KicadProjectLoader'
+    }),
+    exemption({
+        id: 'draftsman_digest_parser',
+        label: 'Altium Draftsman digest parsing',
+        altiumCapability: 'Parse Altium Draftsman drawing container digests.',
+        reason: 'KiCad drawing sheets, worksheets, and fabrication outputs are represented by .kicad_wks, .kicad_jobset, and generated output metadata rather than an Altium Draftsman container.',
+        kicadEquivalent:
+            'KicadWorksheetParser, KicadJobsetParser, KicadJobsetDigestBuilder, and KicadProjectDocumentGraphBuilder'
     }),
     exemption({
         id: 'altium_raw_record_registry',

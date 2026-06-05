@@ -5,9 +5,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
     BomTableRenderer,
+    KicadSvgUtils,
     PcbSideResolvedRenderModel,
+    PcbSvgSemanticMetadata,
     PcbSvgRenderer,
+    SchematicProjectParameterResolver,
+    SchematicSvgSemanticMetadata,
     SchematicSvgRenderer,
+    SchematicSvgTextMetrics,
     isCopperPrimitive,
     preparePcbSideResolvedRenderModel
 } from '../../src/renderers.mjs'
@@ -176,6 +181,99 @@ test('BomTableRenderer renders grouped KiCad BOM rows', () => {
     assert.match(markup, /bom-table/)
     assert.match(markup, /100n/)
     assert.match(markup, /U1/)
+})
+
+test('renderer helper API exposes KiCad semantic metadata and SVG utilities', () => {
+    assert.equal(
+        PcbSvgSemanticMetadata.schema,
+        'kicad-toolkit.pcb.svg.semantics.a1'
+    )
+    assert.equal(
+        SchematicSvgSemanticMetadata.schema,
+        'kicad-toolkit.schematic.svg.semantics.a1'
+    )
+    assert.deepEqual(
+        PcbSvgSemanticMetadata.displayLayerDescriptors({
+            layers: [{ name: 'F.Cu' }]
+        }),
+        [
+            {
+                layerKey: 'F.Cu',
+                displayName: 'F.Cu',
+                layerId: 0,
+                role: 'copper'
+            }
+        ]
+    )
+
+    const schematic = {
+        sheet: {
+            titleBlock: {
+                title: '${Title}',
+                comments: { 1: '${Comment}' }
+            }
+        },
+        texts: [{ text: '${Title}', value: '${Comment}' }]
+    }
+    const resolved = SchematicProjectParameterResolver.resolveSchematic(
+        schematic,
+        {
+            Title: 'Parity API',
+            Comment: 'Resolved'
+        }
+    )
+
+    assert.equal(resolved.sheet.titleBlock.title, 'Parity API')
+    assert.equal(resolved.sheet.titleBlock.comments[1], 'Resolved')
+    assert.deepEqual(resolved.texts[0], {
+        text: 'Parity API',
+        value: 'Resolved'
+    })
+    assert.equal(schematic.sheet.titleBlock.title, '${Title}')
+    assert.equal(SchematicSvgTextMetrics.textHeight({ sizeY: 2 }), 2)
+    assert.equal(SchematicSvgTextMetrics.textWidth({ sizeX: 3 }), 3)
+    assert.ok(
+        Math.abs(
+            SchematicSvgTextMetrics.textLineX(
+                { x: 10, hAlign: 'right', thickness: 0.12 },
+                4
+            ) - 5.921052631578947
+        ) < 0.0000001
+    )
+
+    assert.equal(KicadSvgUtils.formatNumber(1.23456), '1.2346')
+    assert.equal(KicadSvgUtils.formatNumber(1.23456, 2), '1.23')
+    assert.equal(KicadSvgUtils.formatNumber(Number.NaN), '0')
+    assert.equal(
+        KicadSvgUtils.escapeHtml('<A&B "\'>'),
+        '&lt;A&amp;B &quot;&#39;&gt;'
+    )
+    assert.equal(
+        KicadSvgUtils.renderAttributes({
+            'data-name': 'A&B',
+            'aria-hidden': false,
+            empty: '',
+            skip: null
+        }),
+        'data-name="A&amp;B" aria-hidden="false" empty=""'
+    )
+    assert.equal(
+        KicadSvgUtils.pathFromPoints(
+            [
+                { x: 1.23456, y: 2 },
+                { x: 3, y: 4 }
+            ],
+            { close: true }
+        ),
+        'M 1.2346 2 L 3 4 Z'
+    )
+    assert.deepEqual(
+        KicadSvgUtils.projectPoint(
+            { x: 2, y: 3 },
+            { scale: 10, offsetX: 1, offsetY: -1, flipY: true }
+        ),
+        { x: 21, y: -31 }
+    )
 })
 
 test('preparePcbSideResolvedRenderModel supports Altium-style PCB renderer usage', () => {

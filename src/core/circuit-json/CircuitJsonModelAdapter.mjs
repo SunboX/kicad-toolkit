@@ -4,8 +4,10 @@
 
 import { CircuitJsonModelSchema } from './CircuitJsonModelSchema.mjs'
 import { CircuitJsonModelAdapterPrimitives } from './CircuitJsonModelAdapterPrimitives.mjs'
+import { CircuitJsonModelAdapterElements } from './CircuitJsonModelAdapterElements.mjs'
 
 const Primitives = CircuitJsonModelAdapterPrimitives
+const Elements = CircuitJsonModelAdapterElements
 
 /**
  * Converts between legacy renderer models and Circuit JSON element arrays.
@@ -212,10 +214,10 @@ export class CircuitJsonModelAdapter {
                     pin.name || pin.designator || pinIndex,
                     String(pinIndex + 1)
                 ),
-                pin_number: Primitives.string(
-                    pin.pinNumber || pin.designator || pin.name,
-                    String(pinIndex + 1)
-                )
+                pin_number:
+                    Primitives.pinNumber(
+                        pin.pinNumber || pin.designator || pin.name
+                    ) ?? pinIndex + 1
             })
             circuitJson.push({
                 type: 'schematic_port',
@@ -240,7 +242,8 @@ export class CircuitJsonModelAdapter {
             circuitJson.push({
                 type: 'source_net',
                 source_net_id: sourceNetId,
-                name: Primitives.string(net.name, `NET_${netIndex + 1}`)
+                name: Primitives.string(net.name, `NET_${netIndex + 1}`),
+                member_source_group_ids: []
             })
         }
 
@@ -303,7 +306,8 @@ export class CircuitJsonModelAdapter {
                 name: Primitives.string(
                     net.name || net.netName,
                     `NET_${netIndex + 1}`
-                )
+                ),
+                member_source_group_ids: []
             })
         }
 
@@ -446,69 +450,92 @@ export class CircuitJsonModelAdapter {
             sourceComponentId
         )
         const pcbPortId = Primitives.id(idScope, ['pcb_port', sourcePortId])
-        const common = {
-            source_port_id: sourcePortId,
-            pcb_port_id: pcbPortId,
-            pcb_component_id: Primitives.id(idScope, [
-                'pcb_component',
-                pad.componentIndex ?? 'unassigned'
-            ]),
-            center: Primitives.milPoint(pad.x, pad.y),
-            layer: Primitives.side(pad.layer),
-            port_hints: [
-                Primitives.string(
-                    pad.name || pad.pinName || pad.designator,
-                    String(padIndex + 1)
-                )
-            ]
-        }
-        const sourceNetId = Primitives.netIdForPrimitive(
+        const pcbComponentId = Primitives.id(idScope, [
+            'pcb_component',
+            pad.componentIndex ?? 'unassigned'
+        ])
+        const center = Primitives.milPoint(pad.x, pad.y)
+        const layer = Primitives.layerName(pad)
+        const layers = Primitives.layers(pad)
+        const portHint = Primitives.string(
+            pad.name || pad.pinName || pad.designator,
+            String(padIndex + 1)
+        )
+        Elements.sourceNetIdForPrimitive(
+            circuitJson,
             idScope,
             pad,
             sourceNetIds
         )
-
-        circuitJson.push({
+        const sourcePort = {
             type: 'source_port',
             source_port_id: sourcePortId,
             source_component_id: sourceComponentId,
-            name: common.port_hints[0],
-            pin_number: common.port_hints[0]
-        })
+            name: portHint,
+            port_hints: [portHint]
+        }
+        const pinNumber = Primitives.pinNumber(portHint)
+        if (pinNumber !== undefined) sourcePort.pin_number = pinNumber
+
+        circuitJson.push(sourcePort)
         circuitJson.push({
             type: 'pcb_port',
-            ...common,
-            source_net_id: sourceNetId
+            pcb_port_id: pcbPortId,
+            source_port_id: sourcePortId,
+            pcb_component_id: pcbComponentId,
+            x: center.x,
+            y: center.y,
+            layers
         })
 
         if (Primitives.isThroughHolePad(pad)) {
-            circuitJson.push({
-                type: pad.isPlated === false ? 'pcb_hole' : 'pcb_plated_hole',
-                ...common,
-                outer_diameter: Primitives.milNumber(
-                    pad.sizeTopX || pad.sizeX || pad.diameter,
-                    0
-                ),
-                hole_diameter: Primitives.milNumber(pad.holeDiameter, 0),
-                shape: Primitives.padShape(pad)
+            Elements.appendPcbHole(circuitJson, idScope, pad, padIndex, {
+                center,
+                layers,
+                pcbComponentId,
+                pcbPortId,
+                portHint
             })
             return
         }
 
-        circuitJson.push({
+        const smtPad = {
             type: 'pcb_smtpad',
-            ...common,
-            shape: Primitives.padShape(pad),
-            width: Primitives.milNumber(
-                pad.sizeTopX || pad.sizeX || pad.width,
-                0
-            ),
-            height: Primitives.milNumber(
-                pad.sizeTopY || pad.sizeY || pad.height,
-                0
-            ),
-            rotation: Primitives.number(pad.rotation || pad.holeRotation, 0)
-        })
+            pcb_smtpad_id: Primitives.id(idScope, ['pcb_smtpad', sourcePortId]),
+            pcb_component_id: pcbComponentId,
+            pcb_port_id: pcbPortId,
+            x: center.x,
+            y: center.y,
+            layer,
+            port_hints: [portHint],
+            shape: Primitives.padShape(pad)
+        }
+        const width = Primitives.milNumber(
+            pad.sizeTopX || pad.sizeX || pad.width,
+            0
+        )
+        const height = Primitives.milNumber(
+            pad.sizeTopY || pad.sizeY || pad.height,
+            0
+        )
+        const rotation = Primitives.number(pad.rotation || pad.holeRotation, 0)
+
+        if (smtPad.shape === 'circle') {
+            smtPad.radius = Primitives.round(Math.max(width, height) / 2)
+        } else {
+            smtPad.width = width
+            smtPad.height = height
+            if (smtPad.shape === 'pill') {
+                smtPad.radius = Primitives.round(Math.min(width, height) / 2)
+            }
+            if (rotation) {
+                smtPad.shape =
+                    smtPad.shape === 'pill' ? 'rotated_pill' : 'rotated_rect'
+                smtPad.ccw_rotation = rotation
+            }
+        }
+
+        circuitJson.push(smtPad)
     }
 
     /**
@@ -531,14 +558,17 @@ export class CircuitJsonModelAdapter {
             'source_trace',
             track.netName || track.netIndex || trackIndex
         ])
+        const sourceNetId = Elements.sourceNetIdForPrimitive(
+            circuitJson,
+            idScope,
+            track,
+            sourceNetIds
+        )
         circuitJson.push({
             type: 'source_trace',
             source_trace_id: sourceTraceId,
-            source_net_id: Primitives.netIdForPrimitive(
-                idScope,
-                track,
-                sourceNetIds
-            )
+            connected_source_port_ids: [],
+            connected_source_net_ids: sourceNetId ? [sourceNetId] : []
         })
         circuitJson.push({
             type: 'pcb_trace',
@@ -573,14 +603,15 @@ export class CircuitJsonModelAdapter {
      * @returns {void}
      */
     static #appendPcbVia(circuitJson, idScope, via, viaIndex, sourceNetIds) {
+        Elements.sourceNetIdForPrimitive(
+            circuitJson,
+            idScope,
+            via,
+            sourceNetIds
+        )
         circuitJson.push({
             type: 'pcb_via',
             pcb_via_id: Primitives.id(idScope, ['pcb_via', viaIndex]),
-            source_net_id: Primitives.netIdForPrimitive(
-                idScope,
-                via,
-                sourceNetIds
-            ),
             x: Primitives.milNumber(via.x, 0),
             y: Primitives.milNumber(via.y, 0),
             outer_diameter: Primitives.milNumber(via.diameter, 0),
@@ -655,10 +686,9 @@ export class CircuitJsonModelAdapter {
                         pin.name || pin.number,
                         String(pinIndex + 1)
                     ),
-                    pin_number: Primitives.string(
-                        pin.number || pin.name,
-                        String(pinIndex + 1)
-                    )
+                    pin_number:
+                        Primitives.pinNumber(pin.number || pin.name) ??
+                        pinIndex + 1
                 })
             }
         }
@@ -726,28 +756,41 @@ export class CircuitJsonModelAdapter {
         circuitJson.push(lineElement)
 
         if (line.kind === 'wire' || line.netName || line.netIndex) {
+            const sourceTraceId = Primitives.id(idScope, [
+                'source_trace',
+                line.netName || line.netIndex || lineIndex
+            ])
+            const sourceNetId = Elements.sourceNetIdForPrimitive(
+                circuitJson,
+                idScope,
+                line,
+                netIds
+            )
+
+            circuitJson.push({
+                type: 'source_trace',
+                source_trace_id: sourceTraceId,
+                connected_source_port_ids: [],
+                connected_source_net_ids: sourceNetId ? [sourceNetId] : []
+            })
             circuitJson.push({
                 type: 'schematic_trace',
                 schematic_trace_id: Primitives.id(idScope, [
                     'schematic_trace',
                     lineIndex
                 ]),
-                source_trace_id: Primitives.id(idScope, [
-                    'source_trace',
-                    line.netName || line.netIndex || lineIndex
-                ]),
-                source_net_id:
-                    netIds.get(String(line.netName)) ||
-                    Primitives.sourceNetId(
-                        idScope,
-                        line.netName || line.netIndex || lineIndex
-                    ),
+                source_trace_id: sourceTraceId,
+                junctions: [],
                 edges: [
                     {
-                        x1: lineElement.x1,
-                        y1: lineElement.y1,
-                        x2: lineElement.x2,
-                        y2: lineElement.y2
+                        from: {
+                            x: lineElement.x1,
+                            y: lineElement.y1
+                        },
+                        to: {
+                            x: lineElement.x2,
+                            y: lineElement.y2
+                        }
                     }
                 ]
             })
@@ -767,24 +810,28 @@ export class CircuitJsonModelAdapter {
             text.text || text.value || text.name,
             ''
         )
-        const base = {
-            text: textValue,
-            anchor_position: Primitives.point(text.x, text.y),
-            anchor_alignment: 'center'
-        }
+        const position = Primitives.point(text.x, text.y)
 
         if (Primitives.isNetLabel(text)) {
+            const sourceNetId = Primitives.sourceNetId(
+                idScope,
+                textValue || textIndex
+            )
+            Elements.appendMissingSourceNet(
+                circuitJson,
+                sourceNetId,
+                textValue || String(textIndex)
+            )
             circuitJson.push({
                 type: 'schematic_net_label',
                 schematic_net_label_id: Primitives.id(idScope, [
                     'schematic_net_label',
                     textIndex
                 ]),
-                source_net_id: Primitives.sourceNetId(
-                    idScope,
-                    textValue || textIndex
-                ),
-                ...base
+                source_net_id: sourceNetId,
+                center: position,
+                anchor_side: 'top',
+                text: textValue
             })
             return
         }
@@ -795,7 +842,9 @@ export class CircuitJsonModelAdapter {
                 'schematic_text',
                 textIndex
             ]),
-            ...base
+            text: textValue,
+            position,
+            anchor: 'center'
         })
     }
 

@@ -12,10 +12,12 @@ support without probing individual classes.
 The inventory also covers standalone footprint and symbol library parsing,
 library table and manifest parsing, library search and render manifests,
 project metadata parsing, design block indexing, jobset digesting,
-asset inventory, jobset/custom-rule/worksheet/netlist/association sidecar
-parsing, legacy library inspection, design bundle composition, semantic SVG
-metadata, per-layer SVG exports, schematic connectivity QA, and deterministic
-project netlist/wirelist export.
+asset inventory, project document graph indexing,
+jobset/custom-rule/worksheet/netlist/association sidecar parsing, legacy
+library inspection, design bundle composition, semantic SVG metadata, semantic
+SVG/model cross-link validation, renderer helper APIs, per-layer SVG exports,
+CI artifact bundle composition, deterministic parser compatibility smoke cases,
+schematic connectivity QA, and deterministic project netlist/wirelist export.
 
 ## Capability Inventory
 
@@ -104,12 +106,35 @@ specific to Altium file storage rather than shared EDA-library behavior. The
 does not apply to native KiCad files, and the closest KiCad equivalent.
 
 Current exemptions cover OLE compound documents, Altium binary primitive
-streams, `.PcbLib` stream containers, `.PrjPcb` INI parsing, Altium raw record
-registries, and embedded Altium binary payload extraction. KiCad equivalents
-are S-expression parsing, `.kicad_mod` footprint parsing, `.kicad_sym` symbol
-parsing, `fp-lib-table` and `sym-lib-table` parsing, library manifest
-building, project ZIP loading, raw KiCad AST/model preservation, companion
-asset metadata, and KiCad stroke-font rendering.
+streams, `.PcbLib` stream containers, `.PrjPcb` INI parsing, Altium Draftsman
+digests, Altium raw record registries, and embedded Altium binary payload
+extraction. KiCad equivalents are S-expression parsing, `.kicad_mod` footprint
+parsing, `.kicad_sym` symbol parsing, `fp-lib-table` and `sym-lib-table`
+parsing, library manifest building, project ZIP loading, `.kicad_wks`
+worksheet parsing, `.kicad_jobset` parsing, generated-output metadata,
+document graph indexing, raw KiCad AST/model preservation, companion asset
+metadata, and KiCad stroke-font rendering.
+
+Renderer-side helper parity is provided through `kicad-toolkit/renderers`.
+`KicadSvgUtils`, `PcbSvgSemanticMetadata`,
+`SchematicSvgSemanticMetadata`, `SchematicProjectParameterResolver`, and
+`SchematicSvgTextMetrics` expose the deterministic utility contracts used by
+the built-in renderers without requiring host applications to import internal
+files.
+
+## CI And Compatibility Helpers
+
+`KicadProjectDocumentGraphBuilder.build()` creates a read-only graph of parsed
+KiCad project documents, project pages, linked libraries, design blocks,
+jobsets, generated outputs, assets, and optional missing-path checks.
+`KicadCiArtifactBundleBuilder.build()` composes deterministic parser, renderer,
+netlist, readiness, QA, asset, and document graph artifacts for CI workflows.
+Both helpers are data only and do not write files.
+
+`KicadSvgModelCrossLinkValidator.validate()` compares semantic SVG element keys
+and references with parsed schematic or PCB model records.
+`KicadParserCompatibilityFuzzer.run()` executes deterministic synthetic KiCad
+parser smoke cases for compatibility checks.
 
 ## Schematic Connectivity QA
 

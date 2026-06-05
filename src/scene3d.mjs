@@ -119,8 +119,10 @@ export class PcbScene3dBuilder {
             pads,
             vias
         )
-        const externalPlacements =
-            PcbScene3dExternalPlacementBuilder.build(components)
+        const externalPlacements = PcbScene3dExternalPlacementBuilder.build(
+            components,
+            board
+        )
         const copperTexts = PcbScene3dCopperTextBuilder.build(
             documentModel,
             board

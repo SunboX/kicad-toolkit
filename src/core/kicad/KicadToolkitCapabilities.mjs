@@ -147,6 +147,14 @@ const capabilities = Object.freeze([
             'Composes loaded KiCad project documents into bundle-level sheets, components, nets, BOM, PnP, and variants.'
     }),
     capability({
+        id: 'project_document_graph',
+        label: 'Project document graph',
+        category: 'project_loading',
+        outputs: ['document graph'],
+        summary:
+            'Indexes KiCad project documents, libraries, design blocks, jobsets, generated outputs, assets, and missing paths.'
+    }),
+    capability({
         id: 'kicad_library_index_builder',
         label: 'Library index builder',
         category: 'project_loading',
@@ -224,6 +232,22 @@ const capabilities = Object.freeze([
             'Builds KiCad PCB and schematic semantic metadata sidecars for rendered SVG output.'
     }),
     capability({
+        id: 'svg_model_cross_link_validator',
+        label: 'SVG model cross-link validator',
+        category: 'geometry_metadata',
+        outputs: ['cross-link report'],
+        summary:
+            'Validates KiCad semantic SVG element keys and references against parsed schematic and PCB models.'
+    }),
+    capability({
+        id: 'renderer_helper_api',
+        label: 'Renderer helper API',
+        category: 'rendering',
+        outputs: ['SVG helpers', 'text metrics', 'parameter resolver'],
+        summary:
+            'Exposes deterministic SVG utility, semantic metadata, schematic parameter, and stroke-text metric helpers.'
+    }),
+    capability({
         id: 'pcb_svg_renderer',
         label: 'PCB SVG renderer',
         category: 'rendering',
@@ -261,6 +285,22 @@ const capabilities = Object.freeze([
         outputs: ['render manifest'],
         summary:
             'Builds deterministic render/export manifests for KiCad footprint, symbol, design-block, and mixed library indexes.'
+    }),
+    capability({
+        id: 'ci_artifact_bundle',
+        label: 'CI artifact bundle',
+        category: 'reporting',
+        outputs: ['artifact bundle'],
+        summary:
+            'Composes deterministic parser, renderer, netlist, document graph, asset, readiness, and QA outputs for CI.'
+    }),
+    capability({
+        id: 'parser_compatibility_fuzzer',
+        label: 'Parser compatibility fuzzer',
+        category: 'reporting',
+        outputs: ['fuzz report'],
+        summary:
+            'Runs deterministic synthetic KiCad parser smoke cases for compatibility checks.'
     }),
     capability({
         id: 'pcb_scene3d_description',

@@ -36,8 +36,13 @@ be reused by other browser or Node-based tools.
 - Search KiCad libraries, build deterministic library render manifests, digest
   KiCad jobsets, inventory embedded/companion assets, and report
   schematic-local connectivity QA findings
+- Build project document graphs and deterministic CI artifact bundles, validate
+  semantic SVG/model cross-links, and run deterministic parser compatibility
+  smoke cases
 - Expose an auditable feature-level parity inventory against Altium Toolkit
   capabilities, including explicit source-format exemptions
+- Expose renderer helper APIs for KiCad SVG formatting, semantic metadata,
+  schematic project parameters, and stroke-text metrics
 - Preserve raw KiCad board detail through the wrapped `pcb.kicadBoard` model so
   lower-level KiCad parser output remains inspectable
 - Emit Circuit JSON arrays from parser roots, with non-serialized

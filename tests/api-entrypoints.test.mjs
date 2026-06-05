@@ -24,6 +24,7 @@ test('root entrypoint exports parser and renderer classes', () => {
     assert.equal(typeof rootApi.CircuitJsonModelSchema.attach, 'function')
     assert.equal(typeof rootApi.KicadToolkitCapabilities.inventory, 'function')
     assert.equal(typeof rootApi.KicadFeatureParity.inventory, 'function')
+    assert.equal(typeof rootApi.KicadCiArtifactBundleBuilder.build, 'function')
     assert.equal(typeof rootApi.KicadDesignBlockLibraryParser.build, 'function')
     assert.equal(typeof rootApi.KicadDesignRulesParser.parse, 'function')
     assert.equal(
@@ -53,6 +54,7 @@ test('root entrypoint exports parser and renderer classes', () => {
     assert.equal(typeof rootApi.KicadLegacyLibraryParser.parse, 'function')
     assert.equal(typeof rootApi.KicadNetlistParser.parse, 'function')
     assert.equal(typeof rootApi.KicadParser.parseArrayBuffer, 'function')
+    assert.equal(typeof rootApi.KicadParserCompatibilityFuzzer.run, 'function')
     assert.equal(
         typeof rootApi.KicadPcbLayerMetadata.primitiveLayers,
         'function'
@@ -64,6 +66,10 @@ test('root entrypoint exports parser and renderer classes', () => {
     assert.equal(typeof rootApi.KicadPcbPadParser.parsePad, 'function')
     assert.equal(typeof rootApi.KicadPcbParser.parse, 'function')
     assert.equal(typeof rootApi.KicadProjectMetadataParser.parse, 'function')
+    assert.equal(
+        typeof rootApi.KicadProjectDocumentGraphBuilder.build,
+        'function'
+    )
     assert.equal(
         typeof rootApi.KicadSchematicConnectivityQaBuilder.build,
         'function'
@@ -88,12 +94,24 @@ test('root entrypoint exports parser and renderer classes', () => {
     assert.equal(typeof rootApi.SExpressionSchema.parse, 'function')
     assert.equal(typeof rootApi.SExpressionTree.child, 'function')
     assert.equal(typeof rootApi.SExpressionTree.describe, 'function')
+    assert.equal(
+        typeof rootApi.KicadSvgModelCrossLinkValidator.validate,
+        'function'
+    )
     assert.equal(typeof rootApi.BomTableRenderer.render, 'function')
+    assert.equal(typeof rootApi.KicadSvgUtils.formatNumber, 'function')
+    assert.equal(typeof rootApi.PcbSvgSemanticMetadata.schema, 'string')
     assert.equal(typeof rootApi.PcbSvgRenderer.render, 'function')
     assert.equal(typeof rootApi.PcbSideResolvedRenderModel.resolve, 'function')
     assert.equal(typeof rootApi.preparePcbSideResolvedRenderModel, 'function')
     assert.equal(typeof rootApi.isCopperPrimitive, 'function')
+    assert.equal(
+        typeof rootApi.SchematicProjectParameterResolver.resolveSchematic,
+        'function'
+    )
+    assert.equal(typeof rootApi.SchematicSvgSemanticMetadata.schema, 'string')
     assert.equal(typeof rootApi.SchematicSvgRenderer.render, 'function')
+    assert.equal(typeof rootApi.SchematicSvgTextMetrics.textHeight, 'function')
     assert.equal(typeof rootApi.PcbScene3dBuilder.build, 'function')
     assert.equal(typeof rootApi.PcbScene3dPackages.resolve, 'function')
     assert.equal(typeof rootApi.PcbScene3dScenePreparator.prepare, 'function')
@@ -118,6 +136,10 @@ test('specialized entrypoints expose their intended API groups', () => {
         'function'
     )
     assert.equal(typeof parserApi.KicadFeatureParity.inventory, 'function')
+    assert.equal(
+        typeof parserApi.KicadCiArtifactBundleBuilder.build,
+        'function'
+    )
     assert.equal(
         typeof parserApi.KicadDesignBlockLibraryParser.build,
         'function'
@@ -158,6 +180,14 @@ test('specialized entrypoints expose their intended API groups', () => {
     )
     assert.equal(typeof parserApi.KicadPcbPadParser.parsePad, 'function')
     assert.equal(typeof parserApi.KicadPcbParser.parse, 'function')
+    assert.equal(
+        typeof parserApi.KicadParserCompatibilityFuzzer.run,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.KicadProjectDocumentGraphBuilder.build,
+        'function'
+    )
     assert.equal(typeof parserApi.KicadProjectMetadataParser.parse, 'function')
     assert.equal(
         typeof parserApi.KicadSchematicConnectivityQaBuilder.build,
@@ -178,10 +208,28 @@ test('specialized entrypoints expose their intended API groups', () => {
     assert.equal(typeof parserApi.SExpressionSchema.parse, 'function')
     assert.equal(typeof parserApi.SExpressionTree.child, 'function')
     assert.equal(typeof parserApi.SExpressionTree.describe, 'function')
+    assert.equal(
+        typeof parserApi.KicadSvgModelCrossLinkValidator.validate,
+        'function'
+    )
     assert.equal(typeof parserApi.KicadWorksheetParser.parse, 'function')
     assert.equal(typeof parserApi.PcbSvgRenderer, 'undefined')
     assert.equal(typeof rendererApi.PcbSvgRenderer.render, 'function')
+    assert.equal(typeof rendererApi.KicadSvgUtils.escapeHtml, 'function')
+    assert.equal(typeof rendererApi.PcbSvgSemanticMetadata.schema, 'string')
     assert.equal(typeof rendererApi.SchematicSvgRenderer.render, 'function')
+    assert.equal(
+        typeof rendererApi.SchematicProjectParameterResolver.resolveSchematic,
+        'function'
+    )
+    assert.equal(
+        typeof rendererApi.SchematicSvgSemanticMetadata.schema,
+        'string'
+    )
+    assert.equal(
+        typeof rendererApi.SchematicSvgTextMetrics.textLineSpacing,
+        'function'
+    )
     assert.equal(typeof rendererApi.BomTableRenderer.render, 'function')
     assert.equal(
         typeof rendererApi.PcbSideResolvedRenderModel.resolve,

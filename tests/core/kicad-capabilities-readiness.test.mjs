@@ -52,12 +52,42 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         summary:
             'Reports schematic-local implicit nets, dangling labels, orphan sheet entries, unconnected pins, and ambiguous junctions.'
     })
+    assert.deepEqual(byId.get('renderer_helper_api'), {
+        id: 'renderer_helper_api',
+        label: 'Renderer helper API',
+        category: 'rendering',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['SVG helpers', 'text metrics', 'parameter resolver'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Exposes deterministic SVG utility, semantic metadata, schematic parameter, and stroke-text metric helpers.'
+    })
+    assert.deepEqual(byId.get('ci_artifact_bundle'), {
+        id: 'ci_artifact_bundle',
+        label: 'CI artifact bundle',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['artifact bundle'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Composes deterministic parser, renderer, netlist, document graph, asset, readiness, and QA outputs for CI.'
+    })
 
     const reporting = KicadToolkitCapabilities.inventory({
         category: 'reporting'
     })
 
-    assert.equal(reporting.total, 4)
+    assert.equal(reporting.total, 6)
     assert.deepEqual(Object.keys(reporting.categories), ['reporting'])
 })
 

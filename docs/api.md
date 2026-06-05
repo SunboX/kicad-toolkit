@@ -140,8 +140,20 @@ applies KiCad DNP flags and project variant DNP/parameter overrides.
 `ProjectNetlistExporter.buildNetlistJson()` and `buildWirelist()` emit
 deterministic KiCad project netlist exports.
 
+`KicadProjectDocumentGraphBuilder.build(projectModel, options)` indexes parsed
+project pages, standalone parsed documents, local libraries, design blocks,
+jobsets, generated outputs, companion assets, and optional missing-path checks.
+`KicadCiArtifactBundleBuilder.build(options)` composes deterministic parser,
+renderer, netlist, document graph, asset, readiness, and schematic QA artifacts
+for CI-style workflows without writing files or invoking KiCad. Use
+`KicadSvgModelCrossLinkValidator.validate(documentModel, svgMarkup)` to compare
+semantic SVG element keys and references with the parsed schematic or PCB
+model. `KicadParserCompatibilityFuzzer.run()` runs deterministic synthetic
+KiCad parser smoke cases and returns a read-only compatibility report.
+
 Specialized parser helpers are exported for lower-level integrations, including
-`Geometry`, `KicadArcGeometry`, `KicadLayerResolver`, `KicadNetResolver`,
+`Geometry`, `KicadArcGeometry`, `KicadCiArtifactBundleBuilder`,
+`KicadLayerResolver`, `KicadNetResolver`,
 `KicadDesignBlockLibraryParser`, `KicadDesignRulesParser`,
 `KicadEmbeddedAssetInventoryBuilder`,
 `KicadFootprintAssociationParser`, `KicadFootprintLibraryParser`,
@@ -149,16 +161,18 @@ Specialized parser helpers are exported for lower-level integrations, including
 `KicadLegacyLibraryParser`, `KicadLibraryIndexBuilder`,
 `KicadLibraryRenderManifestBuilder`, `KicadLibrarySearchIndex`,
 `KicadLibraryTableParser`, `KicadNetlistParser`,
-`KicadPcbDrawingParser`, `KicadPcbLayerMetadata`, `KicadPcbPadParser`,
-`KicadProjectMetadataParser`, `KicadFeatureParity`, `KicadReadinessReport`,
+`KicadParserCompatibilityFuzzer`, `KicadPcbDrawingParser`,
+`KicadPcbLayerMetadata`, `KicadPcbPadParser`,
+`KicadProjectDocumentGraphBuilder`, `KicadProjectMetadataParser`,
+`KicadFeatureParity`, `KicadReadinessReport`,
 `KicadSchematicConnectivityQaBuilder`, `KicadSchematicGraphicParser`,
-`KicadSchematicSymbolParser`,
+`KicadSchematicSymbolParser`, `KicadSvgModelCrossLinkValidator`,
 `KicadSymbolLibraryParser`, `KicadToolkitCapabilities`,
 `KicadWorksheetParser`, `ProjectDesignBundleBuilder`,
 `ProjectNetlistExporter`, `ProjectVariantViewBuilder`, and
 `SExpressionSchema` and `SExpressionTree`. The layer, net, drawing, pad,
-schematic, report, capability, library, sidecar, and S-expression helpers expose the same
-normalization used by
+schematic, report, capability, library, sidecar, and S-expression helpers expose
+the same normalization used by
 `.kicad_pcb` and `.kicad_sch` parsing. `KicadFeatureParity` exposes a data-only
 parity inventory for KiCad equivalents and source-format exemptions.
 `SExpressionParser.parse(source)` returns the raw nested S-expression tree used
@@ -267,7 +281,12 @@ import {
     PcbSvgRenderer,
     PcbSideResolvedRenderModel,
     preparePcbSideResolvedRenderModel,
-    BomTableRenderer
+    BomTableRenderer,
+    KicadSvgUtils,
+    PcbSvgSemanticMetadata,
+    SchematicProjectParameterResolver,
+    SchematicSvgSemanticMetadata,
+    SchematicSvgTextMetrics
 } from 'kicad-toolkit/renderers'
 ```
 
@@ -285,6 +304,15 @@ import {
 - `BomTableRenderer.render(rows)` returns grouped BOM table markup.
 - `KicadStrokeFont` exposes the stroke-font metrics and path construction used
   by the SVG renderer.
+- `KicadSvgUtils` exposes deterministic renderer helper methods for compact
+  SVG number formatting, escaping, attribute rendering, point projection, and
+  path construction.
+- `PcbSvgSemanticMetadata` and `SchematicSvgSemanticMetadata` expose the
+  semantic metadata builders used by the PCB and schematic SVG renderers.
+- `SchematicProjectParameterResolver.resolveSchematic(schematic, parameters)`
+  resolves KiCad `${Variable}` text without mutating the source schematic.
+- `SchematicSvgTextMetrics` exposes KiCad stroke-text placement metrics used by
+  the schematic renderer.
 
 Renderer output is deterministic string markup. The library does not attach DOM
 events or mutate a host document. PCB and schematic SVG output includes

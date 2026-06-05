@@ -61,6 +61,16 @@ export class CircuitJsonModelAdapterPrimitives {
     }
 
     /**
+     * Returns a numeric pin number when the source value is numeric.
+     * @param {unknown} value
+     * @returns {number | undefined}
+     */
+    static pinNumber(value) {
+        const numeric = Number(value)
+        return Number.isFinite(numeric) ? numeric : undefined
+    }
+
+    /**
      * Converts a mil value to millimeters.
      * @param {unknown} value
      * @param {number} fallback
@@ -238,16 +248,37 @@ export class CircuitJsonModelAdapterPrimitives {
     }
 
     /**
-     * Returns a normalized copper layer name.
+     * Returns a normalized Circuit JSON layer reference.
      * @param {Record<string, unknown>} primitive
      * @returns {string}
      */
     static layerName(primitive) {
-        if (primitive.layerName) return String(primitive.layerName)
-        if (primitive.layer) return String(primitive.layer).toLowerCase()
+        const layerName = String(primitive.layerName || primitive.layer || '')
+            .toLowerCase()
+            .trim()
+        const innerMatch = layerName.match(/^in(\d+)(?:\.cu)?$/u)
+        if (layerName.includes('bottom') || layerName === 'b.cu') {
+            return 'bottom'
+        }
+        if (layerName.includes('top') || layerName === 'f.cu') {
+            return 'top'
+        }
+        if (innerMatch) return `inner${innerMatch[1]}`
         if (primitive.layerId === 1) return 'top'
         if (primitive.layerId === 32) return 'bottom'
         return 'top'
+    }
+
+    /**
+     * Returns the Circuit JSON layer list for one PCB pad or port.
+     * @param {Record<string, unknown>} primitive
+     * @returns {string[]}
+     */
+    static layers(primitive) {
+        if (CircuitJsonModelAdapterPrimitives.isThroughHolePad(primitive)) {
+            return ['top', 'bottom']
+        }
+        return [CircuitJsonModelAdapterPrimitives.layerName(primitive)]
     }
 
     /**

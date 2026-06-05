@@ -14,19 +14,19 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
     assert.equal(inventory.filters.category, null)
     assert.equal(inventory.filters.status, null)
     assert.equal(inventory.implemented, true)
-    assert.equal(inventory.total, 37)
-    assert.deepEqual(inventory.statusCounts, { implemented: 37 })
+    assert.equal(inventory.total, 42)
+    assert.deepEqual(inventory.statusCounts, { implemented: 42 })
     assert.deepEqual(inventory.nativeCounts, {
-        adapted_contract: 10,
+        adapted_contract: 15,
         kicad_native: 27
     })
-    assert.equal(inventory.featureCoverage.implemented, 37)
-    assert.equal(inventory.featureCoverage.exempted, 6)
-    assert.equal(inventory.featureCoverage.totalDocumented, 43)
+    assert.equal(inventory.featureCoverage.implemented, 42)
+    assert.equal(inventory.featureCoverage.exempted, 7)
+    assert.equal(inventory.featureCoverage.totalDocumented, 49)
     assert.equal(inventory.categories.parser_roots.count, 11)
-    assert.equal(inventory.categories.project_loading.count, 9)
+    assert.equal(inventory.categories.project_loading.count, 10)
     assert.equal(inventory.categories.scene3d.count, 2)
-    assert.equal(inventory.exemptions.length, 6)
+    assert.equal(inventory.exemptions.length, 7)
 
     assert.deepEqual(byId.get('parse_kicad_schematic'), {
         id: 'parse_kicad_schematic',
@@ -63,6 +63,46 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
         ],
         summary:
             'PcbSideResolvedRenderModel and preparePcbSideResolvedRenderModel support front and back KiCad views.'
+    })
+
+    assert.deepEqual(byId.get('renderer_helper_api'), {
+        id: 'renderer_helper_api',
+        label: 'Renderer helper API',
+        category: 'model_contracts',
+        status: 'implemented',
+        kicadNative: false,
+        altiumCapability:
+            'Expose public SVG, schematic parameter, semantic metadata, and text metric helpers.',
+        kicadCapability:
+            'Expose KiCad SVG utilities, PCB/schematic semantic metadata builders, schematic project parameter resolution, and schematic stroke-text metrics.',
+        entrypoints: ['kicad-toolkit/renderers', 'kicad-toolkit'],
+        docs: ['docs/api.md#renderers', 'docs/capabilities.md'],
+        tests: [
+            'tests/api-entrypoints.test.mjs',
+            'tests/ui/kicad-renderers-api.test.mjs'
+        ],
+        summary:
+            'Renderer helper exports let host applications use KiCad-native formatting, metadata, parameter, and text metric contracts without importing internal paths.'
+    })
+
+    assert.deepEqual(byId.get('project_document_graph'), {
+        id: 'project_document_graph',
+        label: 'Project document graph',
+        category: 'project_loading',
+        status: 'implemented',
+        kicadNative: false,
+        altiumCapability:
+            'Build a read-only graph of project documents, libraries, generated outputs, and missing paths.',
+        kicadCapability:
+            'Build a read-only graph of KiCad project documents, libraries, design blocks, jobsets, generated outputs, assets, and missing paths.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#project-loading-fields'
+        ],
+        tests: ['tests/core/kicad-ci-parity-helpers.test.mjs'],
+        summary:
+            'KicadProjectDocumentGraphBuilder indexes parsed project relationships without touching the filesystem.'
     })
 
     assert.deepEqual(byId.get('parse_kicad_design_rules'), {
@@ -130,6 +170,16 @@ test('KicadFeatureParity records Altium-only source-format exemptions', () => {
         altiumCapability: 'Parse .PcbLib footprint library streams.',
         reason: 'KiCad footprint libraries are text .kicad_mod files in .pretty folders rather than Altium .PcbLib compound streams.',
         kicadEquivalent: 'KicadFootprintLibraryParser and KicadPcbParser',
+        docs: ['spec/library-scope.md']
+    })
+
+    assert.deepEqual(byId.get('draftsman_digest_parser'), {
+        id: 'draftsman_digest_parser',
+        label: 'Altium Draftsman digest parsing',
+        altiumCapability: 'Parse Altium Draftsman drawing container digests.',
+        reason: 'KiCad drawing sheets, worksheets, and fabrication outputs are represented by .kicad_wks, .kicad_jobset, and generated output metadata rather than an Altium Draftsman container.',
+        kicadEquivalent:
+            'KicadWorksheetParser, KicadJobsetParser, KicadJobsetDigestBuilder, and KicadProjectDocumentGraphBuilder',
         docs: ['spec/library-scope.md']
     })
 })

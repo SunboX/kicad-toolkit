@@ -221,6 +221,19 @@ images, worksheet bitmaps, PCB 3D model references, and companion project
 assets. Model-reference rows mark `available` when a matching companion asset
 entry is present.
 
+`KicadProjectDocumentGraphBuilder` emits
+`kicad-toolkit.project.document-graph.a1` reports. Graph rows include parsed
+documents, project pages, linked libraries, design blocks, jobsets, generated
+outputs, assets, missing-path checks, grouped path lists, and indexes by path,
+kind, library kind, and generated-output source.
+
+`KicadCiArtifactBundleBuilder` emits
+`kicad-toolkit.ci.artifact-bundle.a1` reports for deterministic CI workflows.
+The bundle includes normalized models, a project design bundle, document graph,
+netlist JSON, wirelist text, BOM rows, PnP rows, schematic SVGs, per-layer PCB
+SVGs, parsed-board readiness reports, schematic QA reports, asset inventory,
+and collected diagnostics. It is data only and does not write output files.
+
 ## Project Fields
 
 `KicadProjectMetadataParser` emits a normalized `project-metadata` root for
@@ -264,6 +277,17 @@ from recovered parser data only.
 `kicad-toolkit.schematic.connectivity-qa.a1` reports with counts and findings
 for implicit net names, dangling labels, orphan sheet entries, unconnected
 visible pins, and ambiguous junctions.
+
+`KicadSvgModelCrossLinkValidator.validate()` returns
+`kicad-toolkit.svg-model-cross-link.a1` reports with expected semantic element
+keys, found SVG element keys, missing elements, orphan elements, unresolved
+references, metadata element rows, and summary counts. The validator reads SVG
+markup strings and parsed models only.
+
+`KicadParserCompatibilityFuzzer.run()` returns
+`kicad-toolkit.parser-compatibility-fuzz.a1` reports for deterministic
+synthetic parser smoke cases. Each case records the parser entrypoint, source
+file name, status, normalized summary, and any captured error message.
 
 ## Compatibility Rule
 
