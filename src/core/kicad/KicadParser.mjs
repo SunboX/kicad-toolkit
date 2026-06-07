@@ -6,14 +6,14 @@ import { KicadArcGeometry } from './KicadArcGeometry.mjs'
 import { KicadAuxiliaryParserRouter } from './KicadAuxiliaryParserRouter.mjs'
 import { KicadFootprintLibraryParser } from './KicadFootprintLibraryParser.mjs'
 import { KicadPcbLayerMetadata } from './KicadPcbLayerMetadata.mjs'
+import { KicadPcbDocumentSidecarBuilder } from './KicadPcbDocumentSidecarBuilder.mjs'
+import { KicadPcbPickPlacePositionResolver } from './KicadPcbPickPlacePositionResolver.mjs'
 import { KicadPcbParser } from './KicadPcbParser.mjs'
 import { KicadSchematicParser } from './KicadSchematicParser.mjs'
 import { KicadSymbolLibraryParser } from './KicadSymbolLibraryParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
 import { CircuitJsonModelAdapter } from '../circuit-json/CircuitJsonModelAdapter.mjs'
-
 const milsPerMillimeter = 1000 / 25.4
-
 /**
  * Circuit JSON parser facade for KiCad documents.
  */
@@ -111,6 +111,7 @@ export class KicadParser {
                         .at(-1) || 0
                 ),
                 designator: footprint.reference,
+                footprintId: footprint.id,
                 x: toMil(footprint.x),
                 y: toMil(footprint.y),
                 layer: footprint.side === 'back' ? 'BOTTOM' : 'TOP',
@@ -210,6 +211,40 @@ export class KicadParser {
         const classes = board.classes || []
         const rules = board.rules || []
         const statistics = board.statistics || {}
+        const pickPlace = KicadPcbPickPlacePositionResolver.buildModel(
+            components,
+            pads
+        )
+        const pcb = {
+            boardOutline,
+            layers: documentLayers,
+            layerDefinitions,
+            primitiveLayers,
+            nets,
+            classes,
+            rules,
+            statistics,
+            components,
+            pickPlace,
+            polygons,
+            fills: [],
+            tracks,
+            arcs,
+            vias,
+            pads,
+            regions: [],
+            shapeBasedRegions: [],
+            boardRegions: [],
+            zoneSemantics: board.zoneSemantics || [],
+            texts: (board.texts || []).map(normalizeBoardText),
+            embeddedModels: [],
+            componentBodies: [],
+            componentPrimitiveGroups: [],
+            kicadBoard: board
+        }
+        KicadPcbDocumentSidecarBuilder.attach(pcb, {
+            fileName: fileName || board.fileName || ''
+        })
 
         return NormalizedModelSchema.attach({
             sourceFormat: 'kicad',
@@ -218,7 +253,11 @@ export class KicadParser {
             fileName: fileName || board.fileName || '',
             summary: {
                 title:
-                    board.title || stripExtension(fileName || board.fileName),
+                    board.title ||
+                    String(fileName || board.fileName || '').replace(
+                        /\.[^.]+$/,
+                        ''
+                    ),
                 componentCount: components.length,
                 layerCount: documentLayers.length,
                 outlineSegmentCount: boardOutline.segments.length,
@@ -242,31 +281,8 @@ export class KicadParser {
                         ' KiCad PCB component placements.'
                 }
             ],
-            pcb: {
-                boardOutline,
-                layers: documentLayers,
-                layerDefinitions,
-                primitiveLayers,
-                nets,
-                classes,
-                rules,
-                statistics,
-                components,
-                polygons,
-                fills: [],
-                tracks,
-                arcs,
-                vias,
-                pads,
-                regions: [],
-                shapeBasedRegions: [],
-                boardRegions: [],
-                texts: (board.texts || []).map(normalizeBoardText),
-                embeddedModels: [],
-                componentBodies: [],
-                componentPrimitiveGroups: [],
-                kicadBoard: board
-            },
+            pcb,
+            pnp: pickPlace,
             bom
         })
     }
@@ -304,6 +320,7 @@ function modelComponentFields(model) {
         return {}
     }
 
+    const modelPath = String(model.path || '')
     const offsetMil = {
         x: toMil(model.offset?.x),
         y: toMil(model.offset?.y),
@@ -311,8 +328,10 @@ function modelComponentFields(model) {
     }
 
     return {
-        modelName: String(model.name || basename(model.path)),
-        modelPath: String(model.path || ''),
+        modelName: String(
+            model.name || modelPath.replace(/\\/g, '/').split('/').at(-1)
+        ),
+        modelPath,
         modelTransform: {
             rotationDeg: {
                 x: Number(model.rotation?.x || 0),
@@ -330,18 +349,6 @@ function modelComponentFields(model) {
             }
         }
     }
-}
-
-/**
- * Returns a slash-normalized path basename.
- * @param {string} path Path value.
- * @returns {string}
- */
-function basename(path) {
-    return String(path || '')
-        .replace(/\\/g, '/')
-        .split('/')
-        .at(-1)
 }
 
 /**
@@ -985,13 +992,4 @@ function normalizeBoardText(text) {
 function optionalNetIndex(value) {
     const netIndex = Number(value)
     return Number.isInteger(netIndex) ? { netIndex } : {}
-}
-
-/**
- * Removes a file extension.
- * @param {string} fileName File name.
- * @returns {string}
- */
-function stripExtension(fileName) {
-    return String(fileName || '').replace(/\.[^.]+$/, '')
 }

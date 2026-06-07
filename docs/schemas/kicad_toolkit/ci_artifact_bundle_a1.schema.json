@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.ci.artifact-bundle.a1",
+    "title": "KiCad Toolkit CI Artifact Bundle A1",
+    "type": "object",
+    "required": ["schema", "summary", "documents"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.ci.artifact-bundle.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "documents": {
+            "type": "array"
+        },
+        "artifacts": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

@@ -7,9 +7,11 @@ import { strToU8 } from 'fflate'
 import {
     KicadEmbeddedAssetInventoryBuilder,
     KicadJobsetDigestBuilder,
+    KicadLibraryQaReportBuilder,
     KicadLibraryRenderManifestBuilder,
     KicadLibrarySearchIndex,
-    KicadSchematicConnectivityQaBuilder
+    KicadSchematicConnectivityQaBuilder,
+    KicadSchematicQaReportBuilder
 } from '../../src/parser.mjs'
 
 test('KicadLibrarySearchIndex searches footprint, symbol, and design-block items', () => {
@@ -140,6 +142,147 @@ test('KicadLibraryRenderManifestBuilder builds deterministic library manifests',
     ])
 })
 
+test('KicadLibraryQaReportBuilder emits symbol library merge-plan diagnostics', () => {
+    const report = KicadLibraryQaReportBuilder.build({
+        schematicLibraries: [
+            {
+                fileName: 'first.kicad_sym',
+                schematicLibrary: {
+                    fonts: [{ name: 'KiCad Font A' }],
+                    symbols: [
+                        {
+                            name: 'Device:CTRL_CORE',
+                            units: [{ unitId: 1 }],
+                            pins: [{ number: '1' }, { number: '2' }],
+                            graphics: {
+                                lines: [{ id: 'line-a' }]
+                            },
+                            embeddedAssets: [
+                                {
+                                    key: 'logo-a',
+                                    format: 'png',
+                                    source: 'image-a'
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            {
+                fileName: 'second.kicad_sym',
+                schematicLibrary: {
+                    fonts: [{ name: 'KiCad Font B' }],
+                    symbols: [
+                        {
+                            name: 'Device:CTRL_CORE',
+                            units: [{ unitId: 1 }, { unitId: 2 }],
+                            pins: [{ number: '1' }],
+                            graphics: {
+                                rectangles: [{ id: 'rect-b' }],
+                                circles: [{ id: 'circle-b' }]
+                            },
+                            embeddedAssets: [
+                                {
+                                    key: 'logo-b',
+                                    format: 'jpg',
+                                    source: 'image-b'
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    })
+
+    assert.equal(report.summary.mergePlanConflictCount, 1)
+    assert.deepEqual(report.mergePlan, {
+        schema: 'kicad-toolkit.library.merge-plan.a1',
+        strategy: 'read-only-analysis',
+        summary: {
+            duplicateNameCount: 1,
+            conflictCount: 1,
+            renameSuggestionCount: 1,
+            embeddedAssetCount: 2,
+            fontDependencyCount: 2
+        },
+        duplicateSymbols: [
+            {
+                name: 'Device:CTRL_CORE',
+                conflictKind: 'conflicting-symbol',
+                suggestedNames: [
+                    {
+                        libraryFileName: 'first.kicad_sym',
+                        index: 0,
+                        currentName: 'Device:CTRL_CORE',
+                        suggestedName: 'Device:CTRL_CORE'
+                    },
+                    {
+                        libraryFileName: 'second.kicad_sym',
+                        index: 0,
+                        currentName: 'Device:CTRL_CORE',
+                        suggestedName: 'Device:CTRL_CORE_2'
+                    }
+                ],
+                differences: {
+                    pinCounts: [2, 1],
+                    unitCounts: [1, 2],
+                    graphicCounts: [1, 2]
+                },
+                occurrences: [
+                    {
+                        libraryFileName: 'first.kicad_sym',
+                        index: 0,
+                        pinCount: 2,
+                        unitCount: 1,
+                        graphicCount: 1
+                    },
+                    {
+                        libraryFileName: 'second.kicad_sym',
+                        index: 0,
+                        pinCount: 1,
+                        unitCount: 2,
+                        graphicCount: 2
+                    }
+                ]
+            }
+        ],
+        embeddedAssets: [
+            {
+                libraryFileName: 'first.kicad_sym',
+                symbolName: 'Device:CTRL_CORE',
+                key: 'logo-a',
+                format: 'png',
+                source: 'image-a'
+            },
+            {
+                libraryFileName: 'second.kicad_sym',
+                symbolName: 'Device:CTRL_CORE',
+                key: 'logo-b',
+                format: 'jpg',
+                source: 'image-b'
+            }
+        ],
+        fontDependencies: [
+            {
+                libraryFileName: 'first.kicad_sym',
+                name: 'KiCad Font A'
+            },
+            {
+                libraryFileName: 'second.kicad_sym',
+                name: 'KiCad Font B'
+            }
+        ],
+        diagnostics: [
+            {
+                code: 'library.merge-plan.conflicting-symbol',
+                severity: 'warning',
+                symbolName: 'Device:CTRL_CORE'
+            }
+        ]
+    })
+})
+
 test('KicadJobsetDigestBuilder indexes jobs by destination', () => {
     const digest = KicadJobsetDigestBuilder.build(jobsetFixture())
 
@@ -148,7 +291,8 @@ test('KicadJobsetDigestBuilder indexes jobs by destination', () => {
         jobsetCount: 1,
         jobCount: 2,
         destinationCount: 2,
-        linkedJobCount: 2
+        linkedJobCount: 2,
+        expectedArtifactCount: 2
     })
     assert.deepEqual(
         digest.jobs.map((job) => ({
@@ -177,6 +321,47 @@ test('KicadJobsetDigestBuilder indexes jobs by destination', () => {
     )
     assert.deepEqual(digest.jobsByDestination['fab-folder'], ['plot-job'])
     assert.deepEqual(digest.jobsByDestination.archive, ['bom-job'])
+    assert.deepEqual(digest.expectedArtifacts, {
+        schema: 'kicad-toolkit.project.expected-artifacts.a1',
+        summary: {
+            outputCount: 2,
+            unsupportedOutputCount: 0
+        },
+        manifest: {
+            outputs: [
+                {
+                    key: 'fabrication/00-plot-gerbers',
+                    sourceFileName: 'fabrication.kicad_jobset',
+                    destinationId: 'fab-folder',
+                    destinationType: 'folder',
+                    destinationDescription: 'Fabrication folder',
+                    outputPath: 'fab',
+                    jobId: 'plot-job',
+                    jobType: 'pcb_export_gerbers',
+                    jobDescription: 'Plot Gerbers',
+                    normalizedType: 'gerber',
+                    category: 'fabrication',
+                    format: 'gerber',
+                    unsupported: false
+                },
+                {
+                    key: 'fabrication/01-bom',
+                    sourceFileName: 'fabrication.kicad_jobset',
+                    destinationId: 'archive',
+                    destinationType: 'archive',
+                    destinationDescription: 'Archive',
+                    outputPath: 'fab.zip',
+                    jobId: 'bom-job',
+                    jobType: 'sch_export_bom',
+                    jobDescription: 'BOM',
+                    normalizedType: 'bom',
+                    category: 'report',
+                    format: 'bom',
+                    unsupported: false
+                }
+            ]
+        }
+    })
 })
 
 test('KicadEmbeddedAssetInventoryBuilder inventories embedded and companion assets', () => {
@@ -293,6 +478,155 @@ test('KicadSchematicConnectivityQaBuilder reports schematic-local connectivity f
             'schematic.connectivity.ambiguous-junction'
         ]
     )
+})
+
+test('KicadSchematicQaReportBuilder summarizes document-level QA findings', () => {
+    const report = KicadSchematicQaReportBuilder.build({
+        schematic: {
+            sheet: {
+                titleBlock: {
+                    title: '${TITLE}',
+                    documentNumber: 'SCH-001',
+                    revision: '',
+                    date: '',
+                    comments: {
+                        1: '${UNKNOWN_COMMENT}'
+                    }
+                }
+            },
+            texts: [
+                {
+                    text: '${TITLE}',
+                    fontFamily: 'KiCad Font',
+                    strokeWidth: 0.1
+                },
+                {
+                    text: '${MISSING_TEXT}',
+                    fontFamily: 'Courier New',
+                    strokeWidth: 0.2
+                }
+            ],
+            drawings: [{ strokeWidth: 0.15 }]
+        },
+        projectParameters: {
+            TITLE: 'QA fixture'
+        }
+    })
+
+    assert.equal(report.schema, 'kicad-toolkit.schematic.qa.a1')
+    assert.deepEqual(report.summary, {
+        textCount: 2,
+        fontFamilyCount: 2,
+        lineWidthCount: 3,
+        unresolvedParameterCount: 2,
+        titleBlockGapCount: 2,
+        findingCount: 4
+    })
+    assert.deepEqual(report.unresolvedParameters, [
+        'MISSING_TEXT',
+        'UNKNOWN_COMMENT'
+    ])
+    assert.deepEqual(
+        report.findings.map((finding) => finding.code),
+        [
+            'schematic.text.unresolved-parameter',
+            'schematic.text.unresolved-parameter',
+            'schematic.title-block.missing-field',
+            'schematic.title-block.missing-field'
+        ]
+    )
+})
+
+test('KicadLibraryQaReportBuilder reports library collection drift', () => {
+    const report = KicadLibraryQaReportBuilder.build({
+        schematicLibraries: [
+            {
+                fileName: 'Device.kicad_sym',
+                schematicLibrary: {
+                    symbols: [
+                        {
+                            name: 'Device:R',
+                            units: [{ name: 'Device:R_0_1' }],
+                            properties: {
+                                Footprint: 'Passives:R_0603'
+                            }
+                        },
+                        {
+                            name: 'Device:Missing',
+                            units: [
+                                { unitId: 1, name: 'A' },
+                                { unitId: 3, name: 'C' }
+                            ],
+                            properties: {
+                                Footprint: 'Missing:Nope'
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                fileName: 'Duplicate.kicad_sym',
+                schematicLibrary: {
+                    symbols: [
+                        {
+                            name: 'Device:R',
+                            units: [{ name: 'Device:R_0_1' }]
+                        }
+                    ]
+                }
+            }
+        ],
+        pcbLibraries: [
+            {
+                fileName: 'Passives.pretty',
+                pcbLibrary: {
+                    footprints: [
+                        {
+                            name: 'R_0603',
+                            pads: [{ number: '1' }],
+                            models: [{ path: 'models/R_0603.step' }]
+                        }
+                    ]
+                }
+            },
+            {
+                fileName: 'Other.pretty',
+                pcbLibrary: {
+                    footprints: [
+                        {
+                            name: 'R_0603',
+                            pads: [{ number: '1' }, { number: '2' }]
+                        }
+                    ]
+                }
+            }
+        ],
+        availableAssets: ['models/Present.step']
+    })
+
+    assert.equal(report.schema, 'kicad-toolkit.library.qa.a1')
+    assert.deepEqual(report.summary, {
+        schematicLibraryCount: 2,
+        pcbLibraryCount: 2,
+        duplicateSymbolCount: 1,
+        mergePlanConflictCount: 0,
+        duplicateFootprintCount: 1,
+        unresolvedFootprintReferenceCount: 1,
+        missingModelCount: 1,
+        unitMismatchCount: 1,
+        issueCount: 5
+    })
+    assert.deepEqual(
+        report.issues.map((issue) => issue.code),
+        [
+            'library.duplicate-symbol',
+            'library.duplicate-footprint',
+            'library.unresolved-footprint-reference',
+            'library.missing-model',
+            'library.unit-mismatch'
+        ]
+    )
+    assert.equal(report.duplicates.footprints[0].collisionKind, 'conflicting')
 })
 
 /**

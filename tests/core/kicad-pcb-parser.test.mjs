@@ -120,6 +120,7 @@ test('KicadPcbParser preserves board metadata and legacy module footprints', () 
             layers: [
                 {
                     name: 'F.Cu',
+                    stackIndex: 0,
                     type: 'copper',
                     color: '#c83434',
                     thickness: 0.035,

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
     KicadCiArtifactBundleBuilder,
+    KicadContractGateReportBuilder,
     KicadParserCompatibilityFuzzer,
     KicadProjectDocumentGraphBuilder,
     KicadSvgModelCrossLinkValidator
@@ -82,7 +83,8 @@ test('KicadCiArtifactBundleBuilder builds deterministic parser renderer and repo
         pnpCount: 1,
         diagnosticCount: 0,
         readinessReportCount: 1,
-        schematicQaReportCount: 1
+        schematicQaReportCount: 1,
+        contractGateStatus: 'pass'
     })
     assert.equal(artifact.designBundle.kind, 'design-bundle')
     assert.equal(
@@ -99,6 +101,69 @@ test('KicadCiArtifactBundleBuilder builds deterministic parser renderer and repo
     assert.equal(artifact.readiness.pcb[0].readiness, 'ready')
     assert.equal(artifact.schematicQa[0].summary.findingCount, 0)
     assert.equal(artifact.assetInventory.summary.externalAssetCount, 1)
+    assert.equal(artifact.contractGate.schema, 'kicad-toolkit.contract-gate.a1')
+    assert.equal(artifact.contractGate.status, 'pass')
+})
+
+test('KicadContractGateReportBuilder validates CI artifact contracts', () => {
+    const artifact = KicadCiArtifactBundleBuilder.build({
+        projectModel: createProjectModel(),
+        documentModels: [createSchematicDocument(), createPcbDocument()],
+        jobsets: [createJobsetDocument()]
+    })
+    const gate = KicadContractGateReportBuilder.build({
+        documentModels: artifact.normalizedModels,
+        netlist: artifact.netlist,
+        schematicSvgs: artifact.schematicSvgs,
+        pcbLayerSvgs: artifact.pcbLayerSvgs,
+        diagnostics: artifact.diagnostics
+    })
+
+    assert.equal(gate.schema, 'kicad-toolkit.contract-gate.a1')
+    assert.equal(gate.status, 'pass')
+    assert.deepEqual(gate.summary, {
+        gateCount: 5,
+        failingGateCount: 0,
+        documentCount: 2,
+        svgLinkReportCount: 2,
+        diagnosticCount: 0
+    })
+    assert.deepEqual(
+        gate.gates.map((entry) => ({
+            key: entry.key,
+            status: entry.status,
+            failureCount: entry.failureCount
+        })),
+        [
+            { key: 'normalized-models', status: 'pass', failureCount: 0 },
+            { key: 'netlist-json', status: 'pass', failureCount: 0 },
+            { key: 'wirelist', status: 'pass', failureCount: 0 },
+            { key: 'svg-model-links', status: 'pass', failureCount: 0 },
+            { key: 'diagnostics', status: 'pass', failureCount: 0 }
+        ]
+    )
+
+    const failed = KicadContractGateReportBuilder.build({
+        documentModels: artifact.normalizedModels,
+        netlist: { json: {}, wirelist: null },
+        schematicSvgs: artifact.schematicSvgs,
+        pcbLayerSvgs: artifact.pcbLayerSvgs,
+        diagnostics: [
+            {
+                severity: 'error',
+                code: 'fixture.error',
+                message: 'Synthetic failure'
+            }
+        ]
+    })
+
+    assert.equal(failed.status, 'fail')
+    assert.deepEqual(
+        failed.gates
+            .filter((entry) => entry.status === 'fail')
+            .map((entry) => entry.key),
+        ['netlist-json', 'wirelist', 'diagnostics']
+    )
 })
 
 test('KicadSvgModelCrossLinkValidator validates rendered schematic semantic links', () => {
@@ -112,7 +177,7 @@ test('KicadSvgModelCrossLinkValidator validates rendered schematic semantic link
     assert.equal(report.summary.missingElementCount, 0)
     assert.equal(report.summary.orphanElementCount, 0)
     assert.equal(report.summary.unresolvedReferenceCount, 0)
-    assert.equal(report.summary.metadataElementCount, 1)
+    assert.equal(report.summary.metadataElementCount, 2)
 
     const broken = KicadSvgModelCrossLinkValidator.validate(
         documentModel,

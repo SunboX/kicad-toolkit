@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { PcbScene3dTextBoxLayoutResolver } from './PcbScene3dTextBoxLayoutResolver.mjs'
+
 /**
  * Maps board-space layer primitives into KiCad's 3D layer coordinate space.
  */
@@ -143,10 +145,13 @@ export class PcbScene3dLayerMapper {
      * @returns {object}
      */
     static text(text, board) {
-        return {
+        const textBoxLayout = PcbScene3dTextBoxLayoutResolver.resolve(text)
+        const mapped = {
             ...PcbScene3dLayerMapper.#mapYFields(text, board, ['y']),
             rotation: PcbScene3dLayerMapper.#negateRotation(text?.rotation)
         }
+
+        return textBoxLayout ? { ...mapped, textBoxLayout } : mapped
     }
 
     /**

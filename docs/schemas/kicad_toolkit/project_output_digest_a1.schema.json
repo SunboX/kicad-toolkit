@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.project.output-digest.a1",
+    "title": "KiCad Toolkit Project Output Digest A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.project.output-digest.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "outputGroups": {
+            "type": "array"
+        },
+        "expectedArtifacts": {
+            "type": "object"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": [
+        "schema",
+        "summary",
+        "outputGroups",
+        "expectedArtifacts",
+        "indexes"
+    ]
+}

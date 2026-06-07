@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+import { SchematicRenderOpsSidecarBuilder } from './SchematicRenderOpsSidecarBuilder.mjs'
 import { SchematicProjectParameterResolver } from './SchematicProjectParameterResolver.mjs'
 import { SchematicSvgPinRenderer } from './SchematicSvgPinRenderer.mjs'
 import { SchematicSvgSemanticMetadata } from './SchematicSvgSemanticMetadata.mjs'
@@ -81,6 +82,7 @@ export class SchematicSvgRenderer {
             `<header class="svg-panel__header"><h3>${escapeHtml(title)}</h3><p>${lineCount} line segments, ${componentCount} components</p></header>`,
             `<svg xmlns="http://www.w3.org/2000/svg" class="schematic-svg" viewBox="0 0 ${formatNumber(width)} ${formatNumber(height)}" role="img" aria-label="${escapeAttribute(documentModel.summary?.title || documentModel.fileName || 'Schematic')}" ${rootAttributes}>`,
             SchematicSvgSemanticMetadata.metadataElement(semanticContext),
+            SchematicRenderOpsSidecarBuilder.metadataElement(schematic),
             `<rect class="sheet-backdrop" x="0" y="0" width="${formatNumber(width)}" height="${formatNumber(height)}" rx="0"/>`,
             SchematicSvgShapeRenderer.renderGrid(sheet, width, height, {
                 displayScale,

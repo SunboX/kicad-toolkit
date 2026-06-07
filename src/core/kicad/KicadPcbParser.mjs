@@ -7,6 +7,7 @@ import { KicadPcbBoardMetadataParser } from './KicadPcbBoardMetadataParser.mjs'
 import { KicadPcbDrawingParser } from './KicadPcbDrawingParser.mjs'
 import { KicadPcbPadParser } from './KicadPcbPadParser.mjs'
 import { KicadPcbTextVariables } from './KicadPcbTextVariables.mjs'
+import { KicadPcbZoneParser } from './KicadPcbZoneParser.mjs'
 import { SExpressionParser } from './SExpressionParser.mjs'
 import { SExpressionTree } from './SExpressionTree.mjs'
 /**
@@ -24,7 +25,6 @@ export class KicadPcbParser {
         if (!isNode(root, 'kicad_pcb')) {
             throw new Error('Expected kicad_pcb root')
         }
-
         const titleBlock = child(root, 'title_block')
         const fileName = String(options.fileName || '')
         const title = textValue(child(titleBlock, 'title')) || ''
@@ -39,6 +39,10 @@ export class KicadPcbParser {
             }
         }
         const netResolver = KicadNetResolver.fromNodes(children(root, 'net'))
+        const zoneSemantics = KicadPcbZoneParser.parseZoneSemantics(
+            root,
+            netResolver
+        )
         const boardGraphicItems = KicadPcbDrawingParser.parseBoardItems(
             root,
             netResolver
@@ -97,7 +101,6 @@ export class KicadPcbParser {
             drawings,
             texts
         })
-
         return {
             ...boardMetadata,
             fileName,
@@ -113,6 +116,7 @@ export class KicadPcbParser {
                 ...boardGraphicItems.groups,
                 ...footprints.flatMap((footprint) => footprint.groups)
             ],
+            zoneSemantics,
             generatedItems: [
                 ...boardGraphicItems.generatedItems,
                 ...footprints.flatMap((footprint) => footprint.generatedItems)
@@ -160,7 +164,6 @@ function parsePaper(node) {
     const height = Number.isFinite(Number(node?.[3]))
         ? Number(node[3])
         : undefined
-
     return {
         size,
         ...(width === undefined ? {} : { width }),
@@ -187,7 +190,6 @@ function parseTitleBlock(node) {
         )
     }
 }
-
 /**
  * Parses general board options.
  * @param {Array | undefined} node General node.
@@ -195,7 +197,6 @@ function parseTitleBlock(node) {
  */
 function parseGeneral(node) {
     if (!node) return {}
-
     return {
         thickness: numberValue(child(node, 'thickness')?.[1], 0),
         legacyTeardrops: hasChild(node, 'legacy_teardrops')
@@ -284,6 +285,7 @@ function parseStackup(node) {
 function parseStackupLayer(node) {
     return {
         name: textValue(node),
+        stackIndex: optionalNumber(['stack_index', node[2]]),
         type: optionalText(child(node, 'type')) || '',
         color: optionalText(child(node, 'color')) || '',
         thickness: optionalNumber(child(node, 'thickness')) || 0,

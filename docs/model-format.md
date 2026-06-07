@@ -61,6 +61,18 @@ The serialized parser return value follows the upstream
 [`tscircuit/circuit-json`](https://github.com/tscircuit/circuit-json) element
 array convention.
 
+Focused machine-readable schemas are available under
+`docs/schemas/kicad_toolkit/` for the normalized root, project bundle, netlist
+JSON, schematic SVG semantic metadata, schematic SVG render-operation
+metadata, PCB SVG semantic metadata, CI artifact bundle, contract gate, project
+document graph, expected-artifact manifest, project output digest, source
+coverage, SVG/model cross-link report, parser
+compatibility fuzz report, PCB route analysis, PCB statistics, PCB layer stack,
+PCB dimensions, PCB region semantics, PCB rule read model, PCB rigid-flex
+topology, PCB ownership graph, schematic ownership graph, schematic hierarchy
+graph, project BOM/PnP reconciliation, library QA, library merge-plan, and
+schematic QA contracts.
+
 ## Schematic Fields
 
 Schematic documents include recovered `schematic` data with sheet metadata,
@@ -136,6 +148,9 @@ Multi-line text is preserved and rendered by the SVG renderer using the KiCad
 stroke font helper. Board and footprint text variables are expanded during PCB
 parsing when the referenced board, title-block, footprint, layer, or pad data is
 available; unresolved variables are left unchanged.
+KiCad `gr_text_box` and `fp_text_box` entries also preserve `textBox` metadata
+with source type, shape, border, knockout, corner points, margins, width, and
+height for 3D scene layout consumers.
 
 ## Library Fields
 
@@ -175,7 +190,9 @@ mixed library-index items.
 and job/output counts.
 `KicadJobsetDigestBuilder` emits a `jobset-digest` root with `jobsets`,
 `destinations`, normalized `jobs`, `jobsByDestination`, and
-`destinationsById`.
+`destinationsById`. It also emits `expectedArtifacts` with normalized output
+type, category, format, destination, output path, and job identity rows derived
+from KiCad jobset jobs and output destinations.
 
 `.kicad_dru` files emit a `design-rules` root with `version`, custom `rules`,
 component class assignments, constraints, disallow records, and raw rule
@@ -227,12 +244,19 @@ documents, project pages, linked libraries, design blocks, jobsets, generated
 outputs, assets, missing-path checks, grouped path lists, and indexes by path,
 kind, library kind, and generated-output source.
 
+`KicadProjectOutputDigestBuilder` emits
+`kicad-toolkit.project.output-digest.a1` reports from parsed KiCad jobsets. It
+groups outputs by destination, indexes output rows by document path and
+destination id, and carries the expected-artifact manifest produced by jobset
+digests.
+
 `KicadCiArtifactBundleBuilder` emits
 `kicad-toolkit.ci.artifact-bundle.a1` reports for deterministic CI workflows.
 The bundle includes normalized models, a project design bundle, document graph,
 netlist JSON, wirelist text, BOM rows, PnP rows, schematic SVGs, per-layer PCB
 SVGs, parsed-board readiness reports, schematic QA reports, asset inventory,
-and collected diagnostics. It is data only and does not write output files.
+collected diagnostics, and a `contractGate` report. It is data only and does
+not write output files.
 
 ## Project Fields
 
@@ -250,6 +274,12 @@ and `bom`. `ProjectVariantViewBuilder` exposes an effective variant view with
 KiCad DNP flags and project variant overrides applied. `ProjectNetlistExporter`
 emits `kicad-toolkit.netlist.a1` JSON and deterministic line-oriented
 wirelists from either a bundle or an effective variant.
+`KicadPcbPickPlacePositionResolver` builds the `pnp` model from PCB component
+origins and pad anchors. `KicadPcbComponentParticipationPolicy` resolves KiCad
+footprint attributes into BOM, netlist, and PnP participation flags.
+`KicadSchematicHierarchyGraphBuilder` emits
+`kicad-toolkit.schematic.hierarchy-graph.a1` graphs from project pages and
+hierarchical sheet symbols.
 
 ## Helper Report Fields
 
@@ -278,11 +308,126 @@ from recovered parser data only.
 for implicit net names, dangling labels, orphan sheet entries, unconnected
 visible pins, and ambiguous junctions.
 
+`KicadPcbRouteAnalysisBuilder.build()` returns
+`kicad-toolkit.pcb.route-analysis.a1` reports with routed net counts, route
+primitive counts, via counts, total routed length, per-net layers, track/arc
+primitive rows, via rows, per-net layer participation, connected route groups,
+track and arc length totals, and differential-pair rows when supplied by
+callers.
+
+`KicadPcbStatisticsBuilder.build()` returns
+`kicad-toolkit.pcb.statistics.a1` reports with board size/centroid data, drill
+and slot histograms, primitive-width histograms, KiCad layer rows, and
+planning-region counters.
+
+`KicadPcbLayerStackReadModelBuilder.build()` returns
+`kicad-toolkit.pcb.layer-stack.a1` reports with KiCad setup stackup layers,
+material counts, copper/dielectric roles, layer thicknesses, dielectric
+properties, and stackup option summaries. Parsed PCB renderer models attach
+this report at `pcb.layerStack`.
+
+`KicadPcbDimensionReadModelBuilder.build()` returns
+`kicad-toolkit.pcb.dimensions.a1` reports with KiCad dimension rows, layer
+keys, points, dimension text, measured values, and per-layer indexes. Parsed
+PCB renderer models attach this report at `pcb.dimensions`.
+
+`KicadPcbRegionSemanticsBuilder.build()` returns
+`kicad-toolkit.pcb.region-semantics.a1` reports with KiCad copper zones,
+keepout zones, keepout target flags, board-region rows, and layer indexes.
+Parsed PCB renderer models attach this report at `pcb.regionSemantics`.
+
+`KicadPcbRuleReadModelBuilder.build()` returns
+`kicad-toolkit.pcb.rule-read-model.a1` reports with typed KiCad custom-rule
+and project-rule rows, parsed constraint values, component class assignments,
+net classes, diagnostics, and indexes by rule type and designator.
+
+`KicadPcbRigidFlexTopologyBuilder.build()` returns
+`kicad-toolkit.pcb.rigid-flex-topology.a1` reports with KiCad flat-stack or
+region-metadata topology status, substack-region join rows, bend-line metadata,
+diagnostics, and indexes. Parsed PCB renderer models attach this report at
+`pcb.rigidFlexTopology`.
+
+`KicadPcbOwnershipGraphBuilder.build()` returns
+`kicad-toolkit.pcb.ownership-graph.a1` reports that group PCB primitives by
+component designator, routed net, and KiCad group id.
+
+`KicadSchematicOwnershipGraphBuilder.build()` returns
+`kicad-toolkit.schematic.ownership-graph.a1` reports that group schematic pins,
+texts, sheet entries, directives, rule areas, and nets by component or
+hierarchical sheet ownership.
+
+`KicadPcbReviewMetadataBuilder.build()` returns
+`kicad-toolkit.pcb.review-metadata.a1` reports with routed net-class review
+groups, explicit differential-pair groups when supplied by callers,
+route-highlight profiles, polygon realizations, drill overlays, board assembly
+model checks, and lookup indexes. Parsed PCB renderer models attach this report
+at `pcb.reviewMetadata`.
+
+`KicadPcbPlacedFootprintManifestBuilder.build()` returns
+`kicad-toolkit.pcb.placed-footprint-extraction.a1` reports with
+`.kicad_mod`-style output keys, primitive counts, touched layers, model
+references, diagnostics, and designator/pattern indexes. Parsed PCB renderer
+models attach this report at `pcb.footprintExtractionManifest`.
+
+`KicadFootprintLibraryParityReportBuilder.build()` returns
+`kicad-toolkit.footprint-library.parity.a1` reports for standalone footprint
+libraries. It counts custom pad primitives, explicit pad layer sets, pad
+options, drilled pads, model references, image graphics, barcode graphics, and
+private graphics. Standalone `.kicad_mod` parses attach this report at
+`pcbLibrary.parityReport`.
+
+`KicadImagePayloadManifestBuilder.build()` returns
+`kicad-toolkit.image-payloads.a1` reports with image-like payload byte sizes,
+FNV-1a checksums, and missing-payload diagnostics for schematic images,
+worksheet bitmaps, PCB images, and embedded schematic files.
+
+`KicadHostCapabilityDiagnosticsBuilder.build()` returns
+`kicad-toolkit.host-capabilities.a1` reports with sorted host capability rows,
+unsupported-capability warnings, and caller-supplied fallback diagnostics.
+
+`KicadProjectBomPnpReconciliationBuilder.build()` returns
+`kicad-toolkit.project.bom-pnp-reconciliation.a1` reports with schematic BOM,
+PCB BOM, PnP, effective BOM, DNP, exclude-from-BOM, and
+exclude-from-position-file designator sets plus warning issues for drift.
+
+`KicadLibraryQaReportBuilder.build()` returns
+`kicad-toolkit.library.qa.a1` reports with duplicate symbol and footprint
+rows, unresolved symbol footprint references, missing footprint model assets,
+symbol unit mismatches, compact issues, and a nested
+`kicad-toolkit.library.merge-plan.a1` report. The merge plan includes duplicate
+symbol conflict classification, deterministic rename suggestions, embedded
+asset rows, font dependency rows, and warning diagnostics.
+
+`SchematicRenderOpsSidecarBuilder.build()` returns
+`kicad-toolkit.schematic.render-ops.a1` reports with schematic line, pin, and
+stroke-text operation rows. `SchematicSvgRenderer.render()` embeds the same
+contract in `schematic-render-ops-metadata` for SVG regression workflows.
+
+`KicadSchematicQaReportBuilder.build()` returns
+`kicad-toolkit.schematic.qa.a1` reports with schematic text counts, font-family
+and line-width summaries, unresolved text variables, title-block gaps, and
+findings.
+
+`KicadContractGateReportBuilder.build()` returns
+`kicad-toolkit.contract-gate.a1` reports with pass/fail gates for normalized
+models, netlist JSON, wirelist text, SVG/model links, and diagnostics.
+
+`KicadJobsetDigestBuilder.build()` includes
+`kicad-toolkit.project.expected-artifacts.a1` manifests with one expected
+artifact row per KiCad jobset job and linked destination.
+
+`KicadSourceCoverageReportBuilder.build()` returns
+`kicad-toolkit.source.coverage.a1` reports with recursive KiCad S-expression
+node coverage, supported versus preserved-only node counts, node name indexes,
+and diagnostics for preserved-only node families.
+
 `KicadSvgModelCrossLinkValidator.validate()` returns
 `kicad-toolkit.svg-model-cross-link.a1` reports with expected semantic element
 keys, found SVG element keys, missing elements, orphan elements, unresolved
-references, metadata element rows, and summary counts. The validator reads SVG
-markup strings and parsed models only.
+references, metadata element rows, and summary counts.
+`KicadSvgModelCrossLinkValidator.validateSet()` performs the same checks across
+multiple SVG fragments for one parsed model. The validator reads SVG markup
+strings and parsed models only.
 
 `KicadParserCompatibilityFuzzer.run()` returns
 `kicad-toolkit.parser-compatibility-fuzz.a1` reports for deterministic

@@ -20,6 +20,7 @@ export class KicadJobsetDigestBuilder {
             jobRows(jobset, jobsetIndex)
         )
         const jobsByDestination = indexJobsByDestination(jobs)
+        const expectedArtifacts = expectedArtifactsForJobs(jobs)
 
         return NormalizedModelSchema.attach({
             sourceFormat: 'kicad',
@@ -31,7 +32,8 @@ export class KicadJobsetDigestBuilder {
                 jobsetCount: jobsets.length,
                 jobCount: jobs.length,
                 destinationCount: destinations.length,
-                linkedJobCount: jobs.filter((job) => job.destinationId).length
+                linkedJobCount: jobs.filter((job) => job.destinationId).length,
+                expectedArtifactCount: expectedArtifacts.manifest.outputs.length
             },
             diagnostics: [],
             jobsets: jobsets.map(jobsetSummary),
@@ -39,6 +41,7 @@ export class KicadJobsetDigestBuilder {
             jobs,
             jobsByDestination,
             destinationsById: indexBy(destinations, 'id'),
+            expectedArtifacts,
             bom: []
         })
     }
@@ -133,6 +136,7 @@ function jobRows(jobset, jobsetIndex) {
             destinationType: destination?.type || '',
             destinationDescription: destination?.description || '',
             outputPath: destination?.outputPath || '',
+            ...jobTypeMetadata(job?.type),
             settings: job?.settings || {},
             rawJob: job?.rawJob || job || {}
         }
@@ -183,4 +187,130 @@ function indexBy(rows, field) {
         if (key) index[key] = row
     }
     return index
+}
+
+/**
+ * Builds an expected-artifact manifest from linked job rows.
+ * @param {object[]} jobs Job digest rows.
+ * @returns {object}
+ */
+function expectedArtifactsForJobs(jobs) {
+    const outputs = (jobs || []).map((job) => expectedArtifactRow(job))
+
+    return {
+        schema: 'kicad-toolkit.project.expected-artifacts.a1',
+        summary: {
+            outputCount: outputs.length,
+            unsupportedOutputCount: outputs.filter((row) => row.unsupported)
+                .length
+        },
+        manifest: { outputs }
+    }
+}
+
+/**
+ * Builds one expected artifact row.
+ * @param {object} job Job digest row.
+ * @returns {object}
+ */
+function expectedArtifactRow(job) {
+    return {
+        key:
+            sourceGroup(job.sourceFileName) +
+            '/' +
+            String(job.jobIndex).padStart(2, '0') +
+            '-' +
+            slug(job.description || job.normalizedType || job.id),
+        sourceFileName: job.sourceFileName,
+        destinationId: job.destinationId,
+        destinationType: job.destinationType,
+        destinationDescription: job.destinationDescription,
+        outputPath: job.outputPath,
+        jobId: job.id,
+        jobType: job.type,
+        jobDescription: job.description,
+        normalizedType: job.normalizedType,
+        category: job.category,
+        format: job.format,
+        unsupported: job.unsupported
+    }
+}
+
+/**
+ * Resolves normalized output metadata from a KiCad job type.
+ * @param {unknown} type Raw KiCad job type.
+ * @returns {{ normalizedType: string, category: string, format: string, unsupported: boolean }}
+ */
+function jobTypeMetadata(type) {
+    const normalized = String(type || '').toLowerCase()
+    if (normalized.includes('gerber')) {
+        return outputMetadata('gerber', 'fabrication', 'gerber')
+    }
+    if (normalized.includes('drill')) {
+        return outputMetadata('drill', 'fabrication', 'nc-drill')
+    }
+    if (
+        normalized.includes('pos') ||
+        normalized.includes('position') ||
+        normalized.includes('pick')
+    ) {
+        return outputMetadata('pick-place', 'assembly', 'pick-place')
+    }
+    if (normalized.includes('bom')) {
+        return outputMetadata('bom', 'report', 'bom')
+    }
+    if (normalized.includes('netlist')) {
+        return outputMetadata('netlist', 'netlist', 'netlist')
+    }
+    if (normalized.includes('step') || normalized.includes('3d')) {
+        return outputMetadata('step', 'export', 'step')
+    }
+    if (normalized.includes('pdf')) {
+        return outputMetadata('pdf', 'documentation', 'pdf')
+    }
+    if (normalized === 'plot' || normalized.includes('plot')) {
+        return outputMetadata('plot', 'fabrication', 'plot')
+    }
+    return outputMetadata('unsupported', 'unsupported', 'unknown', true)
+}
+
+/**
+ * Builds output type metadata.
+ * @param {string} normalizedType Normalized output type.
+ * @param {string} category Output category.
+ * @param {string} format Output format.
+ * @param {boolean} [unsupported] Whether the job type is unsupported.
+ * @returns {{ normalizedType: string, category: string, format: string, unsupported: boolean }}
+ */
+function outputMetadata(normalizedType, category, format, unsupported = false) {
+    return { normalizedType, category, format, unsupported }
+}
+
+/**
+ * Resolves the output group name from a source jobset file.
+ * @param {string} sourceFileName Source file name.
+ * @returns {string}
+ */
+function sourceGroup(sourceFileName) {
+    return slug(
+        String(sourceFileName || '')
+            .split('/')
+            .pop()
+            .replace(/\.kicad_jobset$/iu, '')
+    )
+}
+
+/**
+ * Converts a value to a lowercase key segment.
+ * @param {unknown} value Source value.
+ * @returns {string}
+ */
+function slug(value) {
+    return (
+        String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/gu, '-')
+            .replace(/^-+|-+$/gu, '') || 'item'
+    )
 }

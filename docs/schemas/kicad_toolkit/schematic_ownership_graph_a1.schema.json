@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.schematic.ownership-graph.a1",
+    "title": "KiCad Toolkit Schematic Ownership Graph A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.schematic.ownership-graph.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "owners": {
+            "type": "array"
+        },
+        "records": {
+            "type": "array"
+        },
+        "childrenByOwnerKey": {
+            "type": "object"
+        },
+        "parentsByChildKey": {
+            "type": "object"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": ["schema", "summary", "owners", "records", "indexes"]
+}

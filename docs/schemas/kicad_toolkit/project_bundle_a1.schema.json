@@ -1,0 +1,51 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:kicad-toolkit:project-bundle:a1",
+    "title": "KiCad Toolkit Project Bundle A1",
+    "type": "object",
+    "required": [
+        "schema",
+        "kind",
+        "fileType",
+        "project",
+        "sheets",
+        "components",
+        "nets",
+        "bom",
+        "pnp",
+        "indexes"
+    ],
+    "properties": {
+        "schema": {
+            "const": "urn:kicad-toolkit:normalized-model:a1"
+        },
+        "kind": {
+            "const": "design-bundle"
+        },
+        "fileType": {
+            "const": "KicadProjectDesignBundle"
+        },
+        "project": {
+            "type": "object"
+        },
+        "sheets": {
+            "type": "array"
+        },
+        "components": {
+            "type": "array"
+        },
+        "nets": {
+            "type": "array"
+        },
+        "bom": {
+            "type": "array"
+        },
+        "pnp": {
+            "type": "object"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

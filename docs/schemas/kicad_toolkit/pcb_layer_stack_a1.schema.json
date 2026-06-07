@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.layer-stack.a1",
+    "title": "KiCad Toolkit PCB Layer Stack A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.layer-stack.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "layers": {
+            "type": "array"
+        },
+        "materials": {
+            "type": "array"
+        },
+        "diagnostics": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": ["schema", "summary", "layers", "indexes"]
+}

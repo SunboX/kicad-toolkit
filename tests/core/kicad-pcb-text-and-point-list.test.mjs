@@ -43,6 +43,36 @@ test('KicadPcbParser expands board and footprint text variables', () => {
     )
 })
 
+test('KicadPcbParser preserves KiCad text-box geometry metadata', () => {
+    const board = KicadPcbParser.parse(textBoxFixture(), {
+        fileName: 'text-box-fixture.kicad_pcb'
+    })
+    const text = board.texts.find((entry) => entry.sourceType === 'gr_text_box')
+
+    assert.ok(text)
+    assert.equal(text.value, 'Box note')
+    assert.deepEqual(text.textBox, {
+        sourceType: 'gr_text_box',
+        shape: 'rect',
+        border: true,
+        knockout: true,
+        points: [
+            { x: 1, y: 2 },
+            { x: 6, y: 2 },
+            { x: 6, y: 5 },
+            { x: 1, y: 5 }
+        ],
+        margins: {
+            left: 0.5,
+            top: 0.25,
+            right: 0.75,
+            bottom: 0.35
+        },
+        width: 5,
+        height: 3
+    })
+})
+
 /**
  * Builds a fake board with an arc inside a polygon point list.
  * @returns {string}
@@ -104,6 +134,28 @@ function textVariableFixture() {
                 (at 0 3 0)
                 (layer "F.SilkS")
                 (effects (font (size 1 1)))
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a fake board with a KiCad text box.
+ * @returns {string}
+ */
+function textBoxFixture() {
+    return `(kicad_pcb
+        (version 20250101)
+        (gr_text_box "Box note"
+            (start 1 2)
+            (end 6 5)
+            (margins 0.5 0.25 0.75 0.35)
+            (border yes)
+            (knockout yes)
+            (layer "F.SilkS")
+            (effects
+                (font (size 1 1) (thickness 0.12))
+                (justify left top)
             )
         )
     )`

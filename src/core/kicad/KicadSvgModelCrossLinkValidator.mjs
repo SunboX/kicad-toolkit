@@ -14,12 +14,26 @@ export class KicadSvgModelCrossLinkValidator {
      * @returns {object}
      */
     static validate(documentModel, svgMarkup) {
+        return KicadSvgModelCrossLinkValidator.validateSet(documentModel, [
+            svgMarkup
+        ])
+    }
+
+    /**
+     * Validates a set of semantic SVG fragments against one KiCad model.
+     * @param {object} documentModel Parsed schematic or PCB model.
+     * @param {string[]} svgMarkups SVG markup strings.
+     * @returns {object}
+     */
+    static validateSet(documentModel, svgMarkups) {
         const documentKind = documentKindOf(documentModel)
         const expectedElements = expectedElementsFor(documentModel)
         const expectedByKey = new Map(
             expectedElements.map((element) => [element.elementKey, element])
         )
-        const svgElements = svgElementsFrom(svgMarkup)
+        const svgElements = (svgMarkups || []).flatMap((svgMarkup) =>
+            svgElementsFrom(svgMarkup)
+        )
         const renderedKeys = new Set(
             svgElements.map((element) => element.elementKey).filter(Boolean)
         )
@@ -37,12 +51,13 @@ export class KicadSvgModelCrossLinkValidator {
             documentModel,
             svgElements
         )
-        const metadata = metadataElements(svgMarkup)
+        const metadata = metadataSet(svgMarkups)
 
         return {
             schema: schemaId,
             documentKind,
             summary: {
+                svgCount: (svgMarkups || []).length,
                 expectedElementCount: expectedElements.length,
                 renderedElementCount: renderedKeys.size,
                 linkedElementCount:
@@ -307,6 +322,19 @@ function metadataElements(svgMarkup) {
         match = pattern.exec(String(svgMarkup || ''))
     }
     return { elements }
+}
+
+/**
+ * Extracts SVG metadata descriptors across a set of markups.
+ * @param {string[]} svgMarkups SVG markup strings.
+ * @returns {{ elements: object[] }}
+ */
+function metadataSet(svgMarkups) {
+    return {
+        elements: (svgMarkups || []).flatMap(
+            (svgMarkup) => metadataElements(svgMarkup).elements
+        )
+    }
 }
 
 /**

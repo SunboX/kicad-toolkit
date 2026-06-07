@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+    KicadProjectBomPnpReconciliationBuilder,
     ProjectDesignBundleBuilder,
     ProjectNetlistExporter,
     ProjectVariantViewBuilder
@@ -158,6 +159,104 @@ test('ProjectNetlistExporter builds KiCad JSON and wirelist exports', () => {
     assert.equal(
         ProjectNetlistExporter.buildWirelist(variant),
         '# kicad-toolkit wirelist v1\nproject demo\nnet SIG_A\n  U1.1\n'
+    )
+})
+
+test('KicadProjectBomPnpReconciliationBuilder reports BOM and PnP drift', () => {
+    const schematicDocument = createSchematicDocument()
+    schematicDocument.bom = [
+        ...schematicDocument.bom,
+        {
+            designators: ['U5'],
+            quantity: 1,
+            value: 'DNP jumper',
+            pattern: 'Device:Jumper'
+        }
+    ]
+    const pcbDocument = createPcbDocument()
+    pcbDocument.bom = [
+        {
+            designators: ['U1'],
+            quantity: 1,
+            value: '10k',
+            pattern: 'Package:R_0603'
+        },
+        {
+            designator: 'U3',
+            quantity: 1,
+            value: 'test point',
+            pattern: 'TestPoint:TP'
+        },
+        {
+            designator: 'U5',
+            quantity: 1,
+            value: 'DNP jumper',
+            pattern: 'Connector:Jumper'
+        }
+    ]
+    pcbDocument.pcb.components.push(
+        {
+            designator: 'U3',
+            componentIndex: 2,
+            pattern: 'TestPoint:TP',
+            excludeFromBom: true
+        },
+        {
+            designator: 'U4',
+            componentIndex: 3,
+            pattern: 'Fixture:Optical',
+            excludeFromPositionFiles: true
+        },
+        {
+            designator: 'U5',
+            componentIndex: 4,
+            pattern: 'Connector:Jumper',
+            doNotPopulate: true
+        }
+    )
+    pcbDocument.pnp.entries = [
+        { designator: 'U1', x: 1000, y: 2000, layer: 'TOP' },
+        { designator: 'U4', x: 1100, y: 2100, layer: 'TOP' },
+        { designator: 'U5', x: 1300, y: 2300, layer: 'TOP' }
+    ]
+    const bundle = ProjectDesignBundleBuilder.build({
+        projectModel: createProjectModel(),
+        documentModels: [schematicDocument, pcbDocument]
+    })
+    const report = KicadProjectBomPnpReconciliationBuilder.build({
+        bundle,
+        documentModels: [schematicDocument, pcbDocument]
+    })
+
+    assert.equal(
+        report.schema,
+        'kicad-toolkit.project.bom-pnp-reconciliation.a1'
+    )
+    assert.deepEqual(report.summary, {
+        schematicBomDesignatorCount: 3,
+        pcbBomDesignatorCount: 3,
+        pnpDesignatorCount: 3,
+        effectiveBomDesignatorCount: 3,
+        noBomComponentCount: 2,
+        doNotPopulateComponentCount: 2,
+        positionExcludedComponentCount: 1,
+        issueCount: 8
+    })
+    assert.deepEqual(report.schematicBomDesignators, ['U1', 'U2', 'U5'])
+    assert.deepEqual(report.pcbBomDesignators, ['U1', 'U3', 'U5'])
+    assert.deepEqual(report.pnpDesignators, ['U1', 'U4', 'U5'])
+    assert.deepEqual(
+        report.issues.map((issue) => issue.code),
+        [
+            'reconciliation.schematic-bom-without-pcb-bom',
+            'reconciliation.pcb-bom-without-schematic-bom',
+            'reconciliation.bom-without-pnp',
+            'reconciliation.pnp-without-bom',
+            'reconciliation.no-bom-component-in-pcb-bom',
+            'reconciliation.dnp-component-in-bom',
+            'reconciliation.dnp-component-in-pnp',
+            'reconciliation.position-excluded-component-in-pnp'
+        ]
     )
 })
 

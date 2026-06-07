@@ -67,6 +67,21 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         summary:
             'Exposes deterministic SVG utility, semantic metadata, schematic parameter, and stroke-text metric helpers.'
     })
+    assert.deepEqual(byId.get('schematic_render_ops_sidecar'), {
+        id: 'schematic_render_ops_sidecar',
+        label: 'Schematic render-operation sidecar',
+        category: 'rendering',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['render operation sidecar'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds deterministic KiCad schematic SVG render-operation metadata for CI diffs.'
+    })
     assert.deepEqual(byId.get('ci_artifact_bundle'), {
         id: 'ci_artifact_bundle',
         label: 'CI artifact bundle',
@@ -82,12 +97,266 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         summary:
             'Composes deterministic parser, renderer, netlist, document graph, asset, readiness, and QA outputs for CI.'
     })
+    assert.deepEqual(byId.get('contract_gate_report'), {
+        id: 'contract_gate_report',
+        label: 'Contract gate report',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['contract gate report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds deterministic CI pass/fail gates for normalized models, netlists, SVG model links, and diagnostics.'
+    })
+    assert.deepEqual(byId.get('pcb_route_analysis'), {
+        id: 'pcb_route_analysis',
+        label: 'PCB route analysis',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['route analysis'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds deterministic routed-net summaries from KiCad tracks, arcs, and vias.'
+    })
+    assert.deepEqual(byId.get('pcb_layer_stack_read_model'), {
+        id: 'pcb_layer_stack_read_model',
+        label: 'PCB layer-stack read model',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['layer-stack read model'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds KiCad PCB stackup material, dielectric, and thickness summaries.'
+    })
+    assert.deepEqual(byId.get('project_output_digest'), {
+        id: 'project_output_digest',
+        label: 'Project output digest',
+        category: 'project_loading',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['output digest'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds KiCad jobset output groups, document lookups, and expected artifact manifests.'
+    })
+    assert.deepEqual(byId.get('pcb_pick_place_position_resolver'), {
+        id: 'pcb_pick_place_position_resolver',
+        label: 'PCB pick-place position resolver',
+        category: 'project_loading',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['pnp model'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds KiCad footprint-origin and pad-anchor-center PnP coordinate views.'
+    })
+    assert.deepEqual(byId.get('pcb_component_participation_policy'), {
+        id: 'pcb_component_participation_policy',
+        label: 'PCB component participation policy',
+        category: 'geometry_metadata',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['component policy'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Normalizes KiCad footprint attributes into BOM, PnP, and netlist participation flags.'
+    })
+    assert.deepEqual(byId.get('host_capability_diagnostics'), {
+        id: 'host_capability_diagnostics',
+        label: 'Host capability diagnostics',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['host capabilities'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds deterministic host capability and fallback diagnostics for KiCad render hosts.'
+    })
+    assert.deepEqual(byId.get('source_coverage_report'), {
+        id: 'source_coverage_report',
+        label: 'Source coverage report',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['source coverage report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports supported and preserved KiCad S-expression node families.'
+    })
+    assert.deepEqual(byId.get('pcb_placed_footprint_manifest'), {
+        id: 'pcb_placed_footprint_manifest',
+        label: 'PCB placed footprint manifest',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['footprint extraction manifest'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds .kicad_mod-style extraction descriptors for placed KiCad footprints.'
+    })
+    assert.deepEqual(byId.get('pcb_review_metadata'), {
+        id: 'pcb_review_metadata',
+        label: 'PCB review metadata',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['review metadata'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds KiCad routed-net review groups and board assembly review metadata from parser sidecars.'
+    })
+    assert.deepEqual(byId.get('footprint_library_parity_report'), {
+        id: 'footprint_library_parity_report',
+        label: 'Footprint library parity report',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['footprint library parity'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports KiCad footprint-library advanced pad, graphic, and model fields.'
+    })
+    assert.deepEqual(byId.get('image_payload_manifest'), {
+        id: 'image_payload_manifest',
+        label: 'Image payload manifest',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['image payload manifest'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Checksums KiCad schematic images, worksheet bitmaps, PCB images, and embedded schematic files.'
+    })
+    assert.deepEqual(byId.get('project_bom_pnp_reconciliation'), {
+        id: 'project_bom_pnp_reconciliation',
+        label: 'Project BOM/PnP reconciliation',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['reconciliation report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Compares schematic BOM, PCB BOM, PnP, DNP, exclude-from-BOM, and exclude-from-position-file designators.'
+    })
+    assert.deepEqual(byId.get('library_qa_report'), {
+        id: 'library_qa_report',
+        label: 'Library QA report',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['library QA report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports duplicate library items, merge-plan conflicts, unresolved footprint references, missing model assets, and symbol unit mismatches.'
+    })
+    assert.deepEqual(byId.get('schematic_document_qa'), {
+        id: 'schematic_document_qa',
+        label: 'Schematic document QA',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['schematic QA report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports unresolved schematic text variables, title-block gaps, and document style summaries.'
+    })
+    assert.deepEqual(byId.get('pcb_rule_read_model'), {
+        id: 'pcb_rule_read_model',
+        label: 'PCB rule read model',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['rule read model'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary: 'Builds typed KiCad custom-rule and project-rule summaries.'
+    })
+    assert.deepEqual(byId.get('pcb_rigid_flex_topology'), {
+        id: 'pcb_rigid_flex_topology',
+        label: 'PCB rigid-flex topology',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['rigid-flex topology'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports KiCad flat-stack and region-metadata rigid-flex topology status.'
+    })
 
     const reporting = KicadToolkitCapabilities.inventory({
         category: 'reporting'
     })
 
-    assert.equal(reporting.total, 6)
+    assert.equal(reporting.total, 24)
     assert.deepEqual(Object.keys(reporting.categories), ['reporting'])
 })
 

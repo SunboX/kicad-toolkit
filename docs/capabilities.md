@@ -12,12 +12,20 @@ support without probing individual classes.
 The inventory also covers standalone footprint and symbol library parsing,
 library table and manifest parsing, library search and render manifests,
 project metadata parsing, design block indexing, jobset digesting,
-asset inventory, project document graph indexing,
+project output digesting, asset inventory, project document graph indexing,
 jobset/custom-rule/worksheet/netlist/association sidecar parsing, legacy
 library inspection, design bundle composition, semantic SVG metadata, semantic
-SVG/model cross-link validation, renderer helper APIs, per-layer SVG exports,
-CI artifact bundle composition, deterministic parser compatibility smoke cases,
-schematic connectivity QA, and deterministic project netlist/wirelist export.
+SVG/model cross-link validation, renderer helper APIs, schematic render-op
+sidecars, per-layer SVG exports, split helper schema publication, PCB route
+analysis, PCB statistics, PCB
+layer-stack reports, PCB dimension reports, PCB region/keepout reports, PCB
+rule read models, PCB rigid-flex topology status, source coverage reports, PCB
+ownership graph indexing, schematic ownership graph indexing, schematic
+hierarchy graph indexing, KiCad PnP coordinate views, CI artifact bundle
+composition, deterministic parser compatibility smoke cases, schematic
+connectivity QA, schematic document QA, library QA, library merge-plan
+diagnostics, BOM/PnP reconciliation, and deterministic project netlist/wirelist
+export.
 
 ## Capability Inventory
 
@@ -116,10 +124,14 @@ document graph indexing, raw KiCad AST/model preservation, companion asset
 metadata, and KiCad stroke-font rendering.
 
 Renderer-side helper parity is provided through `kicad-toolkit/renderers`.
-`KicadSvgUtils`, `PcbSvgSemanticMetadata`,
-`SchematicSvgSemanticMetadata`, `SchematicProjectParameterResolver`, and
-`SchematicSvgTextMetrics` expose the deterministic utility contracts used by
-the built-in renderers without requiring host applications to import internal
+`KicadSvgUtils`, `PcbArcUtils`, `PcbEdgeFacingGlyphNormalizer`,
+`PcbFootprintPrimitiveSelector`, `PcbSvgSemanticMetadata`,
+`SchematicColorResolver`, `SchematicContentLayout`,
+`SchematicOwnerPinLabelLayout`, `SchematicSvgUtils`,
+`SchematicSvgSemanticMetadata`, `SchematicRenderOpsSidecarBuilder`,
+`SchematicProjectParameterResolver`, `SchematicSvgTextMetrics`, and
+`SchematicTypography` expose the deterministic utility contracts used by the
+built-in renderers without requiring host applications to import internal
 files.
 
 ## CI And Compatibility Helpers
@@ -127,9 +139,59 @@ files.
 `KicadProjectDocumentGraphBuilder.build()` creates a read-only graph of parsed
 KiCad project documents, project pages, linked libraries, design blocks,
 jobsets, generated outputs, assets, and optional missing-path checks.
+`KicadProjectOutputDigestBuilder.build()` creates jobset-derived output groups,
+document lookup indexes, and expected artifact manifests for project output
+planning.
+`KicadSchematicHierarchyGraphBuilder.build()` creates a read-only graph of
+schematic root pages and hierarchical sheet references.
 `KicadCiArtifactBundleBuilder.build()` composes deterministic parser, renderer,
-netlist, readiness, QA, asset, and document graph artifacts for CI workflows.
+netlist, readiness, QA, asset, document graph, and contract gate artifacts for
+CI workflows. `KicadContractGateReportBuilder.build()` exposes the same
+normalized-model, netlist, SVG/model-link, and diagnostic gates as a standalone
+report.
 Both helpers are data only and do not write files.
+
+`KicadPcbRouteAnalysisBuilder.build()`,
+`KicadPcbStatisticsBuilder.build()`,
+`KicadPcbLayerStackReadModelBuilder.build()`,
+`KicadPcbDimensionReadModelBuilder.build()`,
+`KicadPcbRegionSemanticsBuilder.build()`, and
+`KicadPcbOwnershipGraphBuilder.build()` expose deterministic PCB route,
+statistics, stackup, dimension, region/keepout, and primitive ownership
+reports from normalized parser data.
+Route analysis includes per-net layer participation, connected route groups,
+track/arc lengths, and caller-supplied differential-pair summaries.
+Layer-stack, dimension, region, and rigid-flex topology reports are attached to
+parsed PCB renderer models at `pcb.layerStack`, `pcb.dimensions`,
+`pcb.regionSemantics`, and `pcb.rigidFlexTopology`.
+`KicadPcbRuleReadModelBuilder.build()` normalizes KiCad custom DRC rules,
+project design settings, and net classes into typed rule rows.
+`KicadPcbRigidFlexTopologyBuilder.build()` reports KiCad flat-stack and
+region-metadata topology status without inventing unsupported Altium-style
+branch graphs. `KicadSourceCoverageReportBuilder.build()` reports supported
+and preserved-only KiCad S-expression node families for parser consumers.
+`KicadPcbReviewMetadataBuilder.build()` builds review groups from route
+analysis plus route-highlight profiles, polygon realizations, and drill
+overlays. `KicadPcbPlacedFootprintManifestBuilder.build()` emits placed
+footprint extraction descriptors, and
+`KicadFootprintLibraryParityReportBuilder.build()` reports advanced
+standalone footprint-library fields. `KicadImagePayloadManifestBuilder.build()`
+checksums image-like payloads from parsed KiCad documents, and
+`KicadHostCapabilityDiagnosticsBuilder.build()` reports render-host capability
+fallbacks.
+`KicadPcbComponentParticipationPolicy.resolve()` normalizes KiCad footprint
+attributes into BOM, PnP, and netlist participation flags.
+`KicadProjectBomPnpReconciliationBuilder.build()` compares schematic BOM, PCB
+BOM, PnP, DNP, exclude-from-BOM, and exclude-from-position-file designators.
+`KicadLibraryQaReportBuilder.build()` checks library collections for duplicate
+items, symbol-library merge-plan conflicts, unresolved footprint references,
+missing model assets, and unit mismatches.
+`KicadSchematicQaReportBuilder.build()` reports unresolved
+schematic text variables, title-block gaps, font families, and authored line
+widths.
+`KicadSchematicOwnershipGraphBuilder.build()` indexes schematic components,
+pins, texts, sheet entries, directives, rule areas, and nets by component or
+hierarchical sheet ownership.
 
 `KicadSvgModelCrossLinkValidator.validate()` compares semantic SVG element keys
 and references with parsed schematic or PCB model records.
@@ -143,6 +205,30 @@ read-only QA report from parsed schematic data. It reports implicit net names,
 dangling labels, orphan sheet entries, unconnected visible pins, and authored
 junctions that do not participate in any recovered net. The helper is intended
 for parser-quality and migration checks; it does not replace KiCad ERC.
+
+## Schematic And Library QA
+
+`KicadSchematicQaReportBuilder.build(input)` creates a document-level
+schematic QA report. It summarizes text rows, font families, line widths,
+unresolved `${Variable}` references, title-block gaps, and findings. The helper
+uses caller-provided `projectParameters` for variable resolution and leaves
+source models unchanged.
+
+`KicadLibraryQaReportBuilder.build(options)` creates a collection-level library
+QA report for parsed KiCad symbol and footprint libraries. It reports duplicate
+symbol names, duplicate footprint names, unresolved symbol footprint
+references, missing footprint model assets when an available asset list is
+provided, skipped symbol unit numbers, and a
+`kicad-toolkit.library.merge-plan.a1` sidecar with conflicts, rename
+suggestions, embedded assets, font dependencies, and diagnostics.
+
+## BOM/PnP Reconciliation
+
+`KicadProjectBomPnpReconciliationBuilder.build(options)` creates a project
+BOM/PnP reconciliation report from a design bundle and parsed documents. It
+compares schematic BOM designators, PCB-backed BOM designators, PnP
+designators, effective variant BOM designators, DNP rows, exclude-from-BOM
+rows, and exclude-from-position-file rows.
 
 ## Report Normalization
 

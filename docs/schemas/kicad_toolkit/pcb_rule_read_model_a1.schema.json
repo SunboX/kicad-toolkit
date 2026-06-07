@@ -1,0 +1,43 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.rule-read-model.a1",
+    "title": "KiCad Toolkit PCB Rule Read Model A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.rule-read-model.a1"
+        },
+        "units": {
+            "type": "object"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "rules": {
+            "type": "array"
+        },
+        "componentClassAssignments": {
+            "type": "array"
+        },
+        "netClasses": {
+            "type": "array"
+        },
+        "diagnostics": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": [
+        "schema",
+        "units",
+        "summary",
+        "rules",
+        "componentClassAssignments",
+        "netClasses",
+        "diagnostics",
+        "indexes"
+    ]
+}

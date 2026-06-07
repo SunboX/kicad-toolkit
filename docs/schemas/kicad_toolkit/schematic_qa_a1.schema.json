@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.schematic.qa.a1",
+    "title": "KiCad Toolkit Schematic QA A1",
+    "type": "object",
+    "required": ["schema", "summary", "findings"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.schematic.qa.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "findings": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

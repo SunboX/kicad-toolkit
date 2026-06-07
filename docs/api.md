@@ -139,40 +139,105 @@ indexes, and optional `effectiveVariant`. `ProjectVariantViewBuilder.build()`
 applies KiCad DNP flags and project variant DNP/parameter overrides.
 `ProjectNetlistExporter.buildNetlistJson()` and `buildWirelist()` emit
 deterministic KiCad project netlist exports.
+`KicadPcbPickPlacePositionResolver.buildModel()` exposes KiCad
+footprint-origin and pad-anchor-center PnP coordinate views.
+`KicadPcbComponentParticipationPolicy.resolve()` normalizes KiCad footprint
+attributes such as `smd`, `through_hole`, `virtual`, `dnp`,
+`exclude_from_bom`, and `exclude_from_pos_files` into BOM, netlist, and PnP
+participation flags. Parsed PCB documents attach PnP data at `pnp` and
+`pcb.pickPlace`.
 
 `KicadProjectDocumentGraphBuilder.build(projectModel, options)` indexes parsed
 project pages, standalone parsed documents, local libraries, design blocks,
 jobsets, generated outputs, companion assets, and optional missing-path checks.
+`KicadSchematicHierarchyGraphBuilder.build(projectModel, options)` indexes
+schematic root pages and hierarchical sheet links.
 `KicadCiArtifactBundleBuilder.build(options)` composes deterministic parser,
-renderer, netlist, document graph, asset, readiness, and schematic QA artifacts
-for CI-style workflows without writing files or invoking KiCad. Use
-`KicadSvgModelCrossLinkValidator.validate(documentModel, svgMarkup)` to compare
-semantic SVG element keys and references with the parsed schematic or PCB
-model. `KicadParserCompatibilityFuzzer.run()` runs deterministic synthetic
-KiCad parser smoke cases and returns a read-only compatibility report.
+renderer, netlist, document graph, asset, readiness, schematic QA, and contract
+gate artifacts for CI-style workflows without writing files or invoking KiCad.
+Use `KicadContractGateReportBuilder.build(options)` for the same pass/fail gate
+report outside the bundle. Use
+`KicadSvgModelCrossLinkValidator.validate(documentModel, svgMarkup)` or
+`validateSet(documentModel, svgMarkups)` to compare semantic SVG element keys
+and references with the parsed schematic or PCB model.
+`KicadParserCompatibilityFuzzer.run()` runs deterministic synthetic KiCad
+parser smoke cases and returns a read-only compatibility report.
+`KicadPcbRouteAnalysisBuilder.build()`, `KicadPcbStatisticsBuilder.build()`,
+`KicadPcbLayerStackReadModelBuilder.build()`,
+`KicadPcbDimensionReadModelBuilder.build()`,
+`KicadPcbRegionSemanticsBuilder.build()`, and
+`KicadPcbOwnershipGraphBuilder.build()` expose deterministic PCB route,
+board-statistics, stackup, dimension, region/keepout, and primitive-ownership
+read models. Route-analysis rows include per-net layer participation,
+track/arc lengths, connected route groups, and differential-pair summaries
+when supplied by callers.
+`KicadSchematicOwnershipGraphBuilder.build()` exposes schematic component,
+pin, text, sheet-entry, directive, rule-area, and net ownership rows.
+`KicadPcbReviewMetadataBuilder.build()` adapts route-analysis rows into
+review groups, route-highlight profiles, polygon realizations, and drill
+overlays, `KicadPcbPlacedFootprintManifestBuilder.build()` emits
+`.kicad_mod`-style extraction descriptors for placed footprints, and
+`KicadImagePayloadManifestBuilder.build()` emits byte sizes and FNV-1a
+checksums for schematic images, worksheet bitmaps, PCB images, and embedded
+schematic files. Parsed PCB documents attach layer stack, dimensions, region
+semantics, route analysis, review metadata, and footprint extraction manifests
+under `pcb.layerStack`, `pcb.dimensions`, `pcb.regionSemantics`,
+`pcb.routeAnalysis`, `pcb.reviewMetadata`, and
+`pcb.footprintExtractionManifest`.
+`KicadFootprintLibraryParityReportBuilder.build()` reports advanced
+standalone footprint-library pad, graphic, and model fields, and standalone
+`.kicad_mod` parses attach that report at `pcbLibrary.parityReport`.
+`KicadProjectBomPnpReconciliationBuilder.build()` compares schematic BOM,
+PCB BOM, PnP, DNP, exclude-from-BOM, and exclude-from-position-file rows.
+`KicadLibraryQaReportBuilder.build()` reports duplicate library items,
+symbol-library merge-plan conflicts, unresolved footprint references, missing
+model assets, and symbol unit mismatches.
+`KicadSchematicQaReportBuilder.build()` reports unresolved
+schematic text variables, title-block gaps, and document style summaries.
+`KicadHostCapabilityDiagnosticsBuilder.build()` mirrors the host capability
+diagnostic contract for KiCad render hosts.
 
 Specialized parser helpers are exported for lower-level integrations, including
 `Geometry`, `KicadArcGeometry`, `KicadCiArtifactBundleBuilder`,
+`KicadContractGateReportBuilder`,
 `KicadLayerResolver`, `KicadNetResolver`,
 `KicadDesignBlockLibraryParser`, `KicadDesignRulesParser`,
 `KicadEmbeddedAssetInventoryBuilder`,
 `KicadFootprintAssociationParser`, `KicadFootprintLibraryParser`,
+`KicadFootprintLibraryParityReportBuilder`,
+`KicadHostCapabilityDiagnosticsBuilder`,
+`KicadImagePayloadManifestBuilder`,
 `KicadJobsetDigestBuilder`, `KicadJobsetParser`,
 `KicadLegacyLibraryParser`, `KicadLibraryIndexBuilder`,
 `KicadLibraryRenderManifestBuilder`, `KicadLibrarySearchIndex`,
-`KicadLibraryTableParser`, `KicadNetlistParser`,
+`KicadLibraryQaReportBuilder`, `KicadLibraryTableParser`, `KicadNetlistParser`,
 `KicadParserCompatibilityFuzzer`, `KicadPcbDrawingParser`,
-`KicadPcbLayerMetadata`, `KicadPcbPadParser`,
+`KicadPcbComponentParticipationPolicy`,
+`KicadPcbDimensionReadModelBuilder`, `KicadPcbLayerMetadata`,
+`KicadPcbLayerStackReadModelBuilder`, `KicadPcbOwnershipGraphBuilder`,
+`KicadPcbPadParser`, `KicadPcbPickPlacePositionResolver`,
+`KicadPcbPlacedFootprintManifestBuilder`,
+`KicadPcbRegionSemanticsBuilder`,
+`KicadPcbReviewMetadataBuilder`,
+`KicadPcbRigidFlexTopologyBuilder`, `KicadPcbRouteAnalysisBuilder`,
+`KicadPcbRuleReadModelBuilder`, `KicadPcbStatisticsBuilder`,
+`KicadProjectBomPnpReconciliationBuilder`,
 `KicadProjectDocumentGraphBuilder`, `KicadProjectMetadataParser`,
+`KicadProjectOutputDigestBuilder`,
 `KicadFeatureParity`, `KicadReadinessReport`,
 `KicadSchematicConnectivityQaBuilder`, `KicadSchematicGraphicParser`,
-`KicadSchematicSymbolParser`, `KicadSvgModelCrossLinkValidator`,
-`KicadSymbolLibraryParser`, `KicadToolkitCapabilities`,
+`KicadSchematicHierarchyGraphBuilder`,
+`KicadSchematicOwnershipGraphBuilder`, `KicadSchematicQaReportBuilder`,
+`KicadSchematicSymbolParser`,
+`KicadSourceCoverageReportBuilder`, `KicadSvgModelCrossLinkValidator`,
+`KicadSymbolLibraryParser`,
+`KicadToolkitCapabilities`,
 `KicadWorksheetParser`, `ProjectDesignBundleBuilder`,
 `ProjectNetlistExporter`, `ProjectVariantViewBuilder`, and
-`SExpressionSchema` and `SExpressionTree`. The layer, net, drawing, pad,
-schematic, report, capability, library, sidecar, and S-expression helpers expose
-the same normalization used by
+`SchematicProjectParameterResolver`, `SExpressionSchema`, and
+`SExpressionTree`. The layer, net, drawing, pad, schematic, report,
+capability, library, sidecar, and S-expression helpers expose the same
+normalization used by
 `.kicad_pcb` and `.kicad_sch` parsing. `KicadFeatureParity` exposes a data-only
 parity inventory for KiCad equivalents and source-format exemptions.
 `SExpressionParser.parse(source)` returns the raw nested S-expression tree used
@@ -241,6 +306,13 @@ electrical, or fabrication review.
 schematic-local connectivity findings for implicit net names, dangling labels,
 orphan sheet entries, unconnected visible pins, and ambiguous junctions. It
 uses parsed schematic model data only and does not invoke KiCad.
+`KicadSchematicQaReportBuilder.build(input)` returns document-level schematic
+QA for unresolved `${Variable}` references, title-block gaps, font families,
+and authored line widths.
+`KicadProjectBomPnpReconciliationBuilder.build(options)` returns project-level
+BOM/PnP drift findings, and `KicadLibraryQaReportBuilder.build(options)`
+returns library collection QA and read-only merge-plan diagnostics for symbol
+and footprint library sets.
 
 See [Capabilities](capabilities.md) for the full inventory and report shapes.
 
@@ -283,10 +355,19 @@ import {
     preparePcbSideResolvedRenderModel,
     BomTableRenderer,
     KicadSvgUtils,
+    PcbArcUtils,
+    PcbEdgeFacingGlyphNormalizer,
+    PcbFootprintPrimitiveSelector,
     PcbSvgSemanticMetadata,
+    SchematicColorResolver,
+    SchematicContentLayout,
+    SchematicOwnerPinLabelLayout,
     SchematicProjectParameterResolver,
+    SchematicRenderOpsSidecarBuilder,
+    SchematicSvgUtils,
     SchematicSvgSemanticMetadata,
-    SchematicSvgTextMetrics
+    SchematicSvgTextMetrics,
+    SchematicTypography
 } from 'kicad-toolkit/renderers'
 ```
 
@@ -307,8 +388,18 @@ import {
 - `KicadSvgUtils` exposes deterministic renderer helper methods for compact
   SVG number formatting, escaping, attribute rendering, point projection, and
   path construction.
+- `PcbArcUtils`, `PcbEdgeFacingGlyphNormalizer`,
+  `PcbFootprintPrimitiveSelector`, `SchematicColorResolver`,
+  `SchematicContentLayout`, `SchematicOwnerPinLabelLayout`,
+  `SchematicSvgUtils`, and `SchematicTypography` expose renderer facade
+  helpers compatible with the Altium Toolkit helper surface while using KiCad
+  geometry, layer, color, layout, and stroke-text rules.
 - `PcbSvgSemanticMetadata` and `SchematicSvgSemanticMetadata` expose the
   semantic metadata builders used by the PCB and schematic SVG renderers.
+- `SchematicRenderOpsSidecarBuilder.build(schematic)` emits deterministic
+  `kicad-toolkit.schematic.render-ops.a1` operation rows for schematic lines,
+  pins, and KiCad stroke text. `SchematicSvgRenderer` embeds the same sidecar
+  as `<metadata id="schematic-render-ops-metadata">`.
 - `SchematicProjectParameterResolver.resolveSchematic(schematic, parameters)`
   resolves KiCad `${Variable}` text without mutating the source schematic.
 - `SchematicSvgTextMetrics` exposes KiCad stroke-text placement metrics used by
@@ -317,7 +408,8 @@ import {
 Renderer output is deterministic string markup. The library does not attach DOM
 events or mutate a host document. PCB and schematic SVG output includes
 semantic `data-*` attributes plus metadata sidecars for layers, nets,
-components, pins, pads, drills, and rendered view context.
+components, pins, pads, drills, schematic render operations, and rendered view
+context.
 
 ## 3D Scene Data
 
@@ -327,7 +419,8 @@ import {
     PcbScene3dModelRegistry,
     PcbScene3dPackages,
     PcbScene3dScenePreparator,
-    PcbScene3dSummaryRenderer
+    PcbScene3dSummaryRenderer,
+    PcbScene3dTextBoxLayoutResolver
 } from 'kicad-toolkit/scene3d'
 ```
 
@@ -344,6 +437,10 @@ import {
   scene-description data behind an async API suitable for host workers.
 - `PcbScene3dSummaryRenderer.render(documentModel)` returns static 3D summary
   HTML.
+- `PcbScene3dTextBoxLayoutResolver.resolve(text)` resolves KiCad
+  `gr_text_box` and `fp_text_box` geometry, margins, border, and alignment
+  metadata for scene consumers. Scene text rows include `textBoxLayout` when
+  parsed text-box metadata is available.
 
 The library intentionally does not create Three.js objects, canvases, controls,
 or event listeners.

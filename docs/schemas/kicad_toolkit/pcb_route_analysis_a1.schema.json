@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.route-analysis.a1",
+    "title": "KiCad Toolkit PCB Route Analysis A1",
+    "type": "object",
+    "required": ["schema", "units", "summary", "byNet"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.route-analysis.a1"
+        },
+        "units": {
+            "type": "object"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "byNet": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

@@ -36,17 +36,22 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'Geometry',
         'KicadArcGeometry',
         'KicadCiArtifactBundleBuilder',
+        'KicadContractGateReportBuilder',
         'KicadDesignBlockLibraryParser',
         'KicadDesignRulesParser',
         'KicadEmbeddedAssetInventoryBuilder',
         'KicadFeatureParity',
         'KicadFootprintAssociationParser',
         'KicadFootprintLibraryParser',
+        'KicadFootprintLibraryParityReportBuilder',
+        'KicadHostCapabilityDiagnosticsBuilder',
+        'KicadImagePayloadManifestBuilder',
         'KicadJobsetDigestBuilder',
         'KicadJobsetParser',
         'KicadLayerResolver',
         'KicadLegacyLibraryParser',
         'KicadLibraryIndexBuilder',
+        'KicadLibraryQaReportBuilder',
         'KicadLibraryRenderManifestBuilder',
         'KicadLibrarySearchIndex',
         'KicadLibraryTableParser',
@@ -54,18 +59,36 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadNetlistParser',
         'KicadParser',
         'KicadParserCompatibilityFuzzer',
+        'KicadPcbDimensionReadModelBuilder',
         'KicadPcbDrawingParser',
+        'KicadPcbLayerStackReadModelBuilder',
         'KicadPcbLayerMetadata',
+        'KicadPcbComponentParticipationPolicy',
+        'KicadPcbOwnershipGraphBuilder',
         'KicadPcbPadParser',
+        'KicadPcbPickPlacePositionResolver',
+        'KicadPcbPlacedFootprintManifestBuilder',
         'KicadPcbParser',
+        'KicadPcbRegionSemanticsBuilder',
+        'KicadPcbReviewMetadataBuilder',
+        'KicadPcbRigidFlexTopologyBuilder',
+        'KicadPcbRuleReadModelBuilder',
+        'KicadPcbRouteAnalysisBuilder',
+        'KicadPcbStatisticsBuilder',
         'KicadProjectLoader',
+        'KicadProjectBomPnpReconciliationBuilder',
         'KicadProjectDocumentGraphBuilder',
+        'KicadProjectOutputDigestBuilder',
         'KicadProjectMetadataParser',
         'KicadReadinessReport',
         'KicadSchematicConnectivityQaBuilder',
         'KicadSchematicGraphicParser',
+        'KicadSchematicHierarchyGraphBuilder',
+        'KicadSchematicOwnershipGraphBuilder',
         'KicadSchematicParser',
+        'KicadSchematicQaReportBuilder',
         'KicadSchematicSymbolParser',
+        'KicadSourceCoverageReportBuilder',
         'KicadSymbolLibraryParser',
         'KicadSvgModelCrossLinkValidator',
         'KicadToolkitCapabilities',
@@ -76,22 +99,32 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'ProjectVariantViewBuilder',
         'SExpressionParser',
         'SExpressionSchema',
-        'SExpressionTree'
+        'SExpressionTree',
+        'SchematicProjectParameterResolver'
     ])
     assertPublicApi(rendererApi, [
         'BomTableRenderer',
         'KicadStrokeFont',
         'KicadSvgUtils',
+        'PcbArcUtils',
+        'PcbEdgeFacingGlyphNormalizer',
+        'PcbFootprintPrimitiveSelector',
         'PcbInteractionIndex',
         'PcbInteractionItemRegistry',
         'PcbInteractionLayerModel',
         'PcbSideResolvedRenderModel',
         'PcbSvgSemanticMetadata',
         'PcbSvgRenderer',
+        'SchematicRenderOpsSidecarBuilder',
+        'SchematicColorResolver',
+        'SchematicContentLayout',
+        'SchematicOwnerPinLabelLayout',
         'SchematicProjectParameterResolver',
+        'SchematicSvgUtils',
         'SchematicSvgSemanticMetadata',
         'SchematicSvgRenderer',
         'SchematicSvgTextMetrics',
+        'SchematicTypography',
         'isCopperPrimitive',
         'preparePcbSideResolvedRenderModel'
     ])
@@ -100,7 +133,8 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'PcbScene3dModelRegistry',
         'PcbScene3dPackages',
         'PcbScene3dScenePreparator',
-        'PcbScene3dSummaryRenderer'
+        'PcbScene3dSummaryRenderer',
+        'PcbScene3dTextBoxLayoutResolver'
     ])
 
     for (const exportName of Object.keys(parserApi)) {
@@ -129,15 +163,28 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     )
     await assertFileExists('../src/core/kicad/KicadCiArtifactBundleBuilder.mjs')
     await assertFileExists(
+        '../src/core/kicad/KicadContractGateReportBuilder.mjs'
+    )
+    await assertFileExists(
         '../src/core/kicad/KicadFootprintAssociationParser.mjs'
     )
     await assertFileExists('../src/core/kicad/KicadFootprintLibraryParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadFootprintLibraryParityReportBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadHostCapabilityDiagnosticsBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadImagePayloadManifestBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadJobsetDigestBuilder.mjs')
     await assertFileExists('../src/core/kicad/KicadJobsetParser.mjs')
     await assertFileExists('../src/core/kicad/KicadParser.mjs')
     await assertFileExists('../src/core/kicad/KicadLayerResolver.mjs')
     await assertFileExists('../src/core/kicad/KicadLegacyLibraryParser.mjs')
     await assertFileExists('../src/core/kicad/KicadLibraryIndexBuilder.mjs')
+    await assertFileExists('../src/core/kicad/KicadLibraryQaReportBuilder.mjs')
     await assertFileExists(
         '../src/core/kicad/KicadLibraryRenderManifestBuilder.mjs'
     )
@@ -148,12 +195,57 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists(
         '../src/core/kicad/KicadParserCompatibilityFuzzer.mjs'
     )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbDimensionReadModelBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadPcbDrawingParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbLayerStackReadModelBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadPcbLayerMetadata.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbComponentParticipationPolicy.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbReviewDrillMetadataBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbReviewPolygonRealizationBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbReviewRouteHighlightProfileBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbOwnershipGraphBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadPcbPadParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbPickPlacePositionResolver.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbPlacedFootprintManifestBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadPcbParser.mjs')
     await assertFileExists(
+        '../src/core/kicad/KicadPcbRegionSemanticsBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbReviewMetadataBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbRigidFlexTopologyBuilder.mjs'
+    )
+    await assertFileExists('../src/core/kicad/KicadPcbRuleReadModelBuilder.mjs')
+    await assertFileExists('../src/core/kicad/KicadPcbRouteAnalysisBuilder.mjs')
+    await assertFileExists('../src/core/kicad/KicadPcbStatisticsBuilder.mjs')
+    await assertFileExists(
         '../src/core/kicad/KicadProjectDocumentGraphBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadProjectBomPnpReconciliationBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadProjectOutputDigestBuilder.mjs'
     )
     await assertFileExists('../src/core/kicad/KicadProjectMetadataParser.mjs')
     await assertFileExists('../src/core/kicad/KicadProjectLoader.mjs')
@@ -162,8 +254,20 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
         '../src/core/kicad/KicadSchematicConnectivityQaBuilder.mjs'
     )
     await assertFileExists('../src/core/kicad/KicadSchematicGraphicParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadSchematicHierarchyGraphBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadSchematicOwnershipGraphBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadSchematicParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadSchematicQaReportBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadSourceCoverageReportBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadSymbolLibraryParser.mjs')
     await assertFileExists(
         '../src/core/kicad/KicadSvgModelCrossLinkValidator.mjs'
@@ -183,7 +287,12 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists(
         '../src/core/circuit-json/CircuitJsonModelSchema.mjs'
     )
+    await assertFileExists('../src/ui/PcbEdgeFacingGlyphNormalizer.mjs')
+    await assertFileExists('../src/PcbScene3dTextBoxLayoutResolver.mjs')
     await assertFileExists('../src/ui/PcbSideResolvedRenderModel.mjs')
+    await assertFileExists('../src/ui/SchematicRenderOpsSidecarBuilder.mjs')
+    await assertFileExists('../src/ui/SchematicContentLayout.mjs')
+    await assertFileExists('../src/ui/SchematicOwnerPinLabelLayout.mjs')
     await assertFileExists('../src/scene3d.mjs')
     await assertFileExists('../src/workers/kicad-parser.worker.mjs')
     await assertFileMissing('../src/ui/BadgeRenderer.mjs')

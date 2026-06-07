@@ -1,0 +1,35 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.statistics.a1",
+    "title": "KiCad Toolkit PCB Statistics A1",
+    "type": "object",
+    "required": [
+        "schema",
+        "units",
+        "board",
+        "drills",
+        "primitiveWidths",
+        "layers"
+    ],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.statistics.a1"
+        },
+        "units": {
+            "type": "object"
+        },
+        "board": {
+            "type": "object"
+        },
+        "drills": {
+            "type": "object"
+        },
+        "primitiveWidths": {
+            "type": "object"
+        },
+        "layers": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

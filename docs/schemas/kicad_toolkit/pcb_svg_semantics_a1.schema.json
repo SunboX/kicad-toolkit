@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.svg.semantics.a1",
+    "title": "KiCad Toolkit PCB SVG Semantics A1",
+    "type": "object",
+    "required": ["schema", "view", "layers", "elements"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.svg.semantics.a1"
+        },
+        "view": {
+            "type": "object"
+        },
+        "layers": {
+            "type": "array"
+        },
+        "elements": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

@@ -1,0 +1,31 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.library.merge-plan.a1",
+    "title": "KiCad Toolkit Library Merge Plan A1",
+    "type": "object",
+    "required": ["schema", "strategy", "summary", "duplicateSymbols"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.library.merge-plan.a1"
+        },
+        "strategy": {
+            "const": "read-only-analysis"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "duplicateSymbols": {
+            "type": "array"
+        },
+        "embeddedAssets": {
+            "type": "array"
+        },
+        "fontDependencies": {
+            "type": "array"
+        },
+        "diagnostics": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

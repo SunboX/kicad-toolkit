@@ -1,0 +1,39 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.source.coverage.a1",
+    "title": "KiCad Toolkit Source Coverage A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.source.coverage.a1"
+        },
+        "sourceFormat": {
+            "type": "string"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "nodes": {
+            "type": "array"
+        },
+        "nodesByName": {
+            "type": "object"
+        },
+        "diagnostics": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": [
+        "schema",
+        "sourceFormat",
+        "summary",
+        "nodes",
+        "nodesByName",
+        "diagnostics",
+        "indexes"
+    ]
+}

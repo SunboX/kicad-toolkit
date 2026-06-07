@@ -1,0 +1,25 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.schematic.render-ops.a1",
+    "title": "KiCad Toolkit Schematic Render Operations A1",
+    "type": "object",
+    "required": ["schema", "profile", "coordinateSpace", "summary", "records"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.schematic.render-ops.a1"
+        },
+        "profile": {
+            "type": "string"
+        },
+        "coordinateSpace": {
+            "type": "object"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "records": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

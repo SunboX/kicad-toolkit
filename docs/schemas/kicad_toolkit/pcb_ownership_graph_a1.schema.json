@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.ownership-graph.a1",
+    "title": "KiCad Toolkit PCB Ownership Graph A1",
+    "type": "object",
+    "required": ["schema", "summary", "primitiveOwners"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.ownership-graph.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "primitiveOwners": {
+            "type": "array"
+        },
+        "primitivesByComponent": {
+            "type": "object"
+        },
+        "primitivesByNet": {
+            "type": "object"
+        },
+        "primitivesByGroup": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.project.expected-artifacts.a1",
+    "title": "KiCad Toolkit Project Expected Artifacts A1",
+    "type": "object",
+    "required": ["schema", "summary", "manifest"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.project.expected-artifacts.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "manifest": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

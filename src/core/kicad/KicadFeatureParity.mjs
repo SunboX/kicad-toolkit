@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { additionalFeatureParityRecords } from './KicadFeatureParityAdditionalFeatures.mjs'
+
 const categoryInfo = Object.freeze({
     parser_roots: {
         label: 'Parser roots',
@@ -707,7 +709,8 @@ const features = Object.freeze([
         ],
         summary:
             'Project structure tests keep public package documentation and layout auditable.'
-    })
+    }),
+    ...additionalFeatureParityRecords.map(feature)
 ])
 
 const exemptions = Object.freeze([

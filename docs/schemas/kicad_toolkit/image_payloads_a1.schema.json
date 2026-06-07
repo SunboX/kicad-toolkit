@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.image-payloads.a1",
+    "title": "KiCad Toolkit Image Payloads A1",
+    "type": "object",
+    "required": ["schema", "summary", "payloads", "diagnostics"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.image-payloads.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "payloads": {
+            "type": "array"
+        },
+        "diagnostics": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

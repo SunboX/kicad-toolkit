@@ -1,0 +1,25 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.project.document-graph.a1",
+    "title": "KiCad Toolkit Project Document Graph A1",
+    "type": "object",
+    "required": ["schema", "summary", "documents", "groups", "indexes"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.project.document-graph.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "documents": {
+            "type": "array"
+        },
+        "groups": {
+            "type": "object"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

@@ -5,6 +5,7 @@ import { CircuitJsonModelAdapter } from '../circuit-json/CircuitJsonModelAdapter
 import { PcbSvgRenderer } from '../../ui/PcbSvgRenderer.mjs'
 import { SchematicSvgRenderer } from '../../ui/SchematicSvgRenderer.mjs'
 import { KicadEmbeddedAssetInventoryBuilder } from './KicadEmbeddedAssetInventoryBuilder.mjs'
+import { KicadContractGateReportBuilder } from './KicadContractGateReportBuilder.mjs'
 import { KicadProjectDocumentGraphBuilder } from './KicadProjectDocumentGraphBuilder.mjs'
 import { KicadReadinessReport } from './KicadReadinessReport.mjs'
 import { KicadSchematicConnectivityQaBuilder } from './KicadSchematicConnectivityQaBuilder.mjs'
@@ -55,6 +56,10 @@ export class KicadCiArtifactBundleBuilder {
         )
         const netlistJson =
             ProjectNetlistExporter.buildNetlistJson(activeBundle)
+        const netlist = {
+            json: netlistJson,
+            wirelist: ProjectNetlistExporter.buildWirelist(activeBundle)
+        }
         const readiness = readinessReports(documentModels)
         const schematicQa = schematicQaReports(documentModels)
         const diagnostics = diagnosticRows(designBundle, documentModels)
@@ -62,6 +67,13 @@ export class KicadCiArtifactBundleBuilder {
             { documents: documentModels },
             { assets: combinedAssets(projectModel, options) }
         )
+        const contractGate = KicadContractGateReportBuilder.build({
+            documentModels,
+            netlist,
+            schematicSvgs,
+            pcbLayerSvgs,
+            diagnostics
+        })
 
         return {
             schema: schemaId,
@@ -78,15 +90,13 @@ export class KicadCiArtifactBundleBuilder {
                 pnpCount: (activeBundle.pnp?.entries || []).length,
                 diagnosticCount: diagnostics.length,
                 readinessReportCount: readiness.pcb.length,
-                schematicQaReportCount: schematicQa.length
+                schematicQaReportCount: schematicQa.length,
+                contractGateStatus: contractGate.status
             },
             designBundle,
             documentGraph,
             normalizedModels: documentModels,
-            netlist: {
-                json: netlistJson,
-                wirelist: ProjectNetlistExporter.buildWirelist(activeBundle)
-            },
+            netlist,
             bom: { rows: activeBundle.bom || designBundle.bom || [] },
             pnp: activeBundle.pnp || designBundle.pnp || { entries: [] },
             schematicSvgs,
@@ -94,6 +104,7 @@ export class KicadCiArtifactBundleBuilder {
             readiness,
             schematicQa,
             assetInventory,
+            contractGate,
             diagnostics
         }
     }

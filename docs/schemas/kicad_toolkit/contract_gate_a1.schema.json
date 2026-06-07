@@ -1,0 +1,25 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.contract-gate.a1",
+    "title": "KiCad Toolkit Contract Gate A1",
+    "type": "object",
+    "required": ["schema", "status", "summary", "gates", "svgLinkReports"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.contract-gate.a1"
+        },
+        "status": {
+            "enum": ["pass", "fail"]
+        },
+        "summary": {
+            "type": "object"
+        },
+        "gates": {
+            "type": "array"
+        },
+        "svgLinkReports": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

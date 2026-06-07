@@ -1,0 +1,25 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.host-capabilities.a1",
+    "title": "KiCad Toolkit Host Capabilities A1",
+    "type": "object",
+    "required": ["schema", "host", "summary", "capabilities", "diagnostics"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.host-capabilities.a1"
+        },
+        "host": {
+            "type": "object"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "capabilities": {
+            "type": "array"
+        },
+        "diagnostics": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

@@ -8,7 +8,8 @@ import {
     PcbScene3dModelRegistry,
     PcbScene3dPackages,
     PcbScene3dScenePreparator,
-    PcbScene3dSummaryRenderer
+    PcbScene3dSummaryRenderer,
+    PcbScene3dTextBoxLayoutResolver
 } from '../src/scene3d.mjs'
 
 test('PcbScene3dBuilder emits data-only scene description for KiCad PCB models', () => {
@@ -575,4 +576,80 @@ test('PcbScene3dBuilder exposes KiCad copper text detail', () => {
             thickness: 4.724409448818898
         }
     ])
+})
+
+test('PcbScene3dTextBoxLayoutResolver resolves KiCad text-box geometry', () => {
+    const layout = PcbScene3dTextBoxLayoutResolver.resolve({
+        sourceType: 'gr_text_box',
+        textBox: {
+            points: [
+                { x: 0, y: 0 },
+                { x: 10, y: 0 },
+                { x: 10, y: 4 },
+                { x: 0, y: 4 }
+            ],
+            border: true,
+            margins: {
+                left: 0.5,
+                top: 0.25,
+                right: 0.75,
+                bottom: 0.25
+            }
+        },
+        hAlign: 'right',
+        vAlign: 'top'
+    })
+
+    assert.deepEqual(layout, {
+        source: 'kicad-textbox',
+        mode: 'polygon',
+        border: true,
+        widthMil: 393.7007874015748,
+        heightMil: 157.48031496062993,
+        marginMil: {
+            left: 19.68503937007874,
+            top: 9.84251968503937,
+            right: 29.52755905511811,
+            bottom: 9.84251968503937
+        },
+        renderWidthMil: 442.9133858267717,
+        renderHeightMil: 177.16535433070868,
+        justification: {
+            column: 2,
+            row: 0
+        }
+    })
+})
+
+test('PcbScene3dBuilder carries KiCad text-box layout onto scene text rows', () => {
+    const scene = PcbScene3dBuilder.build({
+        pcb: {
+            boardOutline: { widthMil: 1000, heightMil: 500, segments: [] },
+            components: [],
+            pads: [],
+            tracks: [],
+            vias: [],
+            texts: [
+                {
+                    value: 'NOTE',
+                    x: 25,
+                    y: 50,
+                    layer: 'F.SilkS',
+                    sourceType: 'gr_text_box',
+                    textBox: {
+                        points: [
+                            { x: 0, y: 0 },
+                            { x: 2, y: 0 },
+                            { x: 2, y: 1 },
+                            { x: 0, y: 1 }
+                        ],
+                        border: false
+                    }
+                }
+            ]
+        }
+    })
+
+    assert.equal(scene.texts[0].textBoxLayout.source, 'kicad-textbox')
+    assert.equal(scene.texts[0].textBoxLayout.border, false)
 })

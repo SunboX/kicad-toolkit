@@ -1,0 +1,25 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.region-semantics.a1",
+    "title": "KiCad Toolkit PCB Region Semantics A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.region-semantics.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "zones": {
+            "type": "array"
+        },
+        "boardRegions": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": ["schema", "summary", "zones", "boardRegions", "indexes"]
+}

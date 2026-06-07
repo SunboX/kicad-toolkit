@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.schematic.svg.semantics.a1",
+    "title": "KiCad Toolkit Schematic SVG Semantics A1",
+    "type": "object",
+    "required": ["schema", "elements"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.schematic.svg.semantics.a1"
+        },
+        "elements": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

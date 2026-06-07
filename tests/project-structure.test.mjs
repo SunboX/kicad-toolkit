@@ -46,6 +46,33 @@ test('required project files exist', async () => {
         'docs/capabilities.md',
         'docs/model-format.md',
         'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json',
+        'docs/schemas/kicad_toolkit/project_bundle_a1.schema.json',
+        'docs/schemas/kicad_toolkit/netlist_a1.schema.json',
+        'docs/schemas/kicad_toolkit/schematic_svg_semantics_a1.schema.json',
+        'docs/schemas/kicad_toolkit/schematic_render_ops_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_svg_semantics_a1.schema.json',
+        'docs/schemas/kicad_toolkit/ci_artifact_bundle_a1.schema.json',
+        'docs/schemas/kicad_toolkit/contract_gate_a1.schema.json',
+        'docs/schemas/kicad_toolkit/project_document_graph_a1.schema.json',
+        'docs/schemas/kicad_toolkit/project_expected_artifacts_a1.schema.json',
+        'docs/schemas/kicad_toolkit/project_output_digest_a1.schema.json',
+        'docs/schemas/kicad_toolkit/svg_model_cross_link_a1.schema.json',
+        'docs/schemas/kicad_toolkit/parser_compatibility_fuzz_a1.schema.json',
+        'docs/schemas/kicad_toolkit/source_coverage_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_route_analysis_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_rule_read_model_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_rigid_flex_topology_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_statistics_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_layer_stack_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_dimensions_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_region_semantics_a1.schema.json',
+        'docs/schemas/kicad_toolkit/pcb_ownership_graph_a1.schema.json',
+        'docs/schemas/kicad_toolkit/schematic_ownership_graph_a1.schema.json',
+        'docs/schemas/kicad_toolkit/schematic_hierarchy_graph_a1.schema.json',
+        'docs/schemas/kicad_toolkit/project_bom_pnp_reconciliation_a1.schema.json',
+        'docs/schemas/kicad_toolkit/library_qa_a1.schema.json',
+        'docs/schemas/kicad_toolkit/library_merge_plan_a1.schema.json',
+        'docs/schemas/kicad_toolkit/schematic_qa_a1.schema.json',
         'docs/testing.md',
         'examples/server.mjs',
         'examples/rp2040-minimal-design/index.html',
@@ -60,6 +87,7 @@ test('required project files exist', async () => {
         'src/core/kicad/KicadDesignBlockLibraryParser.mjs',
         'src/core/kicad/KicadDesignRulesParser.mjs',
         'src/core/kicad/KicadEmbeddedAssetInventoryBuilder.mjs',
+        'src/core/kicad/KicadContractGateReportBuilder.mjs',
         'src/core/kicad/KicadFootprintAssociationParser.mjs',
         'src/core/kicad/KicadFootprintLibraryParser.mjs',
         'src/core/kicad/KicadJobsetDigestBuilder.mjs',
@@ -67,15 +95,31 @@ test('required project files exist', async () => {
         'src/core/kicad/KicadLayerResolver.mjs',
         'src/core/kicad/KicadLegacyLibraryParser.mjs',
         'src/core/kicad/KicadLibraryIndexBuilder.mjs',
+        'src/core/kicad/KicadLibraryQaReportBuilder.mjs',
         'src/core/kicad/KicadLibraryRenderManifestBuilder.mjs',
         'src/core/kicad/KicadLibrarySearchIndex.mjs',
         'src/core/kicad/KicadLibraryTableParser.mjs',
         'src/core/kicad/KicadNetlistParser.mjs',
+        'src/core/kicad/KicadPcbComponentParticipationPolicy.mjs',
+        'src/core/kicad/KicadPcbDimensionReadModelBuilder.mjs',
+        'src/core/kicad/KicadPcbLayerStackReadModelBuilder.mjs',
         'src/core/kicad/KicadPcbParser.mjs',
+        'src/core/kicad/KicadPcbRegionSemanticsBuilder.mjs',
+        'src/core/kicad/KicadPcbRigidFlexTopologyBuilder.mjs',
+        'src/core/kicad/KicadPcbRuleReadModelBuilder.mjs',
+        'src/core/kicad/KicadPcbReviewDrillMetadataBuilder.mjs',
+        'src/core/kicad/KicadPcbReviewPolygonRealizationBuilder.mjs',
+        'src/core/kicad/KicadPcbReviewRouteHighlightProfileBuilder.mjs',
+        'src/core/kicad/KicadPcbTextBoxMetadata.mjs',
+        'src/core/kicad/KicadProjectBomPnpReconciliationBuilder.mjs',
+        'src/core/kicad/KicadProjectOutputDigestBuilder.mjs',
         'src/core/kicad/KicadProjectLoader.mjs',
         'src/core/kicad/KicadProjectMetadataParser.mjs',
         'src/core/kicad/KicadFeatureParity.mjs',
         'src/core/kicad/KicadSchematicConnectivityQaBuilder.mjs',
+        'src/core/kicad/KicadSchematicOwnershipGraphBuilder.mjs',
+        'src/core/kicad/KicadSchematicQaReportBuilder.mjs',
+        'src/core/kicad/KicadSourceCoverageReportBuilder.mjs',
         'src/core/kicad/KicadSymbolLibraryParser.mjs',
         'src/core/kicad/ProjectDesignBundleBuilder.mjs',
         'src/core/kicad/ProjectNetlistExporter.mjs',
@@ -83,12 +127,15 @@ test('required project files exist', async () => {
         'src/core/kicad/SExpressionParser.mjs',
         'src/core/kicad/KicadWorksheetParser.mjs',
         'src/ui/KicadStrokeFont.mjs',
+        'src/ui/SchematicRenderOpsSidecarBuilder.mjs',
+        'src/PcbScene3dTextBoxLayoutResolver.mjs',
         'src/ui/PcbSvgRenderer.mjs',
         'tests/core/kicad-pcb-parser.test.mjs',
         'tests/core/kicad-auxiliary-file-parsers.test.mjs',
         'tests/core/kicad-library-index.test.mjs',
         'tests/core/kicad-library-parsers.test.mjs',
         'tests/core/kicad-parity-helper-apis.test.mjs',
+        'tests/core/kicad-final-parity-read-models.test.mjs',
         'tests/core/kicad-project-loader.test.mjs',
         'tests/core/kicad-sexpression-parser.test.mjs',
         'tests/ui/pcb-svg-renderer.test.mjs',
@@ -293,10 +340,20 @@ test('API docs describe Altium-style KiCad entrypoints', async () => {
     assert.match(apiDocs, /KicadCiArtifactBundleBuilder/)
     assert.match(apiDocs, /KicadSvgModelCrossLinkValidator/)
     assert.match(apiDocs, /KicadParserCompatibilityFuzzer/)
+    assert.match(apiDocs, /KicadPcbRouteAnalysisBuilder/)
+    assert.match(apiDocs, /KicadPcbStatisticsBuilder/)
+    assert.match(apiDocs, /KicadPcbPickPlacePositionResolver/)
+    assert.match(apiDocs, /KicadPcbOwnershipGraphBuilder/)
+    assert.match(apiDocs, /KicadSchematicHierarchyGraphBuilder/)
     assert.match(apiDocs, /KicadSvgUtils/)
+    assert.match(apiDocs, /PcbArcUtils/)
+    assert.match(apiDocs, /PcbFootprintPrimitiveSelector/)
     assert.match(apiDocs, /PcbSvgSemanticMetadata/)
+    assert.match(apiDocs, /SchematicColorResolver/)
     assert.match(apiDocs, /SchematicProjectParameterResolver/)
+    assert.match(apiDocs, /SchematicSvgUtils/)
     assert.match(apiDocs, /SchematicSvgTextMetrics/)
+    assert.match(apiDocs, /SchematicTypography/)
     assert.match(apiDocs, /ProjectDesignBundleBuilder/)
     assert.match(apiDocs, /ProjectNetlistExporter/)
 })
@@ -381,6 +438,16 @@ test('model docs publish the normalized model JSON schema contract', async () =>
     assert.ok(
         packageConfig.files.includes(
             'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json'
+        )
+    )
+    assert.ok(
+        packageConfig.files.includes(
+            'docs/schemas/kicad_toolkit/project_bundle_a1.schema.json'
+        )
+    )
+    assert.ok(
+        packageConfig.files.includes(
+            'docs/schemas/kicad_toolkit/pcb_route_analysis_a1.schema.json'
         )
     )
     assert.ok(packageConfig.files.includes('docs/capabilities.md'))

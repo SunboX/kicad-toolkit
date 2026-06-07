@@ -1,0 +1,39 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.rigid-flex-topology.a1",
+    "title": "KiCad Toolkit PCB Rigid-Flex Topology A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.rigid-flex-topology.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "substackRegionJoins": {
+            "type": "array"
+        },
+        "branchGraph": {
+            "type": "object"
+        },
+        "bendLines": {
+            "type": "array"
+        },
+        "diagnostics": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": [
+        "schema",
+        "summary",
+        "substackRegionJoins",
+        "branchGraph",
+        "bendLines",
+        "diagnostics",
+        "indexes"
+    ]
+}

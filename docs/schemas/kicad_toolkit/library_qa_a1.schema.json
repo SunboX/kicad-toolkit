@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.library.qa.a1",
+    "title": "KiCad Toolkit Library QA A1",
+    "type": "object",
+    "required": ["schema", "summary", "issues"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.library.qa.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "mergePlan": {
+            "type": "object"
+        },
+        "issues": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

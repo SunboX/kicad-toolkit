@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.schematic.hierarchy-graph.a1",
+    "title": "KiCad Toolkit Schematic Hierarchy Graph A1",
+    "type": "object",
+    "required": ["schema", "summary", "roots", "nodes", "edges", "indexes"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.schematic.hierarchy-graph.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "roots": {
+            "type": "array"
+        },
+        "nodes": {
+            "type": "array"
+        },
+        "edges": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

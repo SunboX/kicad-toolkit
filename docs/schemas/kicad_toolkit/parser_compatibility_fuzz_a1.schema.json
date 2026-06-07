@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.parser-compatibility-fuzz.a1",
+    "title": "KiCad Toolkit Parser Compatibility Fuzz A1",
+    "type": "object",
+    "required": ["schema", "summary", "cases"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.parser-compatibility-fuzz.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "cases": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

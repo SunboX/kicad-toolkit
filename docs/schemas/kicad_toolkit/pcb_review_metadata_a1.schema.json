@@ -1,0 +1,25 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.review-metadata.a1",
+    "title": "KiCad Toolkit PCB Review Metadata A1",
+    "type": "object",
+    "required": ["schema", "summary", "routeGroups", "boardAssemblyViews"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.review-metadata.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "routeGroups": {
+            "type": "array"
+        },
+        "boardAssemblyViews": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "additionalProperties": true
+}

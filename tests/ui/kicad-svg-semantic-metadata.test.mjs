@@ -4,7 +4,11 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { PcbSvgRenderer, SchematicSvgRenderer } from '../../src/renderers.mjs'
+import {
+    PcbSvgRenderer,
+    SchematicRenderOpsSidecarBuilder,
+    SchematicSvgRenderer
+} from '../../src/renderers.mjs'
 
 /**
  * Decodes one SVG metadata JSON block.
@@ -183,6 +187,10 @@ test('SchematicSvgRenderer emits KiCad semantic metadata and resolves project pa
         markup,
         /<metadata id="schematic-semantic-metadata" data-schema="kicad-toolkit\.schematic\.svg\.semantics\.a1">/
     )
+    assert.match(
+        markup,
+        /<metadata id="schematic-render-ops-metadata" data-schema="kicad-toolkit\.schematic\.render-ops\.a1">/
+    )
     assert.match(markup, /data-record-id="wire-1"/)
     assert.match(markup, /data-element-key="schematic-line-0"/)
     assert.match(markup, /data-record-id="pin-1"/)
@@ -213,6 +221,121 @@ test('SchematicSvgRenderer emits KiCad semantic metadata and resolves project pa
             pins: ['U1:1']
         }
     ])
+
+    const renderOps = readMetadata(markup, 'schematic-render-ops-metadata')
+    assert.equal(renderOps.schema, 'kicad-toolkit.schematic.render-ops.a1')
+    assert.deepEqual(renderOps.summary, {
+        recordCount: 4,
+        operationCount: 4,
+        failedRecordCount: 0
+    })
+    assert.deepEqual(
+        renderOps.records.map((record) => ({
+            elementKey: record.elementKey,
+            recordId: record.recordId,
+            primitive: record.primitive,
+            operationTypes: record.operations.map((operation) => operation.type)
+        })),
+        [
+            {
+                elementKey: 'schematic-line-0',
+                recordId: 'wire-1',
+                primitive: 'line',
+                operationTypes: ['line']
+            },
+            {
+                elementKey: 'schematic-pin-0',
+                recordId: 'pin-1',
+                primitive: 'pin',
+                operationTypes: ['pin']
+            },
+            {
+                elementKey: 'schematic-text-0',
+                recordId: 'label-1',
+                primitive: 'text',
+                operationTypes: ['stroke-text']
+            },
+            {
+                elementKey: 'schematic-text-1',
+                recordId: 'schematic-text-1',
+                primitive: 'text',
+                operationTypes: ['stroke-text']
+            }
+        ]
+    )
+})
+
+test('SchematicRenderOpsSidecarBuilder builds deterministic operation rows', () => {
+    const sidecar = SchematicRenderOpsSidecarBuilder.build({
+        lines: [
+            {
+                id: 'wire-a',
+                x1: 1,
+                y1: 2,
+                x2: 3,
+                y2: 4,
+                width: 0.15,
+                isBus: true
+            }
+        ],
+        pins: [
+            {
+                id: 'pin-a',
+                x: 5,
+                y: 6,
+                length: 2.54,
+                orientation: 'left',
+                designator: '1'
+            }
+        ],
+        texts: [
+            {
+                id: 'text-a',
+                x: 7,
+                y: 8,
+                text: 'SIG',
+                font: { height: 1.27, width: 1.27 }
+            }
+        ]
+    })
+
+    assert.equal(sidecar.profile, 'kicad-default')
+    assert.deepEqual(sidecar.coordinateSpace, {
+        x: 'kicad-schematic',
+        y: 'kicad-schematic',
+        units: 'millimeters'
+    })
+    assert.deepEqual(
+        sidecar.records.map((record) => record.operations[0]),
+        [
+            {
+                type: 'line',
+                x1: 1,
+                y1: 2,
+                x2: 3,
+                y2: 4,
+                stroke: undefined,
+                width: 0.15,
+                isBus: true
+            },
+            {
+                type: 'pin',
+                x: 5,
+                y: 6,
+                length: 2.54,
+                orientation: 'left',
+                number: '1'
+            },
+            {
+                type: 'stroke-text',
+                x: 7,
+                y: 8,
+                text: 'SIG',
+                fontSize: 1.27,
+                rotation: undefined
+            }
+        ]
+    )
 })
 
 /**

@@ -10,6 +10,7 @@ import {
     PcbSvgSemanticMetadata,
     PcbSvgRenderer,
     SchematicProjectParameterResolver,
+    SchematicRenderOpsSidecarBuilder,
     SchematicSvgSemanticMetadata,
     SchematicSvgRenderer,
     SchematicSvgTextMetrics,
@@ -191,6 +192,10 @@ test('renderer helper API exposes KiCad semantic metadata and SVG utilities', ()
     assert.equal(
         SchematicSvgSemanticMetadata.schema,
         'kicad-toolkit.schematic.svg.semantics.a1'
+    )
+    assert.equal(
+        SchematicRenderOpsSidecarBuilder.schema,
+        'kicad-toolkit.schematic.render-ops.a1'
     )
     assert.deepEqual(
         PcbSvgSemanticMetadata.displayLayerDescriptors({

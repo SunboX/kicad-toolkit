@@ -1,0 +1,22 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.netlist.a1",
+    "title": "KiCad Toolkit Netlist A1",
+    "type": "object",
+    "required": ["schema", "project", "nets"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.netlist.a1"
+        },
+        "project": {
+            "type": "object"
+        },
+        "nets": {
+            "type": "array"
+        },
+        "components": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

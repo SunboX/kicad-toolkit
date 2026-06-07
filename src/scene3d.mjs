@@ -16,6 +16,7 @@ const kicadFirstLineHeightRatio = 1.17
 const kicadStrokeBaselineFudgeRatio = 0.052
 
 export { PcbScene3dPackages } from './PcbScene3dPackages.mjs'
+export { PcbScene3dTextBoxLayoutResolver } from './PcbScene3dTextBoxLayoutResolver.mjs'
 
 /**
  * Builds data-only 3D scene descriptions for KiCad PCB documents.

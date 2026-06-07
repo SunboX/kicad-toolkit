@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadPcbParser } from './KicadPcbParser.mjs'
+import { KicadFootprintLibraryParityReportBuilder } from './KicadFootprintLibraryParityReportBuilder.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
 import { SExpressionParser } from './SExpressionParser.mjs'
 import { SExpressionTree } from './SExpressionTree.mjs'
@@ -41,6 +42,27 @@ export class KicadFootprintLibraryParser {
         const title = String(footprint.libraryName || parsed.root[1] || '')
         const footprintName =
             libraryItemName(footprint.footprintName || title) || title
+        const pcbLibrary = {
+            footprints: [
+                {
+                    name: footprintName,
+                    libraryName: footprint.libraryName || title,
+                    footprintName,
+                    description: footprint.description || '',
+                    tags: footprint.tags || '',
+                    properties: footprint.properties || {},
+                    attributes: footprint.attributes || [],
+                    pads,
+                    drawings,
+                    texts,
+                    models,
+                    kicadFootprint: footprint
+                }
+            ]
+        }
+
+        pcbLibrary.parityReport =
+            KicadFootprintLibraryParityReportBuilder.build(pcbLibrary)
 
         return NormalizedModelSchema.attach({
             sourceFormat: 'kicad',
@@ -70,24 +92,7 @@ export class KicadFootprintLibraryParser {
             drawings,
             texts,
             models,
-            pcbLibrary: {
-                footprints: [
-                    {
-                        name: footprintName,
-                        libraryName: footprint.libraryName || title,
-                        footprintName,
-                        description: footprint.description || '',
-                        tags: footprint.tags || '',
-                        properties: footprint.properties || {},
-                        attributes: footprint.attributes || [],
-                        pads,
-                        drawings,
-                        texts,
-                        models,
-                        kicadFootprint: footprint
-                    }
-                ]
-            },
+            pcbLibrary,
             rawFootprint: parsed.root,
             sexpr: parsed.metadata,
             bom: []

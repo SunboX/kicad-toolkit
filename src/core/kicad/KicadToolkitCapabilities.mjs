@@ -147,6 +147,22 @@ const capabilities = Object.freeze([
             'Composes loaded KiCad project documents into bundle-level sheets, components, nets, BOM, PnP, and variants.'
     }),
     capability({
+        id: 'pcb_pick_place_position_resolver',
+        label: 'PCB pick-place position resolver',
+        category: 'project_loading',
+        outputs: ['pnp model'],
+        summary:
+            'Builds KiCad footprint-origin and pad-anchor-center PnP coordinate views.'
+    }),
+    capability({
+        id: 'schematic_hierarchy_graph',
+        label: 'Schematic hierarchy graph',
+        category: 'project_loading',
+        outputs: ['hierarchy graph'],
+        summary:
+            'Indexes KiCad schematic pages and hierarchical sheet references.'
+    }),
+    capability({
         id: 'project_document_graph',
         label: 'Project document graph',
         category: 'project_loading',
@@ -177,6 +193,14 @@ const capabilities = Object.freeze([
         outputs: ['jobset digest'],
         summary:
             'Builds project-level job and destination lookups from parsed KiCad jobsets.'
+    }),
+    capability({
+        id: 'project_output_digest',
+        label: 'Project output digest',
+        category: 'project_loading',
+        outputs: ['output digest'],
+        summary:
+            'Builds KiCad jobset output groups, document lookups, and expected artifact manifests.'
     }),
     capability({
         id: 'kicad_asset_inventory_builder',
@@ -240,12 +264,44 @@ const capabilities = Object.freeze([
             'Validates KiCad semantic SVG element keys and references against parsed schematic and PCB models.'
     }),
     capability({
+        id: 'pcb_component_participation_policy',
+        label: 'PCB component participation policy',
+        category: 'geometry_metadata',
+        outputs: ['component policy'],
+        summary:
+            'Normalizes KiCad footprint attributes into BOM, PnP, and netlist participation flags.'
+    }),
+    capability({
+        id: 'pcb_ownership_graph',
+        label: 'PCB ownership graph',
+        category: 'geometry_metadata',
+        outputs: ['ownership graph'],
+        summary:
+            'Indexes KiCad PCB primitives by component, routed net, and group ownership.'
+    }),
+    capability({
+        id: 'schematic_ownership_graph',
+        label: 'Schematic ownership graph',
+        category: 'geometry_metadata',
+        outputs: ['ownership graph'],
+        summary:
+            'Indexes KiCad schematic records by component and hierarchical sheet ownership.'
+    }),
+    capability({
         id: 'renderer_helper_api',
         label: 'Renderer helper API',
         category: 'rendering',
         outputs: ['SVG helpers', 'text metrics', 'parameter resolver'],
         summary:
             'Exposes deterministic SVG utility, semantic metadata, schematic parameter, and stroke-text metric helpers.'
+    }),
+    capability({
+        id: 'schematic_render_ops_sidecar',
+        label: 'Schematic render-operation sidecar',
+        category: 'rendering',
+        outputs: ['render operation sidecar'],
+        summary:
+            'Builds deterministic KiCad schematic SVG render-operation metadata for CI diffs.'
     }),
     capability({
         id: 'pcb_svg_renderer',
@@ -295,6 +351,149 @@ const capabilities = Object.freeze([
             'Composes deterministic parser, renderer, netlist, document graph, asset, readiness, and QA outputs for CI.'
     }),
     capability({
+        id: 'contract_gate_report',
+        label: 'Contract gate report',
+        category: 'reporting',
+        outputs: ['contract gate report'],
+        summary:
+            'Builds deterministic CI pass/fail gates for normalized models, netlists, SVG model links, and diagnostics.'
+    }),
+    capability({
+        id: 'helper_contract_schemas',
+        label: 'Helper contract schemas',
+        category: 'reporting',
+        outputs: ['JSON Schema'],
+        summary:
+            'Publishes split JSON Schema contracts for KiCad helper reports and bundles.'
+    }),
+    capability({
+        id: 'source_coverage_report',
+        label: 'Source coverage report',
+        category: 'reporting',
+        outputs: ['source coverage report'],
+        summary:
+            'Reports supported and preserved KiCad S-expression node families.'
+    }),
+    capability({
+        id: 'host_capability_diagnostics',
+        label: 'Host capability diagnostics',
+        category: 'reporting',
+        outputs: ['host capabilities'],
+        summary:
+            'Builds deterministic host capability and fallback diagnostics for KiCad render hosts.'
+    }),
+    capability({
+        id: 'pcb_placed_footprint_manifest',
+        label: 'PCB placed footprint manifest',
+        category: 'reporting',
+        outputs: ['footprint extraction manifest'],
+        summary:
+            'Builds .kicad_mod-style extraction descriptors for placed KiCad footprints.'
+    }),
+    capability({
+        id: 'pcb_review_metadata',
+        label: 'PCB review metadata',
+        category: 'reporting',
+        outputs: ['review metadata'],
+        summary:
+            'Builds KiCad routed-net review groups and board assembly review metadata from parser sidecars.'
+    }),
+    capability({
+        id: 'footprint_library_parity_report',
+        label: 'Footprint library parity report',
+        category: 'reporting',
+        outputs: ['footprint library parity'],
+        summary:
+            'Reports KiCad footprint-library advanced pad, graphic, and model fields.'
+    }),
+    capability({
+        id: 'image_payload_manifest',
+        label: 'Image payload manifest',
+        category: 'reporting',
+        outputs: ['image payload manifest'],
+        summary:
+            'Checksums KiCad schematic images, worksheet bitmaps, PCB images, and embedded schematic files.'
+    }),
+    capability({
+        id: 'project_bom_pnp_reconciliation',
+        label: 'Project BOM/PnP reconciliation',
+        category: 'reporting',
+        outputs: ['reconciliation report'],
+        summary:
+            'Compares schematic BOM, PCB BOM, PnP, DNP, exclude-from-BOM, and exclude-from-position-file designators.'
+    }),
+    capability({
+        id: 'library_qa_report',
+        label: 'Library QA report',
+        category: 'reporting',
+        outputs: ['library QA report'],
+        summary:
+            'Reports duplicate library items, merge-plan conflicts, unresolved footprint references, missing model assets, and symbol unit mismatches.'
+    }),
+    capability({
+        id: 'schematic_document_qa',
+        label: 'Schematic document QA',
+        category: 'reporting',
+        outputs: ['schematic QA report'],
+        summary:
+            'Reports unresolved schematic text variables, title-block gaps, and document style summaries.'
+    }),
+    capability({
+        id: 'pcb_route_analysis',
+        label: 'PCB route analysis',
+        category: 'reporting',
+        outputs: ['route analysis'],
+        summary:
+            'Builds deterministic routed-net summaries from KiCad tracks, arcs, and vias.'
+    }),
+    capability({
+        id: 'pcb_layer_stack_read_model',
+        label: 'PCB layer-stack read model',
+        category: 'reporting',
+        outputs: ['layer-stack read model'],
+        summary:
+            'Builds KiCad PCB stackup material, dielectric, and thickness summaries.'
+    }),
+    capability({
+        id: 'pcb_dimension_read_model',
+        label: 'PCB dimension read model',
+        category: 'reporting',
+        outputs: ['dimension read model'],
+        summary:
+            'Builds queryable KiCad PCB dimension rows with points, text, and measured values.'
+    }),
+    capability({
+        id: 'pcb_region_semantics',
+        label: 'PCB region semantics',
+        category: 'reporting',
+        outputs: ['region semantics'],
+        summary:
+            'Builds KiCad copper-zone, keepout, and board-region semantic summaries.'
+    }),
+    capability({
+        id: 'pcb_rule_read_model',
+        label: 'PCB rule read model',
+        category: 'reporting',
+        outputs: ['rule read model'],
+        summary: 'Builds typed KiCad custom-rule and project-rule summaries.'
+    }),
+    capability({
+        id: 'pcb_rigid_flex_topology',
+        label: 'PCB rigid-flex topology',
+        category: 'reporting',
+        outputs: ['rigid-flex topology'],
+        summary:
+            'Reports KiCad flat-stack and region-metadata rigid-flex topology status.'
+    }),
+    capability({
+        id: 'pcb_statistics',
+        label: 'PCB statistics',
+        category: 'reporting',
+        outputs: ['statistics'],
+        summary:
+            'Builds deterministic KiCad PCB board, drill, width, and layer statistics.'
+    }),
+    capability({
         id: 'parser_compatibility_fuzzer',
         label: 'Parser compatibility fuzzer',
         category: 'reporting',
@@ -308,6 +507,14 @@ const capabilities = Object.freeze([
         category: 'scene3d',
         outputs: ['scene data'],
         summary: 'Builds host-renderer-neutral PCB 3D scene-description data.'
+    }),
+    capability({
+        id: 'pcb_scene3d_textbox_layout',
+        label: 'PCB 3D text-box layout',
+        category: 'scene3d',
+        outputs: ['text-box layout'],
+        summary:
+            'Resolves KiCad PCB text-box geometry and margins for 3D scene consumers.'
     }),
     capability({
         id: 'kicad_report_normalization',

@@ -1,0 +1,19 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.project.bom-pnp-reconciliation.a1",
+    "title": "KiCad Toolkit Project BOM PnP Reconciliation A1",
+    "type": "object",
+    "required": ["schema", "summary", "issues"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.project.bom-pnp-reconciliation.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "issues": {
+            "type": "array"
+        }
+    },
+    "additionalProperties": true
+}

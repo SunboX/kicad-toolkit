@@ -4,6 +4,7 @@
 import { Geometry } from './Geometry.mjs'
 import { KicadLayerResolver } from './KicadLayerResolver.mjs'
 import { KicadPcbPointListParser } from './KicadPcbPointListParser.mjs'
+import { KicadPcbTextBoxMetadata } from './KicadPcbTextBoxMetadata.mjs'
 import { KicadPcbZoneParser } from './KicadPcbZoneParser.mjs'
 
 const graphicNodeNames = new Set([
@@ -376,18 +377,25 @@ function parseVia(node, index, netResolver) {
  * @returns {{ drawings: object[], texts: object[] }}
  */
 function parseTextBox(node, index, context) {
+    const sourceType = String(node[0] || '')
     const layer = textValue(child(node, 'layer')) || ''
     const side = KicadLayerResolver.sideFromLayer(layer) || context.fallbackSide
     const points = textBoxPoints(node, context)
+    const border = booleanValue(child(node, 'border')?.[1], true)
     const text = parseTextLikeNode(node, {
         id: `${context.ownerId}:text-box:${index}`,
         ownerId: context.ownerId,
         value: String(node[1] || ''),
         position: points[0] || { x: 0, y: 0 },
         layer,
-        side
+        side,
+        sourceType,
+        textBox: KicadPcbTextBoxMetadata.build(node, {
+            sourceType,
+            points,
+            border
+        })
     })
-    const border = booleanValue(child(node, 'border')?.[1], true)
     const drawings = border
         ? [
               {
@@ -472,6 +480,7 @@ function parseDimension(node, index, context) {
         ownerId: context.ownerId,
         sourceType: 'dimension',
         type: 'dimension',
+        dimensionKind: textValue(child(node, 'type')) || 'linear',
         layer,
         side,
         material: materialForLayer(layer),
@@ -680,7 +689,9 @@ function parseTextLikeNode(node, context) {
         sizeY: numberValue(size[2], numberValue(size[1], 1)),
         thickness: numberValue(child(font, 'thickness')?.[1], 0.12),
         visible: !hasChild(node, 'hide'),
-        excludeFromPositionFiles: false
+        excludeFromPositionFiles: false,
+        ...(context.sourceType ? { sourceType: context.sourceType } : {}),
+        ...(context.textBox ? { textBox: context.textBox } : {})
     }
 }
 
