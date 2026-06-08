@@ -514,12 +514,19 @@ function textStrokes(text) {
 function textLineStrokes(text, line, index, lineCount, lineSpacing) {
     const sizeX = textWidth(text)
     const sizeY = textHeight(text)
-    const lineWidth = KicadStrokeFont.measureLine(line, sizeX)
-    const x = textLineX(text, lineWidth)
+    const layout = KicadStrokeFont.layoutLine(line, {
+        x: 0,
+        y: 0,
+        sizeX,
+        sizeY
+    })
+    const x = textLineX(text, layout.width)
     const y = textLineY(text, index, lineCount, lineSpacing)
 
-    return KicadStrokeFont.strokeLine(line, { x, y, sizeX, sizeY }).map(
-        (stroke) => stroke.map((point) => transformTextPoint(text, point))
+    return layout.strokes.map((stroke) =>
+        stroke.map((point) =>
+            transformTextPoint(text, { x: point.x + x, y: point.y + y })
+        )
     )
 }
 

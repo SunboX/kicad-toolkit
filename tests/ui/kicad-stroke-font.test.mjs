@@ -15,3 +15,14 @@ test('KicadStrokeFont renders Latin-1 glyphs instead of fallback question marks'
     assert.notDeepEqual(accented, fallback)
     assert.ok(accented.length > plain.length)
 })
+
+test('KicadStrokeFont lays out width and strokes in one pass', () => {
+    const attrs = { x: 10, y: 20, sizeX: 1.5, sizeY: 1.25 }
+    const layout = KicadStrokeFont.layoutLine('V_{1}^{2}', attrs)
+
+    assert.equal(layout.width, KicadStrokeFont.measureLine('V_{1}^{2}', 1.5))
+    assert.deepEqual(
+        layout.strokes,
+        KicadStrokeFont.strokeLine('V_{1}^{2}', attrs)
+    )
+})

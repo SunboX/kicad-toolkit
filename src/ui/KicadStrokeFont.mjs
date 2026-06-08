@@ -234,6 +234,8 @@ const latin1Glyphs = new Map(
     ])
 )
 const spaceWidth = glyphs[0].bounds.maxX
+const lineLayoutCacheLimit = 2048
+const lineLayoutCache = new Map()
 
 /**
  * KiCad NewStroke glyph renderer for PCB text.
@@ -250,15 +252,23 @@ export class KicadStrokeFont {
     }
 
     /**
+     * Converts one text line into stroke point lists and its advance width.
+     * @param {string} value
+     * @param {{ x: number, y: number, sizeX: number, sizeY: number }} attrs
+     * @returns {{ width: number, strokes: { x: number, y: number }[][] }}
+     */
+    static layoutLine(value, attrs) {
+        return layoutLine(value, attrs)
+    }
+
+    /**
      * Converts one text line into KiCad-scaled stroke point lists.
      * @param {string} value
      * @param {{ x: number, y: number, sizeX: number, sizeY: number }} attrs
      * @returns {{ x: number, y: number }[][]}
      */
     static strokeLine(value, attrs) {
-        const strokes = []
-        strokeMarkupNodes(parseMarkup(value), textRunState(attrs), 0, strokes)
-        return strokes
+        return layoutLine(value, attrs).strokes
     }
 }
 
@@ -269,13 +279,79 @@ export class KicadStrokeFont {
  * @returns {number}
  */
 function lineAdvance(value, sizeX) {
-    const state = textRunState({
-        x: 0,
-        y: 0,
-        sizeX,
-        sizeY: sizeX
-    })
-    return Math.max(strokeMarkupNodes(parseMarkup(value), state, 0), 0)
+    return cachedLineLayout(value, sizeX, sizeX).width
+}
+
+/**
+ * Lays out one line at the requested origin.
+ * @param {string} value Text line.
+ * @param {{ x: number, y: number, sizeX: number, sizeY: number }} attrs Text attributes.
+ * @returns {{ width: number, strokes: { x: number, y: number }[][] }}
+ */
+function layoutLine(value, attrs) {
+    const state = textRunState(attrs)
+    const layout = cachedLineLayout(value, state.sizeX, state.sizeY)
+
+    return {
+        width: layout.width,
+        strokes: offsetStrokes(layout.strokes, state.x, state.y)
+    }
+}
+
+/**
+ * Resolves a reusable zero-origin line layout.
+ * @param {string} value Text line.
+ * @param {number} sizeX Glyph width.
+ * @param {number} sizeY Glyph height.
+ * @returns {{ width: number, strokes: { x: number, y: number }[][] }}
+ */
+function cachedLineLayout(value, sizeX, sizeY) {
+    const normalizedValue = String(value || '')
+    const normalizedSizeX = Number(sizeX || 1)
+    const normalizedSizeY = Number(sizeY || normalizedSizeX || 1)
+    const cacheKey = `${normalizedValue}\u0000${normalizedSizeX}\u0000${normalizedSizeY}`
+    const cached = lineLayoutCache.get(cacheKey)
+
+    if (cached) {
+        lineLayoutCache.delete(cacheKey)
+        lineLayoutCache.set(cacheKey, cached)
+        return cached
+    }
+
+    const strokes = []
+    const width = Math.max(
+        strokeMarkupNodes(
+            parseMarkup(normalizedValue),
+            { x: 0, y: 0, sizeX: normalizedSizeX, sizeY: normalizedSizeY },
+            0,
+            strokes
+        ),
+        0
+    )
+    const layout = { width, strokes }
+    lineLayoutCache.set(cacheKey, layout)
+
+    if (lineLayoutCache.size > lineLayoutCacheLimit) {
+        lineLayoutCache.delete(lineLayoutCache.keys().next().value)
+    }
+
+    return layout
+}
+
+/**
+ * Copies cached zero-origin strokes to a requested line origin.
+ * @param {{ x: number, y: number }[][]} strokes Cached strokes.
+ * @param {number} offsetX X offset.
+ * @param {number} offsetY Y offset.
+ * @returns {{ x: number, y: number }[][]}
+ */
+function offsetStrokes(strokes, offsetX, offsetY) {
+    return strokes.map((stroke) =>
+        stroke.map((point) => ({
+            x: point.x + offsetX,
+            y: point.y + offsetY
+        }))
+    )
 }
 
 /**

@@ -760,10 +760,17 @@ function renderStrokeText(text) {
 function renderStrokeTextLine(text, line, index, lineCount, lineSpacing) {
     const sizeX = textWidth(text)
     const sizeY = textHeight(text)
-    const lineWidth = KicadStrokeFont.measureLine(line, sizeX)
-    const x = textLineX(text, lineWidth)
+    const layout = KicadStrokeFont.layoutLine(line, {
+        x: 0,
+        y: 0,
+        sizeX,
+        sizeY
+    })
+    const x = textLineX(text, layout.width)
     const y = textLineY(text, index, lineCount, lineSpacing)
-    const strokes = KicadStrokeFont.strokeLine(line, { x, y, sizeX, sizeY })
+    const strokes = layout.strokes.map((stroke) =>
+        stroke.map((point) => ({ x: point.x + x, y: point.y + y }))
+    )
     const attrs = [
         'class="schematic-text-line"',
         `data-line="${escapeAttribute(line)}"`,
