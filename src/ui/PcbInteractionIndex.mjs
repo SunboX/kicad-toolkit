@@ -63,7 +63,22 @@ export class PcbInteractionIndex {
      * @returns {object[]}
      */
     static hitTest(boardOrDocument, point, options = {}) {
-        return PcbInteractionIndex.build(boardOrDocument)
+        return PcbInteractionIndex.hitTestItems(
+            PcbInteractionIndex.build(boardOrDocument),
+            point,
+            options
+        )
+    }
+
+    /**
+     * Returns hit candidates from an already-built interaction item list.
+     * @param {object[]} items Built interaction items.
+     * @param {{ x?: unknown, y?: unknown }} point Hit-test point.
+     * @param {object} [options] Hit-test options.
+     * @returns {object[]}
+     */
+    static hitTestItems(items, point, options = {}) {
+        return (Array.isArray(items) ? items : [])
             .filter((item) =>
                 PcbInteractionIndex.#isVisibleCandidate(item, options)
             )

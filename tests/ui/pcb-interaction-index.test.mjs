@@ -17,10 +17,21 @@ test('PcbInteractionIndex returns overlapping KiCad board items by selection pri
             side: 'front'
         }
     )
+    const candidatesFromItems = PcbInteractionIndex.hitTestItems(
+        PcbInteractionIndex.build(board),
+        { x: 5, y: 5 },
+        {
+            side: 'front'
+        }
+    )
 
     assert.deepEqual(
         candidates.map((item) => item.type),
         ['track', 'pad', 'via', 'component', 'zone']
+    )
+    assert.deepEqual(
+        candidatesFromItems.map((item) => item.type),
+        candidates.map((item) => item.type)
     )
     assert.equal(PcbInteractionIndex.pick(board, { x: 5, y: 5 })?.type, 'track')
     assert.equal(candidates[0].netName, 'CLK')
