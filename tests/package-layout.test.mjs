@@ -88,6 +88,7 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadSchematicParser',
         'KicadSchematicQaReportBuilder',
         'KicadSchematicSymbolParser',
+        'KicadSelectedPartExporter',
         'KicadSourceCoverageReportBuilder',
         'KicadSymbolLibraryParser',
         'KicadSvgModelCrossLinkValidator',
@@ -99,6 +100,7 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'ProjectVariantViewBuilder',
         'SExpressionParser',
         'SExpressionSchema',
+        'SExpressionSerializer',
         'SExpressionTree',
         'SchematicProjectParameterResolver'
     ])
@@ -265,6 +267,7 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
         '../src/core/kicad/KicadSchematicQaReportBuilder.mjs'
     )
     await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
+    await assertFileExists('../src/core/kicad/KicadSelectedPartExporter.mjs')
     await assertFileExists(
         '../src/core/kicad/KicadSourceCoverageReportBuilder.mjs'
     )
@@ -280,6 +283,7 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/ProjectVariantViewBuilder.mjs')
     await assertFileExists('../src/core/kicad/SExpressionParser.mjs')
     await assertFileExists('../src/core/kicad/SExpressionSchema.mjs')
+    await assertFileExists('../src/core/kicad/SExpressionSerializer.mjs')
     await assertFileExists('../src/core/kicad/SExpressionTree.mjs')
     await assertFileExists(
         '../src/core/circuit-json/CircuitJsonModelAdapter.mjs'

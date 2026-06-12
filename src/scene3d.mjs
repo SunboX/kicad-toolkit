@@ -77,43 +77,53 @@ export class PcbScene3dBuilder {
         const texts = (pcb.texts || []).map((text) =>
             PcbScene3dLayerMapper.text(text, board)
         )
-        const components = (pcb.components || []).map((component) => {
-            const mountSide =
-                String(component.layer || 'TOP').toUpperCase() === 'BOTTOM'
-                    ? 'bottom'
-                    : 'top'
-            const body = PcbScene3dPackages.resolve(component, {
-                width: Number(component.width || 0),
-                depth: Number(component.depth || 0)
-            })
-            const z =
-                mountSide === 'bottom'
-                    ? -(thicknessMil / 2 + body.sizeMil.height / 2)
-                    : thicknessMil / 2 + body.sizeMil.height / 2
+        const padsByFootprintId =
+            PcbScene3dBuilder.#groupPadsByFootprintId(pads)
+        const components = (pcb.components || [])
+            .filter(
+                (component) =>
+                    !PcbScene3dBuilder.#isHoleOnlyFootprint(
+                        component,
+                        padsByFootprintId
+                    )
+            )
+            .map((component) => {
+                const mountSide =
+                    String(component.layer || 'TOP').toUpperCase() === 'BOTTOM'
+                        ? 'bottom'
+                        : 'top'
+                const body = PcbScene3dPackages.resolve(component, {
+                    width: Number(component.width || 0),
+                    depth: Number(component.depth || 0)
+                })
+                const z =
+                    mountSide === 'bottom'
+                        ? -(thicknessMil / 2 + body.sizeMil.height / 2)
+                        : thicknessMil / 2 + body.sizeMil.height / 2
 
-            return {
-                designator: String(component.designator || ''),
-                mountSide,
-                rotationDeg: Number(component.rotation || 0),
-                positionMil: {
-                    x: Number(component.x || 0) - board.centerX,
-                    y: board.centerY - Number(component.y || 0),
-                    z
-                },
-                boardPositionMil: {
-                    x: Number(component.x || 0),
-                    y: Number(component.y || 0),
-                    z: 0
-                },
-                pattern: String(component.pattern || ''),
-                source: String(component.source || ''),
-                modelName: String(component.modelName || ''),
-                modelPath: String(component.modelPath || ''),
-                modelTransform: component.modelTransform || null,
-                body,
-                externalModel: registry.resolveComponentModel(component)
-            }
-        })
+                return {
+                    designator: String(component.designator || ''),
+                    mountSide,
+                    rotationDeg: Number(component.rotation || 0),
+                    positionMil: {
+                        x: Number(component.x || 0) - board.centerX,
+                        y: board.centerY - Number(component.y || 0),
+                        z
+                    },
+                    boardPositionMil: {
+                        x: Number(component.x || 0),
+                        y: Number(component.y || 0),
+                        z: 0
+                    },
+                    pattern: String(component.pattern || ''),
+                    source: String(component.source || ''),
+                    modelName: String(component.modelName || ''),
+                    modelPath: String(component.modelPath || ''),
+                    modelTransform: component.modelTransform || null,
+                    body,
+                    externalModel: registry.resolveComponentModel(component)
+                }
+            })
         const silkscreen = buildKicadSilkscreenDetail(
             pcb.kicadBoard,
             board,
@@ -155,6 +165,77 @@ export class PcbScene3dBuilder {
                 .map((component) => component.externalModel)
                 .filter(Boolean)
         }
+    }
+
+    /**
+     * Groups mapped pad detail by owning footprint id.
+     * @param {object[]} pads Scene pad detail rows.
+     * @returns {Map<string, object[]>}
+     */
+    static #groupPadsByFootprintId(pads) {
+        const padsByFootprintId = new Map()
+
+        for (const pad of pads || []) {
+            const footprintId = String(pad?.footprintId || '').trim()
+            if (!footprintId) {
+                continue
+            }
+
+            if (!padsByFootprintId.has(footprintId)) {
+                padsByFootprintId.set(footprintId, [])
+            }
+            padsByFootprintId.get(footprintId)?.push(pad)
+        }
+
+        return padsByFootprintId
+    }
+
+    /**
+     * Checks whether one footprint is only represented by drill holes.
+     * @param {{ footprintId?: string }} component Component model.
+     * @param {Map<string, object[]>} padsByFootprintId Pads grouped by footprint.
+     * @returns {boolean}
+     */
+    static #isHoleOnlyFootprint(component, padsByFootprintId) {
+        const footprintId = String(component?.footprintId || '').trim()
+        const componentPads = padsByFootprintId.get(footprintId) || []
+
+        return (
+            componentPads.length > 0 &&
+            componentPads.every((pad) => PcbScene3dBuilder.#isDrillOnlyPad(pad))
+        )
+    }
+
+    /**
+     * Checks whether one pad contributes only a non-plated board drill.
+     * @param {object} pad Pad detail row.
+     * @returns {boolean}
+     */
+    static #isDrillOnlyPad(pad) {
+        const holeDiameter = Number(pad?.holeDiameter || 0)
+
+        return (
+            holeDiameter > 0 &&
+            pad?.isPlated !== true &&
+            !PcbScene3dBuilder.#hasPadCopperAnnulus(pad, holeDiameter)
+        )
+    }
+
+    /**
+     * Checks whether a pad has copper larger than its drill aperture.
+     * @param {object} pad Pad detail row.
+     * @param {number} holeDiameter Drill diameter in mils.
+     * @returns {boolean}
+     */
+    static #hasPadCopperAnnulus(pad, holeDiameter) {
+        return [
+            pad?.sizeTopX,
+            pad?.sizeTopY,
+            pad?.sizeMidX,
+            pad?.sizeMidY,
+            pad?.sizeBottomX,
+            pad?.sizeBottomY
+        ].some((size) => Number(size || 0) > holeDiameter + 0.001)
     }
 }
 

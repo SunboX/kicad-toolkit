@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { Geometry } from './Geometry.mjs'
 import { groupSchematicBomRows } from './KicadBomUtils.mjs'
 import { symbolPropertyTextRotation } from './KicadSchematicFieldRotation.mjs'
 import { KicadSchematicGraphicParser } from './KicadSchematicGraphicParser.mjs'
@@ -756,14 +755,32 @@ function pinConnectionPoint(pin) {
  * @returns {boolean}
  */
 function lineContainsPoint(line, point) {
-    const distance =
-        Geometry.distance({ x: line.x1, y: line.y1 }, point) +
-        Geometry.distance(point, { x: line.x2, y: line.y2 })
-    const length = Geometry.distance(
-        { x: line.x1, y: line.y1 },
-        { x: line.x2, y: line.y2 }
-    )
-    return Math.abs(distance - length) < 0.01
+    const x1 = Number(line.x1) || 0
+    const y1 = Number(line.y1) || 0
+    const x2 = Number(line.x2) || 0
+    const y2 = Number(line.y2) || 0
+    const px = Number(point?.x) || 0
+    const py = Number(point?.y) || 0
+    const tolerance = 0.01
+
+    if (
+        px < Math.min(x1, x2) - tolerance ||
+        px > Math.max(x1, x2) + tolerance ||
+        py < Math.min(y1, y2) - tolerance ||
+        py > Math.max(y1, y2) + tolerance
+    ) {
+        return false
+    }
+
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const lengthSquared = dx * dx + dy * dy
+    if (lengthSquared < tolerance * tolerance) {
+        return pointsEqual({ x: x1, y: y1 }, { x: px, y: py })
+    }
+
+    const cross = (px - x1) * dy - (py - y1) * dx
+    return Math.abs(cross) <= tolerance * Math.sqrt(lengthSquared)
 }
 
 /**

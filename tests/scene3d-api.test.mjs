@@ -317,6 +317,71 @@ test('PcbScene3dPackages mirrors procedural body package usage', () => {
     assert.equal(scene.components[0].positionMil.z < 0, true)
 })
 
+test('PcbScene3dBuilder omits hole-only footprints from fallback components', () => {
+    const scene = PcbScene3dBuilder.build({
+        pcb: {
+            boardOutline: { widthMil: 1000, heightMil: 500, segments: [] },
+            components: [
+                {
+                    designator: 'H1',
+                    footprintId: 'footprint:H1:1',
+                    x: 100,
+                    y: 200,
+                    pattern: 'Fixture:DrillOnly'
+                },
+                {
+                    designator: 'U1',
+                    footprintId: 'footprint:U1:2',
+                    x: 300,
+                    y: 200,
+                    pattern: 'Package_SO:SOIC-8'
+                }
+            ],
+            pads: [
+                {
+                    footprintId: 'footprint:H1:1',
+                    footprintReference: 'H1',
+                    type: 'np_thru_hole',
+                    x: 100,
+                    y: 200,
+                    sizeTopX: 100,
+                    sizeTopY: 100,
+                    sizeMidX: 100,
+                    sizeMidY: 100,
+                    sizeBottomX: 100,
+                    sizeBottomY: 100,
+                    holeDiameter: 100,
+                    shapeTop: 1,
+                    shapeMid: 1,
+                    shapeBottom: 1,
+                    isPlated: false
+                },
+                {
+                    footprintId: 'footprint:U1:2',
+                    footprintReference: 'U1',
+                    type: 'smd',
+                    x: 300,
+                    y: 200,
+                    sizeTopX: 80,
+                    sizeTopY: 40,
+                    shapeTop: 2
+                }
+            ],
+            tracks: [],
+            vias: []
+        }
+    })
+
+    assert.deepEqual(
+        scene.components.map((component) => component.designator),
+        ['U1']
+    )
+    assert.equal(
+        scene.detail.pads.some((pad) => pad.footprintReference === 'H1'),
+        true
+    )
+})
+
 test('PcbScene3dBuilder carries KiCad model metadata onto scene components', () => {
     const scene = PcbScene3dBuilder.build(
         {
@@ -421,7 +486,8 @@ test('PcbScene3dBuilder exposes KiCad external model placements', () => {
                 {
                     name: 'matrix.step',
                     relativePath: 'parts/matrix.step',
-                    format: 'step'
+                    format: 'step',
+                    source: 'model-search'
                 }
             ]
         }
@@ -437,6 +503,10 @@ test('PcbScene3dBuilder exposes KiCad external model placements', () => {
         dzMil: 30,
         scale: { x: 1.5, y: 2, z: 0.5 }
     })
+    assert.equal(
+        scene.externalPlacements[0].externalModel.source,
+        'model-search'
+    )
 })
 
 test('PcbScene3dBuilder anchors external model placements on board faces', () => {
