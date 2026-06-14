@@ -1,0 +1,65 @@
+name: Publish GitHub Packages
+
+on:
+    release:
+        types:
+            - published
+    workflow_dispatch:
+
+permissions:
+    contents: read
+    packages: write
+
+jobs:
+    publish:
+        name: Publish to GitHub Packages
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  registry-url: https://npm.pkg.github.com
+                  scope: '@sunbox'
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Check formatting
+              run: npm run check:format
+
+            - name: Test
+              run: npm test
+
+            - name: Prepare GitHub Packages manifest
+              run: |
+                  node --input-type=module <<'NODE'
+                  import fs from 'node:fs'
+
+                  const packageJson = JSON.parse(
+                      fs.readFileSync('package.json', 'utf8')
+                  )
+                  packageJson.name = '@sunbox/kicad-toolkit'
+                  packageJson.repository = {
+                      type: 'git',
+                      url: 'https://github.com/SunboX/kicad-toolkit.git'
+                  }
+                  packageJson.publishConfig = {
+                      registry: 'https://npm.pkg.github.com'
+                  }
+
+                  fs.writeFileSync(
+                      'package.json',
+                      `${JSON.stringify(packageJson, null, 4)}\n`
+                  )
+                  NODE
+
+            - name: Publish
+              run: npm publish --registry=https://npm.pkg.github.com
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
