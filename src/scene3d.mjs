@@ -8,6 +8,7 @@ import { PcbScene3dCopperTextBuilder } from './PcbScene3dCopperTextBuilder.mjs'
 import { PcbScene3dDrillCutoutBuilder } from './PcbScene3dDrillCutoutBuilder.mjs'
 import { PcbScene3dExternalPlacementBuilder } from './PcbScene3dExternalPlacementBuilder.mjs'
 import { PcbScene3dPackages } from './PcbScene3dPackages.mjs'
+import { PcbScene3dSilkscreenCutoutBuilder } from './PcbScene3dSilkscreenCutoutBuilder.mjs'
 import { KicadStrokeFont } from './ui/KicadStrokeFont.mjs'
 
 const milsPerMillimeter = 1000 / 25.4
@@ -382,7 +383,7 @@ function normalizeMatchKey(value) {
  * Builds 3D silkscreen detail from KiCad drawing primitives.
  * @param {object | undefined} kicadBoard Raw parsed KiCad board model.
  * @param {{ centerY: number }} board Board placement metadata in mils.
- * @returns {{ top: { fills: object[], tracks: object[], arcs: object[] }, bottom: { fills: object[], tracks: object[], arcs: object[] } }}
+ * @returns {{ top: { fills: object[], tracks: object[], arcs: object[], drillCutouts: object[], copperCutouts: object[] }, bottom: { fills: object[], tracks: object[], arcs: object[], drillCutouts: object[], copperCutouts: object[] } }}
  */
 function buildKicadSilkscreenDetail(kicadBoard, board, pads = [], vias = []) {
     const silkscreen = emptySilkscreenDetail()
@@ -432,15 +433,28 @@ function buildKicadSilkscreenDetail(kicadBoard, board, pads = [], vias = []) {
     })
 
     const drillCutouts = PcbScene3dDrillCutoutBuilder.buildCutouts(pads, vias)
+    const topCopperCutouts = PcbScene3dSilkscreenCutoutBuilder.buildSideCutouts(
+        pads,
+        vias,
+        'top'
+    )
+    const bottomCopperCutouts =
+        PcbScene3dSilkscreenCutoutBuilder.buildSideCutouts(pads, vias, 'bottom')
     silkscreen.top.drillCutouts = drillCutouts.map((cutout) => cutout.points)
     silkscreen.bottom.drillCutouts = drillCutouts.map((cutout) => cutout.points)
+    silkscreen.top.copperCutouts = topCopperCutouts.map(
+        (cutout) => cutout.points
+    )
+    silkscreen.bottom.copperCutouts = bottomCopperCutouts.map(
+        (cutout) => cutout.points
+    )
     silkscreen.top.fills = PcbScene3dDrillCutoutBuilder.clipFills(
         silkscreen.top.fills,
-        drillCutouts
+        drillCutouts.concat(topCopperCutouts)
     )
     silkscreen.bottom.fills = PcbScene3dDrillCutoutBuilder.clipFills(
         silkscreen.bottom.fills,
-        drillCutouts
+        drillCutouts.concat(bottomCopperCutouts)
     )
 
     return silkscreen
@@ -448,12 +462,24 @@ function buildKicadSilkscreenDetail(kicadBoard, board, pads = [], vias = []) {
 
 /**
  * Builds an empty silkscreen detail container.
- * @returns {{ top: { fills: object[], tracks: object[], arcs: object[] }, bottom: { fills: object[], tracks: object[], arcs: object[] } }}
+ * @returns {{ top: { fills: object[], tracks: object[], arcs: object[], drillCutouts: object[], copperCutouts: object[] }, bottom: { fills: object[], tracks: object[], arcs: object[], drillCutouts: object[], copperCutouts: object[] } }}
  */
 function emptySilkscreenDetail() {
     return {
-        top: { fills: [], tracks: [], arcs: [], drillCutouts: [] },
-        bottom: { fills: [], tracks: [], arcs: [], drillCutouts: [] }
+        top: {
+            fills: [],
+            tracks: [],
+            arcs: [],
+            drillCutouts: [],
+            copperCutouts: []
+        },
+        bottom: {
+            fills: [],
+            tracks: [],
+            arcs: [],
+            drillCutouts: [],
+            copperCutouts: []
+        }
     }
 }
 
@@ -836,6 +862,7 @@ function buildKicadSilkscreenArc(drawing) {
         radius: toMil(arc.radius),
         startAngle: arc.startAngle,
         endAngle: arc.endAngle,
+        sweepAngle: arc.sweepAngle,
         width: toMil(drawing?.strokeWidth ?? drawing?.width ?? 0.15)
     }
 }

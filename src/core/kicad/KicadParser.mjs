@@ -180,6 +180,7 @@ export class KicadParser {
                     radius: toMil(metrics?.radius || 0),
                     startAngle: metrics?.startAngle || 0,
                     endAngle: metrics?.endAngle || 0,
+                    sweepAngle: metrics?.sweepAngle || 0,
                     width: toMil(drawing.strokeWidth || 0.2),
                     componentIndex: null,
                     layerCode: 1,

@@ -12,6 +12,30 @@ import {
     PcbScene3dTextBoxLayoutResolver
 } from '../src/scene3d.mjs'
 
+/**
+ * Converts millimeters to mils.
+ * @param {number} value Millimeter value.
+ * @returns {number}
+ */
+function millimetersToMil(value) {
+    return (Number(value) * 1000) / 25.4
+}
+
+/**
+ * Samples the geometric endpoint represented by one arc row.
+ * @param {{ x: number, y: number, radius: number, startAngle: number, sweepAngle: number }} arc
+ * Arc row.
+ * @returns {{ x: number, y: number }}
+ */
+function sampleArcEndpoint(arc) {
+    const angle = ((arc.startAngle + arc.sweepAngle) * Math.PI) / 180
+
+    return {
+        x: arc.x + Math.cos(angle) * arc.radius,
+        y: arc.y + Math.sin(angle) * arc.radius
+    }
+}
+
 test('PcbScene3dBuilder emits data-only scene description for KiCad PCB models', () => {
     const scene = PcbScene3dBuilder.build({
         pcb: {
@@ -100,6 +124,132 @@ test('PcbScene3dBuilder exposes KiCad silkscreen drawings without copper zones',
             ]
         }
     ])
+})
+
+test('PcbScene3dBuilder preserves long KiCad silkscreen arc sweeps', () => {
+    const scene = PcbScene3dBuilder.build({
+        pcb: {
+            boardOutline: {
+                widthMil: 1200,
+                heightMil: 800,
+                minX: 0,
+                minY: 0,
+                segments: []
+            },
+            components: [],
+            pads: [],
+            tracks: [],
+            vias: [],
+            kicadBoard: {
+                drawings: [
+                    {
+                        type: 'arc',
+                        layer: 'B.SilkS',
+                        side: 'back',
+                        strokeWidth: 0.2,
+                        start: { x: -4, y: -2 },
+                        mid: { x: 8, y: 0 },
+                        end: { x: -4, y: 2 }
+                    }
+                ],
+                texts: []
+            }
+        }
+    })
+    const arc = scene.detail.silkscreen.bottom.arcs[0]
+    const sweep = Math.abs(arc.sweepAngle)
+
+    assert.ok(arc)
+    assert.ok(sweep > 180)
+})
+
+test('PcbScene3dBuilder keeps converted long arc endpoints connected', () => {
+    const scene = PcbScene3dBuilder.build({
+        pcb: {
+            boardOutline: {
+                widthMil: 1200,
+                heightMil: 800,
+                minX: 0,
+                minY: 0,
+                segments: []
+            },
+            components: [],
+            pads: [],
+            tracks: [],
+            vias: [],
+            kicadBoard: {
+                drawings: [
+                    {
+                        type: 'arc',
+                        layer: 'B.SilkS',
+                        side: 'back',
+                        strokeWidth: 0.2,
+                        start: { x: -4, y: -2 },
+                        mid: { x: 8, y: 0 },
+                        end: { x: -4, y: 2 }
+                    }
+                ],
+                texts: []
+            }
+        }
+    })
+    const arc = scene.detail.silkscreen.bottom.arcs[0]
+    const endpoint = sampleArcEndpoint(arc)
+    const expectedEnd = {
+        x: millimetersToMil(-4),
+        y: scene.board.centerY * 2 - millimetersToMil(2)
+    }
+
+    assert.ok(Math.abs(endpoint.x - expectedEnd.x) < 0.001)
+    assert.ok(Math.abs(endpoint.y - expectedEnd.y) < 0.001)
+})
+
+test('PcbScene3dBuilder emits copper pad keepouts for silkscreen clipping', () => {
+    const scene = PcbScene3dBuilder.build({
+        pcb: {
+            boardOutline: {
+                widthMil: 1200,
+                heightMil: 800,
+                minX: 0,
+                minY: 0,
+                segments: []
+            },
+            components: [],
+            pads: [
+                {
+                    x: 200,
+                    y: 300,
+                    sizeTopX: 80,
+                    sizeTopY: 80,
+                    shapeTop: 1,
+                    holeDiameter: 30
+                }
+            ],
+            tracks: [],
+            vias: [],
+            kicadBoard: {
+                drawings: [
+                    {
+                        type: 'line',
+                        layer: 'F.SilkS',
+                        side: 'front',
+                        strokeWidth: 0.2,
+                        start: { x: 4, y: 7.62 },
+                        end: { x: 6, y: 7.62 }
+                    }
+                ],
+                texts: []
+            }
+        }
+    })
+    const keepout = scene.detail.silkscreen.top.copperCutouts[0]
+    const xs = keepout.map((point) => point.x)
+    const ys = keepout.map((point) => point.y)
+
+    assert.equal(scene.detail.silkscreen.top.drillCutouts.length, 1)
+    assert.equal(keepout.length, 32)
+    assert.equal(Math.round(Math.max(...xs) - Math.min(...xs)), 80)
+    assert.equal(Math.round(Math.max(...ys) - Math.min(...ys)), 80)
 })
 
 test('PcbScene3dBuilder converts visible KiCad silkscreen text to 3D strokes', () => {

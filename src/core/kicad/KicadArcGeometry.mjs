@@ -15,7 +15,7 @@ export class KicadArcGeometry {
      * @param {{ x: number, y: number }} start Start point.
      * @param {{ x: number, y: number }} mid Mid point.
      * @param {{ x: number, y: number }} end End point.
-     * @returns {{ center: { x: number, y: number }, radius: number, startAngle: number, endAngle: number, largeArc: boolean, sweep: boolean } | null}
+     * @returns {{ center: { x: number, y: number }, radius: number, startAngle: number, endAngle: number, sweepAngle: number, largeArc: boolean, sweep: boolean } | null}
      */
     static fromThreePoints(start, mid, end) {
         const center = KicadArcGeometry.centerFromThreePoints(start, mid, end)
@@ -34,13 +34,17 @@ export class KicadArcGeometry {
             midAngleRadians - startAngleRadians
         )
         const sweep = clockwiseMid <= clockwiseEnd + circleEpsilon
-        const arcAngle = sweep ? clockwiseEnd : fullCircleRadians - clockwiseEnd
+        const sweepAngleRadians = sweep
+            ? clockwiseEnd
+            : clockwiseEnd - fullCircleRadians
+        const arcAngle = Math.abs(sweepAngleRadians)
 
         return {
             center,
             radius: Geometry.distance(center, start),
             startAngle: degrees(startAngleRadians),
             endAngle: degrees(endAngleRadians),
+            sweepAngle: sweepAngleRadians * (180 / Math.PI),
             largeArc: arcAngle > Math.PI,
             sweep
         }
@@ -92,14 +96,7 @@ export class KicadArcGeometry {
             start.y - arc.center.y,
             start.x - arc.center.x
         )
-        const endRadians = Math.atan2(
-            end.y - arc.center.y,
-            end.x - arc.center.x
-        )
-        const clockwiseEnd = normalizeRadians(endRadians - startRadians)
-        const deltaRadians = arc.sweep
-            ? clockwiseEnd
-            : -normalizeRadians(startRadians - endRadians)
+        const deltaRadians = arc.sweepAngle * (Math.PI / 180)
         const maxSegmentRadians =
             (Math.max(1, Number(options.maxSegmentDegrees) || 10) * Math.PI) /
             180

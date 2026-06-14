@@ -81,11 +81,16 @@ export class PcbScene3dLayerMapper {
      * @returns {object}
      */
     static arc(arc, board) {
-        return {
+        const mapped = {
             ...PcbScene3dLayerMapper.#mapYFields(arc, board, ['y']),
             startAngle: -Number(arc?.startAngle || 0),
             endAngle: -Number(arc?.endAngle || 0)
         }
+        if (PcbScene3dLayerMapper.#hasOwn(arc, 'sweepAngle')) {
+            mapped.sweepAngle = -Number(arc?.sweepAngle || 0)
+        }
+
+        return mapped
     }
 
     /**

@@ -53,6 +53,12 @@ export class PcbSvgRenderer {
                     PcbSvgVisibility.isOppositeSideCopper(drawing, side))
             )
         })
+        const visibleCopperDrawings = visibleDrawings.filter((drawing) =>
+            isCopperDrawing(drawing)
+        )
+        const visibleSilkscreenDrawings = visibleDrawings.filter(
+            (drawing) => !isCopperDrawing(drawing)
+        )
         const visibleTexts = renderBoardModel.texts.filter((text) => {
             return (
                 PcbSvgVisibility.isVisibleOnSide(text, side) &&
@@ -85,17 +91,23 @@ export class PcbSvgRenderer {
                 layerStyles,
                 semanticContext
             ),
-            visibleDrawings
+            visibleCopperDrawings
                 .sort(compareDrawingOrder)
                 .map((drawing) =>
                     renderDrawing(drawing, layerStyles, semanticContext)
                 )
                 .join(''),
-            visiblePads
-                .map((pad) => renderPad(pad, layerStyles, semanticContext))
+            visibleSilkscreenDrawings
+                .sort(compareDrawingOrder)
+                .map((drawing) =>
+                    renderDrawing(drawing, layerStyles, semanticContext)
+                )
                 .join(''),
             visibleTexts
                 .map((text) => renderText(text, layerStyles, semanticContext))
+                .join(''),
+            visiblePads
+                .map((pad) => renderPad(pad, layerStyles, semanticContext))
                 .join(''),
             visibleViaDrills
                 .map((drawing) =>
@@ -840,7 +852,7 @@ function optionalAttribute(attribute) {
  * @returns {{ name: string, stroke: string, fill: string, layerStyle: object } | null}
  */
 function drawingStyle(drawing, layerStyles) {
-    if (drawing.material === 'copper') {
+    if (isCopperDrawing(drawing)) {
         const layerStyle = drawing.fill ? layerStyles.zones : layerStyles.traces
         if (!layerStyle.visible) return null
 
@@ -864,7 +876,21 @@ function drawingStyle(drawing, layerStyles) {
 }
 
 /**
- * Sorts zones below tracks, then silkscreen below pads/text.
+ * Checks whether one drawing belongs to a copper visual pass.
+ * @param {object} drawing Drawing primitive.
+ * @returns {boolean}
+ */
+function isCopperDrawing(drawing) {
+    return (
+        drawing.material === 'copper' ||
+        String(drawing.layer || '')
+            .split(',')
+            .some((layer) => layer.trim().endsWith('.Cu'))
+    )
+}
+
+/**
+ * Sorts zones below tracks within each drawing pass.
  * @param {object} first
  * @param {object} second
  * @returns {number}
