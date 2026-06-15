@@ -321,6 +321,42 @@ test('PcbScene3dBuilder converts visible KiCad silkscreen text to 3D strokes', (
     )
 })
 
+test('PcbScene3dBuilder keeps mirrored bottom silkscreen text rotation upright', () => {
+    const scene = PcbScene3dBuilder.build({
+        pcb: {
+            boardOutline: { widthMil: 1000, heightMil: 500, segments: [] },
+            components: [],
+            pads: [],
+            tracks: [],
+            vias: [],
+            kicadBoard: {
+                drawings: [],
+                texts: [
+                    {
+                        value: '-',
+                        layer: 'B.SilkS',
+                        side: 'back',
+                        x: 10,
+                        y: 10,
+                        rotation: 28,
+                        mirrored: true,
+                        hAlign: 'center',
+                        vAlign: 'center',
+                        sizeX: 1,
+                        sizeY: 1,
+                        thickness: 0.15,
+                        visible: true
+                    }
+                ]
+            }
+        }
+    })
+    const track = scene.detail.silkscreen.bottom.tracks[0]
+
+    assert.ok(track.x2 - track.x1 < 0)
+    assert.ok(track.y2 - track.y1 > 0)
+})
+
 test('PcbScene3dBuilder maps PCB primitives into KiCad 3D layer space', () => {
     const scene = PcbScene3dBuilder.build({
         pcb: {

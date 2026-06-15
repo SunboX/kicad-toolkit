@@ -60,6 +60,24 @@ test('KicadPcbParser extracts footprint 3D model transforms', () => {
     ])
 })
 
+test('KicadPcbParser preserves front copper pad aperture rotation inside back-side footprints', () => {
+    const board = KicadPcbParser.parse(mixedSideFootprintFixture(), {
+        fileName: 'mixed-side-footprint.kicad_pcb'
+    })
+    const frontPad = board.pads.find((pad) => pad.number === '1')
+
+    assert.ok(frontPad)
+    assert.equal(frontPad.side, 'front')
+    assert.deepEqual(
+        {
+            x: Number(frontPad.x.toFixed(3)),
+            y: Number(frontPad.y.toFixed(3)),
+            rotation: frontPad.rotation
+        },
+        { x: 10, y: 9, rotation: 0 }
+    )
+})
+
 test('KicadPcbParser preserves board metadata and legacy module footprints', () => {
     const board = KicadPcbParser.parse(boardMetadataFixture(), {
         fileName: 'board-metadata.kicad_pcb'
@@ -888,6 +906,37 @@ function netFixture() {
                 (size 1 1)
                 (layers "F.Cu" "F.Mask" "F.Paste")
                 (net "GND")
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a board with a front-copper pad in a back-side footprint.
+ * @returns {string}
+ */
+function mixedSideFootprintFixture() {
+    return `(kicad_pcb
+        (version 20250101)
+        (gr_rect
+            (start 0 0)
+            (end 20 20)
+            (stroke (width 0.1) (type solid))
+            (fill no)
+            (layer "Edge.Cuts")
+        )
+        (footprint "Package:MixedSide"
+            (layer "B.Cu")
+            (at 10 10 -90)
+            (property "Reference" "U1"
+                (at 0 0 0)
+                (layer "B.SilkS")
+                (effects (font (size 1 1)))
+            )
+            (pad "1" smd rect
+                (at -1 0 0)
+                (size 2 3)
+                (layers "F.Cu" "F.Mask" "F.Paste")
             )
         )
     )`

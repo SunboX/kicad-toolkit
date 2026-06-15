@@ -731,11 +731,14 @@ function transformTextPoint(text, point) {
     }
 
     if (text?.mirrored) {
-        const rotated = rotatePoint(point, origin, Number(text?.rotation || 0))
-        return {
-            x: origin.x - (rotated.x - origin.x),
-            y: rotated.y
-        }
+        return rotatePoint(
+            {
+                x: origin.x - (Number(point?.x || 0) - origin.x),
+                y: Number(point?.y || 0)
+            },
+            origin,
+            Number(text?.rotation || 0)
+        )
     }
 
     return rotatePoint(point, origin, -Number(text?.rotation || 0))
