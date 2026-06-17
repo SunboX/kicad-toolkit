@@ -29,6 +29,11 @@ test('machine-readable KiCad helper schemas are split for downstream consumers',
             'kicad-toolkit.schematic.render-ops.a1'
         ],
         [
+            '../../docs/schemas/kicad_toolkit/schematic_geometry_readiness_a1.schema.json',
+            'kicad-toolkit.schematic.geometry-readiness.a1',
+            'kicad-toolkit.schematic.geometry-readiness.a1'
+        ],
+        [
             '../../docs/schemas/kicad_toolkit/pcb_svg_semantics_a1.schema.json',
             'kicad-toolkit.pcb.svg.semantics.a1',
             'kicad-toolkit.pcb.svg.semantics.a1'
@@ -84,9 +89,29 @@ test('machine-readable KiCad helper schemas are split for downstream consumers',
             'kicad-toolkit.pcb.statistics.a1'
         ],
         [
+            '../../docs/schemas/kicad_toolkit/pcb_3d_model_readiness_a1.schema.json',
+            'kicad-toolkit.pcb.3d-model-readiness.a1',
+            'kicad-toolkit.pcb.3d-model-readiness.a1'
+        ],
+        [
+            '../../docs/schemas/kicad_toolkit/pcb_fidelity_diagnostics_a1.schema.json',
+            'kicad-toolkit.pcb.fidelity-diagnostics.a1',
+            'kicad-toolkit.pcb.fidelity-diagnostics.a1'
+        ],
+        [
+            '../../docs/schemas/kicad_toolkit/pcb_geometry_readiness_a1.schema.json',
+            'kicad-toolkit.pcb.geometry-readiness.a1',
+            'kicad-toolkit.pcb.geometry-readiness.a1'
+        ],
+        [
             '../../docs/schemas/kicad_toolkit/pcb_layer_stack_a1.schema.json',
             'kicad-toolkit.pcb.layer-stack.a1',
             'kicad-toolkit.pcb.layer-stack.a1'
+        ],
+        [
+            '../../docs/schemas/kicad_toolkit/pcb_layer_usage_a1.schema.json',
+            'kicad-toolkit.pcb.layer-usage.a1',
+            'kicad-toolkit.pcb.layer-usage.a1'
         ],
         [
             '../../docs/schemas/kicad_toolkit/pcb_dimensions_a1.schema.json',

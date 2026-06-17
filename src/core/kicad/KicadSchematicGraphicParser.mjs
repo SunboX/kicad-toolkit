@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { KicadSchematicStyleParser } from './KicadSchematicStyleParser.mjs'
+
 const defaultInkColor = '#1f2430'
 const defaultAccentColor = '#0f6b7a'
 const defaultFillColor = 'none'
@@ -84,6 +86,7 @@ function parseBusEntry(node) {
         y2: at.y + size.height,
         width: strokeWidth(node),
         color: defaultAccentColor,
+        ...KicadSchematicStyleParser.strokeFields(node),
         uuid: textValue(child(node, 'uuid'))
     }
 }
@@ -211,6 +214,8 @@ function parseTextBoxContent(node) {
         margins: parseMargins(child(node, 'margins')),
         lineWidth: strokeWidth(node),
         fill: fillType(node),
+        ...KicadSchematicStyleParser.strokeFields(node),
+        ...KicadSchematicStyleParser.fillFields(node),
         uuid: textValue(child(node, 'uuid'))
     }
 }
@@ -243,6 +248,9 @@ function parseTable(node) {
  */
 function parsePolylineShape(node, index) {
     const points = parsePoints(child(node, 'pts'))
+    const strokeFields = KicadSchematicStyleParser.strokeFields(node)
+    const fillFields = KicadSchematicStyleParser.fillFields(node)
+    const fill = fillType(node)
     if (points.length <= 2) {
         return {
             lines: points.slice(0, -1).map((point, pointIndex) => ({
@@ -252,6 +260,7 @@ function parsePolylineShape(node, index) {
                 y2: points[pointIndex + 1].y,
                 color: defaultInkColor,
                 width: strokeWidth(node),
+                ...strokeFields,
                 sourceType: 'polyline',
                 renderOrder: index * 100 + pointIndex
             })),
@@ -264,9 +273,11 @@ function parsePolylineShape(node, index) {
             {
                 points,
                 color: defaultInkColor,
-                fill: fillType(node),
-                isSolid: fillType(node) !== 'none',
-                transparent: fillType(node) === 'none',
+                fill,
+                ...strokeFields,
+                ...fillFields,
+                isSolid: fill !== 'none',
+                transparent: fill === 'none',
                 lineWidth: strokeWidth(node),
                 sourceType: 'polyline',
                 renderOrder: index
@@ -291,6 +302,8 @@ function parseArc(node, index) {
         color: defaultInkColor,
         width: strokeWidth(node),
         fill: fillType(node),
+        ...KicadSchematicStyleParser.strokeFields(node),
+        ...KicadSchematicStyleParser.fillFields(node),
         uuid: textValue(child(node, 'uuid')),
         renderOrder: index
     }
@@ -312,6 +325,8 @@ function parseCircle(node, index) {
         radiusY: radius,
         color: defaultInkColor,
         fill: fillType(node),
+        ...KicadSchematicStyleParser.strokeFields(node),
+        ...KicadSchematicStyleParser.fillFields(node),
         lineWidth: strokeWidth(node),
         sourceType: 'circle',
         uuid: textValue(child(node, 'uuid')),
@@ -336,6 +351,8 @@ function parseRectangle(node, index) {
         radius: numberValue(child(node, 'radius')?.[1], 0),
         color: defaultInkColor,
         fill: fillType(node),
+        ...KicadSchematicStyleParser.strokeFields(node),
+        ...KicadSchematicStyleParser.fillFields(node),
         lineWidth: strokeWidth(node),
         sourceType: 'rectangle',
         uuid: textValue(child(node, 'uuid')),
@@ -357,6 +374,8 @@ function parseBezier(node, index) {
         color: defaultInkColor,
         width: strokeWidth(node),
         fill: fillType(node),
+        ...KicadSchematicStyleParser.strokeFields(node),
+        ...KicadSchematicStyleParser.fillFields(node),
         uuid: textValue(child(node, 'uuid')),
         renderOrder: index
     }
@@ -374,6 +393,8 @@ function parseRuleArea(node, index) {
         points: parsePoints(child(polyline, 'pts')),
         color: defaultInkColor,
         fill: fillType(polyline),
+        ...KicadSchematicStyleParser.strokeFields(polyline),
+        ...KicadSchematicStyleParser.fillFields(polyline),
         lineWidth: strokeWidth(polyline),
         excludeFromSim: booleanValue(
             child(node, 'exclude_from_sim')?.[1],
@@ -519,7 +540,7 @@ function localPoint(node) {
  * @returns {number}
  */
 function strokeWidth(node) {
-    return numberValue(child(child(node, 'stroke'), 'width')?.[1], 0.15)
+    return KicadSchematicStyleParser.strokeWidth(node, 0.15)
 }
 
 /**
@@ -528,7 +549,7 @@ function strokeWidth(node) {
  * @returns {string}
  */
 function fillType(node) {
-    return textValue(child(child(node, 'fill'), 'type')) || defaultFillColor
+    return KicadSchematicStyleParser.fillType(node, defaultFillColor)
 }
 
 /**

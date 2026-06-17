@@ -57,6 +57,14 @@ function builtInCases() {
                 )
         },
         {
+            key: 'pcb-geometry-edge-cases',
+            parse: () =>
+                KicadParser.parseArrayBufferToRendererModel(
+                    'fuzz-geometry.kicad_pcb',
+                    encodeText(geometryEdgeCasePcbSource())
+                )
+        },
+        {
             key: 'project-metadata-sparse',
             parse: () =>
                 KicadProjectMetadataParser.parse(
@@ -114,6 +122,79 @@ function stableSummary(summary) {
             ['number', 'string', 'boolean'].includes(typeof value)
         )
     )
+}
+
+/**
+ * Builds a compact PCB with geometry edge cases.
+ * @returns {string}
+ */
+function geometryEdgeCasePcbSource() {
+    return `(kicad_pcb
+        (version 20241229)
+        (layers
+            (0 "F.Cu" signal)
+            (31 "B.Cu" signal)
+            (37 "F.SilkS" user)
+            (44 "Edge.Cuts" user)
+            (47 "Dwgs.User" user)
+        )
+        (net 0 "")
+        (net 1 "GND")
+        (arc
+            (start 1 0)
+            (mid 1.5 0.5)
+            (end 2 0)
+            (width 2)
+            (layer "F.Cu")
+            (net 1)
+        )
+        (gr_curve
+            (pts
+                (xy 0 0)
+                (xy 0.5 0.8)
+                (xy 1.5 -0.8)
+                (xy 2 0)
+            )
+            (stroke (width 0.15) (type solid))
+            (layer "F.SilkS")
+        )
+        (dimension
+            (type aligned)
+            (layer "Dwgs.User")
+            (pts (xy 0 0) (xy 5 0))
+            (gr_text "5 mm" (at 2.5 -1 0) (layer "Dwgs.User"))
+        )
+        (footprint "Test:GEOM"
+            (layer "F.Cu")
+            (at 4 4 0)
+            (property "Reference" "U1" (at 0 0 0))
+            (property "Value" "GEOM" (at 0 1 0))
+            (pad "1" smd roundrect
+                (at 0 0)
+                (size 1 1)
+                (roundrect_rratio 0.25)
+                (layers "F.Cu" "F.Paste" "F.Mask")
+            )
+            (pad "2" smd custom
+                (at 2 0)
+                (size 1 1)
+                (layers "F.Cu")
+                (options (clearance outline) (anchor rect))
+                (primitives
+                    (gr_curve
+                        (pts
+                            (xy -0.5 0)
+                            (xy -0.25 0.5)
+                            (xy 0.25 -0.5)
+                            (xy 0.5 0)
+                        )
+                        (stroke (width 0.1) (type solid))
+                        (fill no)
+                    )
+                )
+            )
+        )
+    )`
 }
 
 /**

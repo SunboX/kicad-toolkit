@@ -4,8 +4,10 @@
 import { groupSchematicBomRows } from './KicadBomUtils.mjs'
 import { symbolPropertyTextRotation } from './KicadSchematicFieldRotation.mjs'
 import { KicadSchematicGraphicParser } from './KicadSchematicGraphicParser.mjs'
+import { KicadSchematicStyleParser } from './KicadSchematicStyleParser.mjs'
 import { KicadSchematicSymbolParser } from './KicadSchematicSymbolParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
+import { SchematicSidecarBuilder } from './SchematicSidecarBuilder.mjs'
 import { SExpressionParser } from './SExpressionParser.mjs'
 
 const defaultInkColor = '#1f2430'
@@ -103,7 +105,7 @@ export class KicadSchematicParser {
             ...netDiagnostics
         ]
 
-        return NormalizedModelSchema.attach({
+        const document = NormalizedModelSchema.attach({
             sourceFormat: 'kicad',
             kind: 'schematic',
             fileType: 'kicad_sch',
@@ -148,6 +150,8 @@ export class KicadSchematicParser {
             },
             bom
         })
+        SchematicSidecarBuilder.attach(document.schematic)
+        return document
     }
 }
 
@@ -266,10 +270,8 @@ function parseLibrarySymbols(node) {
 function parseLineNodes(root, name, isBus) {
     return children(root, name).flatMap((node, nodeIndex) => {
         const points = parsePoints(child(node, 'pts'))
-        const width = numberValue(
-            child(child(node, 'stroke'), 'width')?.[1],
-            0.15
-        )
+        const width = KicadSchematicStyleParser.strokeWidth(node, 0.15)
+        const strokeFields = KicadSchematicStyleParser.strokeFields(node)
         const lines = []
         for (let index = 0; index < points.length - 1; index += 1) {
             lines.push({
@@ -279,6 +281,7 @@ function parseLineNodes(root, name, isBus) {
                 y2: points[index + 1].y,
                 color: isBus ? defaultAccentColor : defaultInkColor,
                 width,
+                ...strokeFields,
                 isBus,
                 sourceType: name,
                 renderOrder: nodeIndex * 100 + index

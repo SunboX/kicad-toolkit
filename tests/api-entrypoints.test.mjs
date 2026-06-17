@@ -78,7 +78,23 @@ test('root entrypoint exports parser and renderer classes', () => {
         'function'
     )
     assert.equal(
+        typeof rootApi.KicadPcb3dModelReadinessReportBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof rootApi.KicadPcbFidelityDiagnosticsBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof rootApi.KicadPcbGeometryReadinessReportBuilder.build,
+        'function'
+    )
+    assert.equal(
         typeof rootApi.KicadPcbLayerStackReadModelBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof rootApi.KicadPcbLayerUsageReportBuilder.build,
         'function'
     )
     assert.equal(
@@ -130,6 +146,10 @@ test('root entrypoint exports parser and renderer classes', () => {
     )
     assert.equal(
         typeof rootApi.KicadSchematicConnectivityQaBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof rootApi.KicadSchematicGeometryReadinessReportBuilder.build,
         'function'
     )
     assert.equal(typeof rootApi.KicadSchematicQaReportBuilder.build, 'function')
@@ -317,6 +337,22 @@ test('specialized entrypoints expose their intended API groups', () => {
         'function'
     )
     assert.equal(
+        typeof parserApi.KicadPcbLayerUsageReportBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.KicadPcb3dModelReadinessReportBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.KicadPcbFidelityDiagnosticsBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.KicadPcbGeometryReadinessReportBuilder.build,
+        'function'
+    )
+    assert.equal(
         typeof parserApi.KicadPcbRegionSemanticsBuilder.build,
         'function'
     )
@@ -364,6 +400,10 @@ test('specialized entrypoints expose their intended API groups', () => {
     assert.equal(typeof parserApi.KicadProjectMetadataParser.parse, 'function')
     assert.equal(
         typeof parserApi.KicadSchematicConnectivityQaBuilder.build,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.KicadSchematicGeometryReadinessReportBuilder.build,
         'function'
     )
     assert.equal(

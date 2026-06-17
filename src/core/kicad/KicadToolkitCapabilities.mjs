@@ -301,7 +301,7 @@ const capabilities = Object.freeze([
         category: 'rendering',
         outputs: ['render operation sidecar'],
         summary:
-            'Builds deterministic KiCad schematic SVG render-operation metadata for CI diffs.'
+            'Builds deterministic KiCad schematic SVG render-operation metadata for lines, pins, sheet entries, images, frame objects, and stroke text.'
     }),
     capability({
         id: 'pcb_svg_renderer',
@@ -325,7 +325,7 @@ const capabilities = Object.freeze([
         category: 'rendering',
         outputs: ['SVG'],
         summary:
-            'Renders deterministic schematic SVG markup from recovered sheet models.'
+            'Renders deterministic schematic SVG markup, sheet entries, image payloads, text frames, table cells, and authored graphic styles from recovered sheet models.'
     }),
     capability({
         id: 'bom_table_renderer',
@@ -439,6 +439,14 @@ const capabilities = Object.freeze([
             'Reports unresolved schematic text variables, title-block gaps, and document style summaries.'
     }),
     capability({
+        id: 'schematic_geometry_readiness',
+        label: 'Schematic geometry readiness',
+        category: 'reporting',
+        outputs: ['schematic geometry readiness report'],
+        summary:
+            'Reports renderer-sensitive KiCad schematic geometry, text frames, pin styles, authored graphic styles, and unknown graphics.'
+    }),
+    capability({
         id: 'pcb_route_analysis',
         label: 'PCB route analysis',
         category: 'reporting',
@@ -453,6 +461,38 @@ const capabilities = Object.freeze([
         outputs: ['layer-stack read model'],
         summary:
             'Builds KiCad PCB stackup material, dielectric, and thickness summaries.'
+    }),
+    capability({
+        id: 'pcb_layer_usage_report',
+        label: 'PCB layer-usage report',
+        category: 'reporting',
+        outputs: ['layer usage report'],
+        summary:
+            'Reports declared, used, unused, and undeclared KiCad PCB layers.'
+    }),
+    capability({
+        id: 'pcb_fidelity_diagnostics',
+        label: 'PCB fidelity diagnostics',
+        category: 'reporting',
+        outputs: ['fidelity diagnostics'],
+        summary:
+            'Flags complex parsed KiCad PCB constructs that need consumer review.'
+    }),
+    capability({
+        id: 'pcb_3d_model_readiness',
+        label: 'PCB 3D model readiness',
+        category: 'reporting',
+        outputs: ['3D model readiness report'],
+        summary:
+            'Reports KiCad PCB 3D model references, unresolved assets, and procedural fallback package details.'
+    }),
+    capability({
+        id: 'pcb_geometry_readiness',
+        label: 'PCB geometry readiness',
+        category: 'reporting',
+        outputs: ['geometry readiness report'],
+        summary:
+            'Reports renderer-sensitive KiCad PCB geometry such as thick arcs, custom pads, curves, and multi-contour zones.'
     }),
     capability({
         id: 'pcb_dimension_read_model',

@@ -1,6 +1,6 @@
 {
     "name": "kicad-toolkit",
-    "version": "1.0.12",
+    "version": "1.0.13",
     "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
     "keywords": [
         "kicad",
@@ -42,6 +42,7 @@
         "docs/schemas/kicad_toolkit/netlist_a1.schema.json",
         "docs/schemas/kicad_toolkit/schematic_svg_semantics_a1.schema.json",
         "docs/schemas/kicad_toolkit/schematic_render_ops_a1.schema.json",
+        "docs/schemas/kicad_toolkit/schematic_geometry_readiness_a1.schema.json",
         "docs/schemas/kicad_toolkit/pcb_svg_semantics_a1.schema.json",
         "docs/schemas/kicad_toolkit/ci_artifact_bundle_a1.schema.json",
         "docs/schemas/kicad_toolkit/project_document_graph_a1.schema.json",
@@ -53,7 +54,11 @@
         "docs/schemas/kicad_toolkit/parser_compatibility_fuzz_a1.schema.json",
         "docs/schemas/kicad_toolkit/pcb_route_analysis_a1.schema.json",
         "docs/schemas/kicad_toolkit/pcb_statistics_a1.schema.json",
+        "docs/schemas/kicad_toolkit/pcb_3d_model_readiness_a1.schema.json",
+        "docs/schemas/kicad_toolkit/pcb_fidelity_diagnostics_a1.schema.json",
+        "docs/schemas/kicad_toolkit/pcb_geometry_readiness_a1.schema.json",
         "docs/schemas/kicad_toolkit/pcb_layer_stack_a1.schema.json",
+        "docs/schemas/kicad_toolkit/pcb_layer_usage_a1.schema.json",
         "docs/schemas/kicad_toolkit/pcb_dimensions_a1.schema.json",
         "docs/schemas/kicad_toolkit/pcb_region_semantics_a1.schema.json",
         "docs/schemas/kicad_toolkit/pcb_rule_read_model_a1.schema.json",

@@ -66,6 +66,16 @@ export class SchematicSvgShapeRenderer {
     }
 
     /**
+     * Renders SVG stroke-pattern attributes for a KiCad stroke type.
+     * @param {object} primitive Primitive with a stroke style.
+     * @param {number} strokeWidth Effective stroke width.
+     * @returns {string}
+     */
+    static strokeStyleAttributes(primitive, strokeWidth) {
+        return strokeStyleAttributes(primitive, strokeWidth)
+    }
+
+    /**
      * Renders schematic polygons.
      * @param {object[]} polygons Polygons.
      * @param {object} theme Color resolver callbacks.
@@ -76,7 +86,10 @@ export class SchematicSvgShapeRenderer {
             .map((polygon) => {
                 const points = polygon.points || []
                 if (points.length === 0) return ''
-                return `<path class="schematic-polygon" d="${pathFromPoints(points)} Z" fill="${theme.resolveFillColor(polygon)}" stroke="${theme.resolveInkColor(polygon)}" stroke-width="${formatNumber(polygon.lineWidth || 0.15)}" stroke-linejoin="round"/>`
+                const strokeWidth = effectiveStrokeWidth(
+                    polygon.lineWidth || 0.15
+                )
+                return `<path class="schematic-polygon" d="${pathFromPoints(points)} Z" fill="${theme.resolveFillColor(polygon)}" stroke="${theme.resolveInkColor(polygon)}" stroke-width="${formatNumber(strokeWidth)}" stroke-linejoin="round"${strokeStyleAttributes(polygon, strokeWidth)}/>`
             })
             .join('')
     }
@@ -89,10 +102,12 @@ export class SchematicSvgShapeRenderer {
      */
     static renderEllipses(ellipses, theme) {
         return ellipses
-            .map(
-                (ellipse) =>
-                    `<ellipse class="schematic-ellipse" cx="${formatNumber(ellipse.x)}" cy="${formatNumber(ellipse.y)}" rx="${formatNumber(ellipse.radiusX || 0)}" ry="${formatNumber(ellipse.radiusY || ellipse.radiusX || 0)}" fill="${theme.resolveFillColor(ellipse)}" stroke="${theme.resolveInkColor(ellipse)}" stroke-width="${formatNumber(ellipse.lineWidth || 0.15)}"/>`
-            )
+            .map((ellipse) => {
+                const strokeWidth = effectiveStrokeWidth(
+                    ellipse.lineWidth || 0.15
+                )
+                return `<ellipse class="schematic-ellipse" cx="${formatNumber(ellipse.x)}" cy="${formatNumber(ellipse.y)}" rx="${formatNumber(ellipse.radiusX || 0)}" ry="${formatNumber(ellipse.radiusY || ellipse.radiusX || 0)}" fill="${theme.resolveFillColor(ellipse)}" stroke="${theme.resolveInkColor(ellipse)}" stroke-width="${formatNumber(strokeWidth)}"${strokeStyleAttributes(ellipse, strokeWidth)}/>`
+            })
             .join('')
     }
 
@@ -104,10 +119,12 @@ export class SchematicSvgShapeRenderer {
      */
     static renderArcs(arcs, theme) {
         return arcs
-            .map(
-                (arc) =>
-                    `<path class="schematic-arc" d="${arcPath(arc)}" fill="none" stroke="${theme.resolveInkColor(arc)}" stroke-width="${formatNumber(arc.width || arc.lineWidth || 0.15)}" stroke-linecap="round"/>`
-            )
+            .map((arc) => {
+                const strokeWidth = effectiveStrokeWidth(
+                    arc.width || arc.lineWidth || 0.15
+                )
+                return `<path class="schematic-arc" d="${arcPath(arc)}" fill="none" stroke="${theme.resolveInkColor(arc)}" stroke-width="${formatNumber(strokeWidth)}" stroke-linecap="round"${strokeStyleAttributes(arc, strokeWidth)}/>`
+            })
             .join('')
     }
 
@@ -119,10 +136,12 @@ export class SchematicSvgShapeRenderer {
      */
     static renderBeziers(beziers, theme) {
         return beziers
-            .map(
-                (bezier) =>
-                    `<path class="schematic-bezier" d="${bezierPath(bezier)}" fill="none" stroke="${theme.resolveInkColor(bezier)}" stroke-width="${formatNumber(bezier.width || bezier.lineWidth || 0.15)}" stroke-linecap="round"/>`
-            )
+            .map((bezier) => {
+                const strokeWidth = effectiveStrokeWidth(
+                    bezier.width || bezier.lineWidth || 0.15
+                )
+                return `<path class="schematic-bezier" d="${bezierPath(bezier)}" fill="none" stroke="${theme.resolveInkColor(bezier)}" stroke-width="${formatNumber(strokeWidth)}" stroke-linecap="round"${strokeStyleAttributes(bezier, strokeWidth)}/>`
+            })
             .join('')
     }
 }
@@ -162,7 +181,8 @@ function renderShapeStroke(primitive, theme) {
         classSuffix: 'stroke',
         fill: 'none',
         stroke: theme.resolveInkColor(primitive),
-        strokeWidth
+        strokeWidth,
+        strokeAttributes: strokeStyleAttributes(primitive, strokeWidth)
     })
 }
 
@@ -181,40 +201,88 @@ function primitiveStrokeWidth(primitive) {
 /**
  * Renders one shape primitive.
  * @param {object} primitive Shape primitive.
- * @param {{ classSuffix: string, fill: string, stroke: string, strokeWidth: number }} paint Paint attributes.
+ * @param {{ classSuffix: string, fill: string, stroke: string, strokeWidth: number, strokeAttributes?: string }} paint Paint attributes.
  * @returns {string}
  */
 function renderShapePrimitive(primitive, paint) {
     if (primitive.shapeType === 'line')
         return renderLinePrimitive(primitive, paint)
     if (primitive.shapeType === 'rectangle') {
-        return `<rect class="schematic-rect schematic-shape-${paint.classSuffix}" x="${formatNumber(primitive.x)}" y="${formatNumber(primitive.y)}" width="${formatNumber(primitive.width)}" height="${formatNumber(primitive.height)}" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}"/>`
+        return `<rect class="schematic-rect schematic-shape-${paint.classSuffix}" x="${formatNumber(primitive.x)}" y="${formatNumber(primitive.y)}" width="${formatNumber(primitive.width)}" height="${formatNumber(primitive.height)}"${rectangleRadiusAttributes(primitive)} fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}"${paint.strokeAttributes || ''}/>`
     }
     if (primitive.shapeType === 'polygon') {
         const points = primitive.points || []
         if (points.length === 0) return ''
-        return `<path class="schematic-polygon schematic-shape-${paint.classSuffix}" d="${pathFromPoints(points)} Z" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linejoin="round"/>`
+        return `<path class="schematic-polygon schematic-shape-${paint.classSuffix}" d="${pathFromPoints(points)} Z" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linejoin="round"${paint.strokeAttributes || ''}/>`
     }
     if (primitive.shapeType === 'ellipse') {
-        return `<ellipse class="schematic-ellipse schematic-shape-${paint.classSuffix}" cx="${formatNumber(primitive.x)}" cy="${formatNumber(primitive.y)}" rx="${formatNumber(primitive.radiusX || 0)}" ry="${formatNumber(primitive.radiusY || primitive.radiusX || 0)}" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}"/>`
+        return `<ellipse class="schematic-ellipse schematic-shape-${paint.classSuffix}" cx="${formatNumber(primitive.x)}" cy="${formatNumber(primitive.y)}" rx="${formatNumber(primitive.radiusX || 0)}" ry="${formatNumber(primitive.radiusY || primitive.radiusX || 0)}" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}"${paint.strokeAttributes || ''}/>`
     }
     if (primitive.shapeType === 'arc') {
-        return `<path class="schematic-arc schematic-shape-${paint.classSuffix}" d="${arcPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"/>`
+        return `<path class="schematic-arc schematic-shape-${paint.classSuffix}" d="${arcPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"${paint.strokeAttributes || ''}/>`
     }
     if (primitive.shapeType === 'bezier') {
-        return `<path class="schematic-bezier schematic-shape-${paint.classSuffix}" d="${bezierPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"/>`
+        return `<path class="schematic-bezier schematic-shape-${paint.classSuffix}" d="${bezierPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"${paint.strokeAttributes || ''}/>`
     }
     return ''
 }
 
 /**
+ * Renders SVG radius attributes for rounded schematic rectangles.
+ * @param {object} primitive Rectangle primitive.
+ * @returns {string}
+ */
+function rectangleRadiusAttributes(primitive) {
+    const radius = Number(primitive?.radius || 0)
+    if (!Number.isFinite(radius) || radius <= 0) return ''
+    return ` rx="${formatNumber(radius)}" ry="${formatNumber(radius)}"`
+}
+
+/**
  * Renders one line primitive.
  * @param {object} line Line primitive.
- * @param {{ classSuffix: string, stroke: string, strokeWidth: number }} paint Paint attributes.
+ * @param {{ classSuffix: string, stroke: string, strokeWidth: number, strokeAttributes?: string }} paint Paint attributes.
  * @returns {string}
  */
 function renderLinePrimitive(line, paint) {
-    return `<line class="schematic-line schematic-shape-${paint.classSuffix}" x1="${formatNumber(line.x1)}" y1="${formatNumber(line.y1)}" x2="${formatNumber(line.x2)}" y2="${formatNumber(line.y2)}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"/>`
+    return `<line class="schematic-line schematic-shape-${paint.classSuffix}" x1="${formatNumber(line.x1)}" y1="${formatNumber(line.y1)}" x2="${formatNumber(line.x2)}" y2="${formatNumber(line.y2)}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"${paint.strokeAttributes || ''}/>`
+}
+
+/**
+ * Renders SVG stroke-pattern attributes for a KiCad stroke type.
+ * @param {object} primitive Primitive with a stroke style.
+ * @param {number} strokeWidth Effective stroke width.
+ * @returns {string}
+ */
+function strokeStyleAttributes(primitive, strokeWidth) {
+    const pattern = strokePattern(primitive?.strokeStyle, strokeWidth)
+    if (!pattern) return ''
+    return ` stroke-dasharray="${pattern}"`
+}
+
+/**
+ * Resolves a KiCad stroke style to an SVG dash pattern.
+ * @param {string | undefined} style KiCad stroke type.
+ * @param {number} strokeWidth Effective stroke width.
+ * @returns {string}
+ */
+function strokePattern(style, strokeWidth) {
+    const normalized = String(style || '')
+        .toLowerCase()
+        .replaceAll('-', '_')
+    const width = Math.max(Number(strokeWidth) || 0.15, 0.001)
+    const dot = formatNumber(width)
+    const gap = formatNumber(width * 2)
+    const dash = formatNumber(width * 4)
+
+    if (!normalized || ['default', 'solid'].includes(normalized)) return ''
+    if (normalized === 'dot') return `${dot} ${gap}`
+    if (normalized === 'dash') return `${dash} ${gap}`
+    if (normalized === 'dash_dot') return `${dash} ${gap} ${dot} ${gap}`
+    if (normalized === 'dash_dot_dot') {
+        return `${dash} ${gap} ${dot} ${gap} ${dot} ${gap}`
+    }
+    return ''
 }
 
 /**

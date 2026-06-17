@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadPcbDimensionReadModelBuilder } from './KicadPcbDimensionReadModelBuilder.mjs'
+import { KicadPcb3dModelReadinessReportBuilder } from './KicadPcb3dModelReadinessReportBuilder.mjs'
+import { KicadPcbFidelityDiagnosticsBuilder } from './KicadPcbFidelityDiagnosticsBuilder.mjs'
+import { KicadPcbGeometryReadinessReportBuilder } from './KicadPcbGeometryReadinessReportBuilder.mjs'
 import { KicadPcbLayerStackReadModelBuilder } from './KicadPcbLayerStackReadModelBuilder.mjs'
+import { KicadPcbLayerUsageReportBuilder } from './KicadPcbLayerUsageReportBuilder.mjs'
 import { KicadPcbPlacedFootprintManifestBuilder } from './KicadPcbPlacedFootprintManifestBuilder.mjs'
 import { KicadPcbRegionSemanticsBuilder } from './KicadPcbRegionSemanticsBuilder.mjs'
 import { KicadPcbReviewMetadataBuilder } from './KicadPcbReviewMetadataBuilder.mjs'
@@ -23,8 +27,13 @@ export class KicadPcbDocumentSidecarBuilder {
         const routeAnalysis = KicadPcbRouteAnalysisBuilder.build(pcb)
 
         pcb.layerStack = KicadPcbLayerStackReadModelBuilder.build(pcb)
+        pcb.layerUsage = KicadPcbLayerUsageReportBuilder.build(pcb)
         pcb.dimensions = KicadPcbDimensionReadModelBuilder.build(pcb)
         pcb.regionSemantics = KicadPcbRegionSemanticsBuilder.build(pcb)
+        pcb.fidelityDiagnostics = KicadPcbFidelityDiagnosticsBuilder.build(pcb)
+        pcb.geometryReadiness =
+            KicadPcbGeometryReadinessReportBuilder.build(pcb)
+        pcb.modelReadiness = KicadPcb3dModelReadinessReportBuilder.build(pcb)
         pcb.rigidFlexTopology = KicadPcbRigidFlexTopologyBuilder.build(pcb)
         pcb.routeAnalysis = routeAnalysis
         pcb.reviewMetadata = KicadPcbReviewMetadataBuilder.build({

@@ -18,14 +18,15 @@ library inspection, design bundle composition, semantic SVG metadata, semantic
 SVG/model cross-link validation, renderer helper APIs, schematic render-op
 sidecars, per-layer SVG exports, split helper schema publication, PCB route
 analysis, PCB statistics, PCB
-layer-stack reports, PCB dimension reports, PCB region/keepout reports, PCB
-rule read models, PCB rigid-flex topology status, source coverage reports, PCB
-ownership graph indexing, schematic ownership graph indexing, schematic
-hierarchy graph indexing, KiCad PnP coordinate views, CI artifact bundle
-composition, deterministic parser compatibility smoke cases, schematic
-connectivity QA, schematic document QA, library QA, library merge-plan
-diagnostics, BOM/PnP reconciliation, and deterministic project netlist/wirelist
-export.
+layer-stack reports, PCB layer-usage reports, PCB fidelity diagnostics, PCB 3D
+model readiness reports, PCB geometry readiness reports, PCB dimension reports,
+PCB region/keepout reports, PCB rule read models, PCB rigid-flex topology
+status, source coverage reports, PCB ownership graph indexing, schematic
+ownership graph indexing, schematic hierarchy graph indexing, KiCad PnP
+coordinate views, CI artifact bundle composition, deterministic parser
+compatibility smoke cases, schematic connectivity QA, schematic document QA,
+library QA, library merge-plan diagnostics, BOM/PnP reconciliation, and
+deterministic project netlist/wirelist export.
 
 ## Capability Inventory
 
@@ -154,16 +155,32 @@ Both helpers are data only and do not write files.
 `KicadPcbRouteAnalysisBuilder.build()`,
 `KicadPcbStatisticsBuilder.build()`,
 `KicadPcbLayerStackReadModelBuilder.build()`,
+`KicadPcbLayerUsageReportBuilder.build()`,
+`KicadPcbFidelityDiagnosticsBuilder.build()`,
+`KicadPcb3dModelReadinessReportBuilder.build()`,
+`KicadPcbGeometryReadinessReportBuilder.build()`,
 `KicadPcbDimensionReadModelBuilder.build()`,
 `KicadPcbRegionSemanticsBuilder.build()`, and
 `KicadPcbOwnershipGraphBuilder.build()` expose deterministic PCB route,
-statistics, stackup, dimension, region/keepout, and primitive ownership
-reports from normalized parser data.
+statistics, stackup, layer-usage, fidelity, model-readiness,
+geometry-readiness, dimension, region/keepout, and primitive ownership reports
+from normalized parser data.
+`KicadSchematicGeometryReadinessReportBuilder.build()` exposes the matching
+schematic-side renderer-readiness report for Beziers, arcs, rounded
+rectangles, fixed text frames, pin styles, authored graphic styles, and unknown
+graphics. Schematic SVG output renders text boxes and table cells with
+deterministic stroke-font text, hierarchical sheet entries, and schematic
+image payloads with placeholders for missing image data. It honors authored
+schematic stroke/fill colors and stroke patterns when present.
 Route analysis includes per-net layer participation, connected route groups,
 track/arc lengths, and caller-supplied differential-pair summaries.
-Layer-stack, dimension, region, and rigid-flex topology reports are attached to
-parsed PCB renderer models at `pcb.layerStack`, `pcb.dimensions`,
-`pcb.regionSemantics`, and `pcb.rigidFlexTopology`.
+Layer-stack, layer-usage, fidelity, geometry-readiness, model-readiness,
+dimension, region, and rigid-flex topology reports are attached to parsed PCB
+renderer models at `pcb.layerStack`, `pcb.layerUsage`,
+`pcb.fidelityDiagnostics`, `pcb.geometryReadiness`, `pcb.modelReadiness`,
+`pcb.dimensions`, `pcb.regionSemantics`, and `pcb.rigidFlexTopology`.
+Model-readiness fallbacks include the procedural package family and size that
+scene consumers would use for generated component bodies.
 `KicadPcbRuleReadModelBuilder.build()` normalizes KiCad custom DRC rules,
 project design settings, and net classes into typed rule rows.
 `KicadPcbRigidFlexTopologyBuilder.build()` reports KiCad flat-stack and
@@ -213,6 +230,10 @@ schematic QA report. It summarizes text rows, font families, line widths,
 unresolved `${Variable}` references, title-block gaps, and findings. The helper
 uses caller-provided `projectParameters` for variable resolution and leaves
 source models unchanged.
+
+`KicadSchematicGeometryReadinessReportBuilder.build(input)` creates a
+renderer-readiness report for schematic geometry. Parsed schematic renderer
+models attach the report at `schematic.geometryReadiness`.
 
 `KicadLibraryQaReportBuilder.build(options)` creates a collection-level library
 QA report for parsed KiCad symbol and footprint libraries. It reports duplicate

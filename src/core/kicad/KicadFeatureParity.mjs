@@ -480,10 +480,12 @@ const features = Object.freeze([
         docs: ['docs/api.md#renderers'],
         tests: [
             'tests/ui/schematic-svg-renderer.test.mjs',
+            'tests/ui/schematic-svg-frame-and-style-renderer.test.mjs',
+            'tests/ui/schematic-svg-sheet-entry-and-image-renderer.test.mjs',
             'tests/ui/kicad-renderers-api.test.mjs'
         ],
         summary:
-            'SchematicSvgRenderer.render() emits deterministic markup without DOM state.'
+            'SchematicSvgRenderer.render() emits deterministic markup for sheet items, sheet entries, images, text frames, table cells, and authored styles without DOM state.'
     }),
     feature({
         id: 'pcb_svg_rendering',

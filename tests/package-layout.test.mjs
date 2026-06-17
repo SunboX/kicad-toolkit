@@ -59,8 +59,12 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadNetlistParser',
         'KicadParser',
         'KicadParserCompatibilityFuzzer',
+        'KicadPcb3dModelReadinessReportBuilder',
         'KicadPcbDimensionReadModelBuilder',
         'KicadPcbDrawingParser',
+        'KicadPcbFidelityDiagnosticsBuilder',
+        'KicadPcbGeometryReadinessReportBuilder',
+        'KicadPcbLayerUsageReportBuilder',
         'KicadPcbLayerStackReadModelBuilder',
         'KicadPcbLayerMetadata',
         'KicadPcbComponentParticipationPolicy',
@@ -82,6 +86,7 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadProjectMetadataParser',
         'KicadReadinessReport',
         'KicadSchematicConnectivityQaBuilder',
+        'KicadSchematicGeometryReadinessReportBuilder',
         'KicadSchematicGraphicParser',
         'KicadSchematicHierarchyGraphBuilder',
         'KicadSchematicOwnershipGraphBuilder',
@@ -200,7 +205,19 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists(
         '../src/core/kicad/KicadPcbDimensionReadModelBuilder.mjs'
     )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcb3dModelReadinessReportBuilder.mjs'
+    )
     await assertFileExists('../src/core/kicad/KicadPcbDrawingParser.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbFidelityDiagnosticsBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbGeometryReadinessReportBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcbLayerUsageReportBuilder.mjs'
+    )
     await assertFileExists(
         '../src/core/kicad/KicadPcbLayerStackReadModelBuilder.mjs'
     )

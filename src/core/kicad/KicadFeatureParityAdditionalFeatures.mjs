@@ -80,7 +80,7 @@ export const additionalFeatureParityRecords = Object.freeze([
         altiumCapability:
             'Publish split JSON Schemas for helper report contracts.',
         kicadCapability:
-            'Publish split KiCad JSON Schemas for project bundles, netlists, SVG semantics, schematic render operations, CI bundles, contract gates, document graphs, expected artifacts, output digests, source coverage, parser fuzz reports, route analysis, statistics, layer-stack, dimensions, region semantics, rule read models, rigid-flex topology, ownership/hierarchy graphs, host diagnostics, footprint extraction, review metadata, footprint-library parity, image payloads, project BOM/PnP reconciliation, library QA, library merge plans, and schematic QA.',
+            'Publish split KiCad JSON Schemas for project bundles, netlists, SVG semantics, schematic render operations, schematic geometry readiness, CI bundles, contract gates, document graphs, expected artifacts, output digests, source coverage, parser fuzz reports, route analysis, statistics, layer-stack, layer-usage, fidelity diagnostics, 3D model readiness, geometry readiness, dimensions, region semantics, rule read models, rigid-flex topology, ownership/hierarchy graphs, host diagnostics, footprint extraction, review metadata, footprint-library parity, image payloads, project BOM/PnP reconciliation, library QA, library merge plans, and schematic QA.',
         entrypoints: ['docs/schemas/kicad_toolkit'],
         docs: ['docs/model-format.md#schema-contracts'],
         tests: ['tests/core/kicad-contract-schemas.test.mjs'],
@@ -283,6 +283,81 @@ export const additionalFeatureParityRecords = Object.freeze([
             'KicadPcbLayerStackReadModelBuilder exposes KiCad stackup layers, materials, and thickness summaries.'
     },
     {
+        id: 'pcb_layer_usage_report',
+        label: 'KiCad PCB layer-usage report',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Compare declared PCB layers with primitive layer usage.',
+        kicadCapability:
+            'Compare KiCad declared layer tables with used primitive layers, unused declared layers, and undeclared used layers.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-additional-parity-read-models.test.mjs'],
+        summary:
+            'KicadPcbLayerUsageReportBuilder reports declared, used, unused, and undeclared KiCad PCB layers.'
+    },
+    {
+        id: 'pcb_fidelity_diagnostics',
+        label: 'KiCad PCB fidelity diagnostics',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Flag complex imported PCB constructs that require consumer review.',
+        kicadCapability:
+            'Flag complex parsed KiCad PCB pads, zone policies, thick arcs, and unknown preserved source nodes.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-additional-parity-read-models.test.mjs'],
+        summary:
+            'KicadPcbFidelityDiagnosticsBuilder reports parser-fidelity diagnostics for complex KiCad PCB constructs.'
+    },
+    {
+        id: 'pcb_3d_model_readiness',
+        label: 'KiCad PCB 3D model readiness',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Report 3D component model references, missing assets, and generated body fallbacks.',
+        kicadCapability:
+            'Report KiCad PCB 3D model references, unresolved companion assets, transforms, formats, fallback component needs, and procedural fallback package family and size.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: [
+            'tests/core/kicad-additional-parity-read-models.test.mjs',
+            'tests/core/kicad-pcb-3d-model-readiness-fallbacks.test.mjs'
+        ],
+        summary:
+            'KicadPcb3dModelReadinessReportBuilder summarizes KiCad model references and procedural fallback package readiness.'
+    },
+    {
+        id: 'pcb_geometry_readiness',
+        label: 'KiCad PCB geometry readiness',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Report conversion-sensitive geometry such as thick arcs, curves, and approximated body shapes.',
+        kicadCapability:
+            'Report renderer-sensitive KiCad geometry such as thick arcs, custom pads, curves, text boxes, and multi-contour zones.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-additional-parity-read-models.test.mjs'],
+        summary:
+            'KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive KiCad PCB geometry findings.'
+    },
+    {
         id: 'pcb_dimension_read_model',
         label: 'KiCad PCB dimension read model',
         category: 'diagnostics_reporting',
@@ -427,6 +502,24 @@ export const additionalFeatureParityRecords = Object.freeze([
             'KicadSchematicQaReportBuilder exposes document-level schematic QA without invoking KiCad ERC.'
     },
     {
+        id: 'schematic_geometry_readiness',
+        label: 'KiCad schematic geometry readiness',
+        category: 'diagnostics_reporting',
+        kicadNative: false,
+        altiumCapability:
+            'Build deterministic schematic geometry readiness diagnostics.',
+        kicadCapability:
+            'Build deterministic KiCad schematic renderer-readiness diagnostics for Beziers, arcs, rounded rectangles, text frames, pin styles, authored graphic styles, and unknown graphics.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-schematic-geometry-readiness.test.mjs'],
+        summary:
+            'KicadSchematicGeometryReadinessReportBuilder exposes schematic geometry readiness without invoking KiCad ERC.'
+    },
+    {
         id: 'schematic_render_ops_sidecar',
         label: 'KiCad schematic render-operation sidecar',
         category: 'model_contracts',
@@ -434,13 +527,17 @@ export const additionalFeatureParityRecords = Object.freeze([
         altiumCapability:
             'Build deterministic schematic render-operation sidecars for SVG regression and CI diffing workflows.',
         kicadCapability:
-            'Build deterministic KiCad schematic render-operation sidecars for lines, pins, and stroke text in SVG regression and CI diffing workflows.',
+            'Build deterministic KiCad schematic render-operation sidecars for lines, pins, sheet entries, images, frame objects, and stroke text in SVG regression and CI diffing workflows.',
         entrypoints: ['kicad-toolkit/renderers', 'kicad-toolkit'],
         docs: [
             'docs/api.md#renderers',
             'docs/model-format.md#schema-contracts'
         ],
-        tests: ['tests/ui/kicad-svg-semantic-metadata.test.mjs'],
+        tests: [
+            'tests/ui/kicad-svg-semantic-metadata.test.mjs',
+            'tests/ui/schematic-svg-frame-and-style-renderer.test.mjs',
+            'tests/ui/schematic-svg-sheet-entry-and-image-renderer.test.mjs'
+        ],
         summary:
             'SchematicRenderOpsSidecarBuilder emits kicad-toolkit.schematic.render-ops.a1 rows and SchematicSvgRenderer embeds them in SVG metadata.'
     },

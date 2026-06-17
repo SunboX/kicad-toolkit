@@ -164,13 +164,18 @@ and references with the parsed schematic or PCB model.
 parser smoke cases and returns a read-only compatibility report.
 `KicadPcbRouteAnalysisBuilder.build()`, `KicadPcbStatisticsBuilder.build()`,
 `KicadPcbLayerStackReadModelBuilder.build()`,
+`KicadPcbLayerUsageReportBuilder.build()`,
+`KicadPcbFidelityDiagnosticsBuilder.build()`,
+`KicadPcb3dModelReadinessReportBuilder.build()`,
+`KicadPcbGeometryReadinessReportBuilder.build()`,
 `KicadPcbDimensionReadModelBuilder.build()`,
 `KicadPcbRegionSemanticsBuilder.build()`, and
 `KicadPcbOwnershipGraphBuilder.build()` expose deterministic PCB route,
-board-statistics, stackup, dimension, region/keepout, and primitive-ownership
-read models. Route-analysis rows include per-net layer participation,
-track/arc lengths, connected route groups, and differential-pair summaries
-when supplied by callers.
+board-statistics, stackup, layer-usage, fidelity, model-readiness,
+geometry-readiness, dimension, region/keepout, and primitive-ownership read
+models. Route-analysis rows include per-net layer participation, track/arc
+lengths, connected route groups, and differential-pair summaries when supplied
+by callers.
 `KicadSchematicOwnershipGraphBuilder.build()` exposes schematic component,
 pin, text, sheet-entry, directive, rule-area, and net ownership rows.
 `KicadPcbReviewMetadataBuilder.build()` adapts route-analysis rows into
@@ -179,10 +184,12 @@ overlays, `KicadPcbPlacedFootprintManifestBuilder.build()` emits
 `.kicad_mod`-style extraction descriptors for placed footprints, and
 `KicadImagePayloadManifestBuilder.build()` emits byte sizes and FNV-1a
 checksums for schematic images, worksheet bitmaps, PCB images, and embedded
-schematic files. Parsed PCB documents attach layer stack, dimensions, region
+schematic files. Parsed PCB documents attach layer stack, layer usage, fidelity
+diagnostics, geometry readiness, 3D model readiness, dimensions, region
 semantics, route analysis, review metadata, and footprint extraction manifests
-under `pcb.layerStack`, `pcb.dimensions`, `pcb.regionSemantics`,
-`pcb.routeAnalysis`, `pcb.reviewMetadata`, and
+under `pcb.layerStack`, `pcb.layerUsage`, `pcb.fidelityDiagnostics`,
+`pcb.geometryReadiness`, `pcb.modelReadiness`, `pcb.dimensions`,
+`pcb.regionSemantics`, `pcb.routeAnalysis`, `pcb.reviewMetadata`, and
 `pcb.footprintExtractionManifest`.
 `KicadFootprintLibraryParityReportBuilder.build()` reports advanced
 standalone footprint-library pad, graphic, and model fields, and standalone
@@ -194,6 +201,11 @@ symbol-library merge-plan conflicts, unresolved footprint references, missing
 model assets, and symbol unit mismatches.
 `KicadSchematicQaReportBuilder.build()` reports unresolved
 schematic text variables, title-block gaps, and document style summaries.
+`KicadSchematicGeometryReadinessReportBuilder.build()` reports
+renderer-sensitive schematic geometry, text frames, pin styles, authored
+graphic styles, and unknown graphics. Parsed schematic documents attach this
+report at
+`schematic.geometryReadiness`.
 `KicadHostCapabilityDiagnosticsBuilder.build()` mirrors the host capability
 diagnostic contract for KiCad render hosts.
 
@@ -213,7 +225,9 @@ Specialized parser helpers are exported for lower-level integrations, including
 `KicadLibraryQaReportBuilder`, `KicadLibraryTableParser`, `KicadNetlistParser`,
 `KicadParserCompatibilityFuzzer`, `KicadPcbDrawingParser`,
 `KicadPcbComponentParticipationPolicy`,
-`KicadPcbDimensionReadModelBuilder`, `KicadPcbLayerMetadata`,
+`KicadPcb3dModelReadinessReportBuilder`,
+`KicadPcbDimensionReadModelBuilder`, `KicadPcbFidelityDiagnosticsBuilder`,
+`KicadPcbGeometryReadinessReportBuilder`, `KicadPcbLayerMetadata`,
 `KicadPcbLayerStackReadModelBuilder`, `KicadPcbOwnershipGraphBuilder`,
 `KicadPcbPadParser`, `KicadPcbPickPlacePositionResolver`,
 `KicadPcbPlacedFootprintManifestBuilder`,
@@ -226,6 +240,7 @@ Specialized parser helpers are exported for lower-level integrations, including
 `KicadProjectOutputDigestBuilder`,
 `KicadFeatureParity`, `KicadReadinessReport`,
 `KicadSchematicConnectivityQaBuilder`, `KicadSchematicGraphicParser`,
+`KicadSchematicGeometryReadinessReportBuilder`,
 `KicadSchematicHierarchyGraphBuilder`,
 `KicadSchematicOwnershipGraphBuilder`, `KicadSchematicQaReportBuilder`,
 `KicadSchematicSymbolParser`,
@@ -309,6 +324,10 @@ uses parsed schematic model data only and does not invoke KiCad.
 `KicadSchematicQaReportBuilder.build(input)` returns document-level schematic
 QA for unresolved `${Variable}` references, title-block gaps, font families,
 and authored line widths.
+`KicadSchematicGeometryReadinessReportBuilder.build(input)` returns
+renderer-readiness findings for schematic Beziers, long or degenerate arcs,
+rounded rectangles, fixed text frames, pin styles, authored graphic styles, and
+preserved unknown graphics.
 `KicadProjectBomPnpReconciliationBuilder.build(options)` returns project-level
 BOM/PnP drift findings, and `KicadLibraryQaReportBuilder.build(options)`
 returns library collection QA and read-only merge-plan diagnostics for symbol
@@ -398,12 +417,19 @@ import {
   semantic metadata builders used by the PCB and schematic SVG renderers.
 - `SchematicRenderOpsSidecarBuilder.build(schematic)` emits deterministic
   `kicad-toolkit.schematic.render-ops.a1` operation rows for schematic lines,
-  pins, and KiCad stroke text. `SchematicSvgRenderer` embeds the same sidecar
-  as `<metadata id="schematic-render-ops-metadata">`.
+  pins, sheet entries, images, frame objects, and KiCad stroke text.
+  `SchematicSvgRenderer` embeds the same sidecar as
+  `<metadata id="schematic-render-ops-metadata">`.
 - `SchematicProjectParameterResolver.resolveSchematic(schematic, parameters)`
   resolves KiCad `${Variable}` text without mutating the source schematic.
 - `SchematicSvgTextMetrics` exposes KiCad stroke-text placement metrics used by
   the schematic renderer.
+- Schematic SVG rendering includes root text boxes and table cells using the
+  same KiCad stroke-font path renderer as labels and fields. Hierarchical
+  sheet entries and schematic image payloads are rendered deterministically,
+  with placeholders for missing image bytes or dimensions. Authored schematic
+  stroke type, stroke color, and fill color are honored when present, with
+  existing theme variables retained as fallbacks.
 
 Renderer output is deterministic string markup. The library does not attach DOM
 events or mutate a host document. PCB and schematic SVG output includes

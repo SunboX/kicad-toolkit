@@ -839,14 +839,15 @@ function componentIndexForFootprint(footprints, footprintId) {
  * @returns {object}
  */
 function zonePolygonFromDrawing(zone) {
-    const contours =
-        Array.isArray(zone.contours) && zone.contours.length > 0
-            ? zone.contours
-            : [zone.points || []]
+    const contours = zone.contours?.length ? zone.contours : [zone.points || []]
     return {
         layer: zone.layer,
         ...optionalNetIndex(zone.netIndex),
         netName: zone.netName || '',
+        hatch: zone.hatch || {},
+        connectPads: zone.connectPads || {},
+        minThickness: zone.minThickness,
+        fillPolicy: zone.fillPolicy || {},
         segments: segmentsFromPoints(contours[0] || []),
         contours: contours.map(segmentsFromPoints).filter((entry) => {
             return entry.length > 0

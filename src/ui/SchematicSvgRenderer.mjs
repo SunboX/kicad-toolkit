@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { KicadStrokeFont } from './KicadStrokeFont.mjs'
+import { SchematicColorResolver } from './SchematicColorResolver.mjs'
 import { SchematicRenderOpsSidecarBuilder } from './SchematicRenderOpsSidecarBuilder.mjs'
 import { SchematicProjectParameterResolver } from './SchematicProjectParameterResolver.mjs'
+import { SchematicSvgImageRenderer } from './SchematicSvgImageRenderer.mjs'
+import { SchematicSvgFrameRenderer } from './SchematicSvgFrameRenderer.mjs'
 import { SchematicSvgPinRenderer } from './SchematicSvgPinRenderer.mjs'
 import { SchematicSvgSemanticMetadata } from './SchematicSvgSemanticMetadata.mjs'
 import { SchematicSvgShapeRenderer } from './SchematicSvgShapeRenderer.mjs'
+import { SchematicSvgSheetEntryRenderer } from './SchematicSvgSheetEntryRenderer.mjs'
 import {
     applySchematicTextOffset,
     applySymbolFieldPlacement,
@@ -91,14 +95,27 @@ export class SchematicSvgRenderer {
             renderSheetChrome(sheet, width, height, documentModel?.fileName),
             `<g class="schematic-scene" transform="scale(${formatNumber(displayScale)})">`,
             renderSheetSymbols(schematic.sheetSymbols || []),
+            SchematicSvgSheetEntryRenderer.renderEntries(
+                schematic.sheetEntries || [],
+                {
+                    color: sheetGraphicColor,
+                    renderStrokeText
+                }
+            ),
             SchematicSvgShapeRenderer.renderShapeBackgrounds(
                 shapePrimitives,
                 shapeTheme
             ),
+            SchematicSvgImageRenderer.renderImages(schematic.images || []),
             SchematicSvgShapeRenderer.renderShapeForegrounds(
                 shapePrimitives,
                 shapeTheme
             ),
+            SchematicSvgFrameRenderer.renderFrames(schematic, {
+                renderStrokeText,
+                resolveFillColor: resolveSchematicFillColor,
+                resolveInkColor: resolveSchematicInkColor
+            }),
             renderLines(connectionLines, semanticContext),
             renderPins(schematic.pins || [], semanticContext),
             renderJunctions(schematic.junctions || []),
@@ -167,10 +184,15 @@ function isShapeLine(line) {
  */
 function renderLines(lines, semanticContext) {
     return lines
-        .map(
-            (line) =>
-                `<line class="schematic-line${line.isBus ? ' schematic-line--bus' : ''}" ${SchematicSvgSemanticMetadata.primitiveAttributes(line, 'line', semanticContext)} x1="${formatNumber(line.x1)}" y1="${formatNumber(line.y1)}" x2="${formatNumber(line.x2)}" y2="${formatNumber(line.y2)}" stroke="${resolveSchematicInkColor(line)}" stroke-width="${formatNumber(line.width || 0.15)}" stroke-linecap="round"/>`
-        )
+        .map((line) => {
+            const strokeWidth = line.width || 0.15
+            const strokeAttributes =
+                SchematicSvgShapeRenderer.strokeStyleAttributes(
+                    line,
+                    strokeWidth
+                )
+            return `<line class="schematic-line${line.isBus ? ' schematic-line--bus' : ''}" ${SchematicSvgSemanticMetadata.primitiveAttributes(line, 'line', semanticContext)} x1="${formatNumber(line.x1)}" y1="${formatNumber(line.y1)}" x2="${formatNumber(line.x2)}" y2="${formatNumber(line.y2)}" stroke="${resolveSchematicInkColor(line)}" stroke-width="${formatNumber(strokeWidth)}" stroke-linecap="round"${strokeAttributes}/>`
+        })
         .join('')
 }
 
@@ -655,10 +677,7 @@ function renderWorksheetText(options) {
  * @returns {string}
  */
 function resolveSchematicInkColor(primitive) {
-    if (primitive?.ownerIndex) return symbolColor
-    if (primitive?.sourceType === 'polyline') return sheetGraphicColor
-    if (primitive?.isBus) return sheetGraphicColor
-    return wireColor
+    return SchematicColorResolver.resolveInkColor(primitive)
 }
 
 /**
@@ -667,15 +686,7 @@ function resolveSchematicInkColor(primitive) {
  * @returns {string}
  */
 function resolveSchematicFillColor(primitive) {
-    if (primitive?.fill === 'outline') {
-        return symbolColor
-    }
-
-    if (primitive?.fill && primitive.fill !== 'none') {
-        return symbolFillColor
-    }
-
-    return 'none'
+    return SchematicColorResolver.resolveFillColor(primitive)
 }
 
 /**
@@ -684,11 +695,7 @@ function resolveSchematicFillColor(primitive) {
  * @returns {string}
  */
 function resolveSchematicBackgroundFillColor(primitive) {
-    if (primitive?.fill && !['none', 'outline'].includes(primitive.fill)) {
-        return symbolFillColor
-    }
-
-    return 'none'
+    return SchematicColorResolver.resolveBackgroundFillColor(primitive)
 }
 
 /**
@@ -697,9 +704,7 @@ function resolveSchematicBackgroundFillColor(primitive) {
  * @returns {string}
  */
 function resolveSchematicForegroundFillColor(primitive) {
-    if (primitive?.fill === 'outline')
-        return resolveSchematicInkColor(primitive)
-    return 'none'
+    return SchematicColorResolver.resolveForegroundFillColor(primitive)
 }
 
 /**
@@ -717,11 +722,7 @@ function resolveSchematicTextClass(text) {
  * @returns {string}
  */
 function resolveSchematicTextColor(text) {
-    if (text?.ownerIndex) return labelColor
-    if (text?.labelKind === 'global') return globalLabelColor
-    if (text?.labelKind === 'hierarchical') return sheetGraphicColor
-    if (text?.labelKind === 'local') return labelColor
-    return labelColor
+    return SchematicColorResolver.resolveTextColor(text)
 }
 
 /**

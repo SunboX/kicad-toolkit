@@ -79,6 +79,58 @@ const knownNodeFamilies = Object.freeze({
     plot_settings: 'board-setup'
 })
 
+const typedNodeNames = new Set([
+    'kicad_sch',
+    'kicad_pcb',
+    'footprint',
+    'kicad_symbol_lib',
+    'symbol',
+    'version',
+    'generator',
+    'generator_version',
+    'property',
+    'lib_id',
+    'pin',
+    'pad',
+    'wire',
+    'bus',
+    'bus_entry',
+    'junction',
+    'no_connect',
+    'label',
+    'global_label',
+    'hierarchical_label',
+    'sheet',
+    'sheet_instances',
+    'symbol_instances',
+    'sheetname',
+    'sheetfile',
+    'lib_symbols',
+    'fp_text',
+    'gr_text',
+    'gr_text_box',
+    'text',
+    'segment',
+    'via',
+    'arc',
+    'gr_arc',
+    'gr_circle',
+    'gr_curve',
+    'gr_line',
+    'gr_poly',
+    'gr_rect',
+    'image',
+    'dimension',
+    'zone',
+    'keepout',
+    'filled_polygon',
+    'polygon',
+    'group',
+    'setup',
+    'stackup',
+    'plot_settings'
+])
+
 /**
  * Builds parser coverage reports from preserved KiCad S-expression nodes.
  */
@@ -98,15 +150,12 @@ export class KicadSourceCoverageReportBuilder {
         const nodesByName = Object.fromEntries(
             rows.map((row) => [row.name, row])
         )
-        const unsupported = rows.filter((row) => !row.supported)
+        const unsupported = rows.filter((row) => !row.known)
+        const typed = rows.filter((row) => row.typed)
+        const knownUntyped = rows.filter((row) => row.known && !row.typed)
+        const preservedOnly = rows.filter((row) => !row.typed)
         const metadata = root ? SExpressionTree.describe(root) : emptyMetadata()
-        const diagnostics = unsupported.map((row) => ({
-            code: 'kicad.source-coverage.unsupported-node',
-            severity: 'info',
-            nodeName: row.name,
-            message:
-                'KiCad S-expression node is preserved without a typed parser mapping.'
-        }))
+        const diagnostics = diagnosticsForRows(preservedOnly)
 
         return {
             schema: schemaId,
@@ -118,11 +167,23 @@ export class KicadSourceCoverageReportBuilder {
                 supportedNodeCount: rows
                     .filter((row) => row.supported)
                     .reduce((total, row) => total + row.count, 0),
-                preservedOnlyNodeCount: unsupported.reduce(
+                typedNodeCount: typed.reduce(
+                    (total, row) => total + row.count,
+                    0
+                ),
+                knownUntypedNodeCount: knownUntyped.reduce(
+                    (total, row) => total + row.count,
+                    0
+                ),
+                preservedOnlyNodeCount: preservedOnly.reduce(
                     (total, row) => total + row.count,
                     0
                 ),
                 unsupportedNodeCount: unsupported.length,
+                unknownNodeCount: unsupported.reduce(
+                    (total, row) => total + row.count,
+                    0
+                ),
                 maxDepth: metadata.maxDepth,
                 diagnosticCount: diagnostics.length
             },
@@ -134,6 +195,8 @@ export class KicadSourceCoverageReportBuilder {
                     supported: rows
                         .filter((row) => row.supported)
                         .map((row) => row.name),
+                    typed: typed.map((row) => row.name),
+                    knownUntyped: knownUntyped.map((row) => row.name),
                     unsupported: unsupported.map((row) => row.name)
                 },
                 nodeNamesByFamily: nodeNamesByFamily(rows)
@@ -175,14 +238,43 @@ function nodeRows(root) {
 
     return [...counts.keys()].sort().map((name) => {
         const family = knownNodeFamilies[name] || 'unknown'
-        const supported = family !== 'unknown'
+        const known = family !== 'unknown'
+        const typed = typedNodeNames.has(name)
         return {
             name,
             count: counts.get(name),
             family,
-            supported,
+            supported: known,
+            known,
+            typed,
             preserved: true,
+            coverageStatus: typed
+                ? 'typed'
+                : known
+                  ? 'known-untyped'
+                  : 'unknown',
             maxDepth: maxDepths.get(name) || 0
+        }
+    })
+}
+
+/**
+ * Builds coverage diagnostics for nodes without first-class typed rows.
+ * @param {object[]} rows Coverage rows.
+ * @returns {object[]}
+ */
+function diagnosticsForRows(rows) {
+    return rows.map((row) => {
+        const known = row.known === true
+        return {
+            code: known
+                ? 'kicad.source-coverage.known-untyped-node'
+                : 'kicad.source-coverage.unknown-node',
+            severity: 'info',
+            nodeName: row.name,
+            message: known
+                ? 'KiCad S-expression node is known and preserved without a first-class typed parser row.'
+                : 'KiCad S-expression node is preserved without a recognized parser family.'
         }
     })
 }

@@ -208,13 +208,14 @@ test('KicadParserCompatibilityFuzzer runs deterministic KiCad parser smoke cases
         [
             'schematic-empty',
             'pcb-minimal',
+            'pcb-geometry-edge-cases',
             'project-metadata-sparse',
             'jobset-empty'
         ]
     )
     assert.deepEqual(
         report.cases.map((entry) => entry.status),
-        ['pass', 'pass', 'pass', 'pass']
+        ['pass', 'pass', 'pass', 'pass', 'pass']
     )
 })
 

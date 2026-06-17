@@ -1,0 +1,35 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcb.layer-usage.a1",
+    "title": "KiCad Toolkit PCB Layer Usage A1",
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcb.layer-usage.a1"
+        },
+        "summary": {
+            "type": "object"
+        },
+        "layers": {
+            "type": "array"
+        },
+        "layersByKey": {
+            "type": "object"
+        },
+        "diagnostics": {
+            "type": "array"
+        },
+        "indexes": {
+            "type": "object"
+        }
+    },
+    "required": [
+        "schema",
+        "summary",
+        "layers",
+        "layersByKey",
+        "diagnostics",
+        "indexes"
+    ]
+}

@@ -14,19 +14,19 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
     assert.equal(inventory.filters.category, null)
     assert.equal(inventory.filters.status, null)
     assert.equal(inventory.implemented, true)
-    assert.equal(inventory.total, 70)
-    assert.deepEqual(inventory.statusCounts, { implemented: 70 })
+    assert.equal(inventory.total, 75)
+    assert.deepEqual(inventory.statusCounts, { implemented: 75 })
     assert.deepEqual(inventory.nativeCounts, {
-        adapted_contract: 43,
+        adapted_contract: 48,
         kicad_native: 27
     })
-    assert.equal(inventory.featureCoverage.implemented, 70)
+    assert.equal(inventory.featureCoverage.implemented, 75)
     assert.equal(inventory.featureCoverage.exempted, 7)
-    assert.equal(inventory.featureCoverage.totalDocumented, 77)
+    assert.equal(inventory.featureCoverage.totalDocumented, 82)
     assert.equal(inventory.categories.parser_roots.count, 11)
     assert.equal(inventory.categories.project_loading.count, 14)
     assert.equal(inventory.categories.model_contracts.count, 13)
-    assert.equal(inventory.categories.diagnostics_reporting.count, 19)
+    assert.equal(inventory.categories.diagnostics_reporting.count, 24)
     assert.equal(inventory.categories.scene3d.count, 3)
     assert.equal(inventory.exemptions.length, 7)
 
@@ -116,7 +116,7 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
         altiumCapability:
             'Publish split JSON Schemas for helper report contracts.',
         kicadCapability:
-            'Publish split KiCad JSON Schemas for project bundles, netlists, SVG semantics, schematic render operations, CI bundles, contract gates, document graphs, expected artifacts, output digests, source coverage, parser fuzz reports, route analysis, statistics, layer-stack, dimensions, region semantics, rule read models, rigid-flex topology, ownership/hierarchy graphs, host diagnostics, footprint extraction, review metadata, footprint-library parity, image payloads, project BOM/PnP reconciliation, library QA, library merge plans, and schematic QA.',
+            'Publish split KiCad JSON Schemas for project bundles, netlists, SVG semantics, schematic render operations, schematic geometry readiness, CI bundles, contract gates, document graphs, expected artifacts, output digests, source coverage, parser fuzz reports, route analysis, statistics, layer-stack, layer-usage, fidelity diagnostics, 3D model readiness, geometry readiness, dimensions, region semantics, rule read models, rigid-flex topology, ownership/hierarchy graphs, host diagnostics, footprint extraction, review metadata, footprint-library parity, image payloads, project BOM/PnP reconciliation, library QA, library merge plans, and schematic QA.',
         entrypoints: ['docs/schemas/kicad_toolkit'],
         docs: ['docs/model-format.md#schema-contracts'],
         tests: ['tests/core/kicad-contract-schemas.test.mjs'],
@@ -293,6 +293,89 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
             'KicadPcbLayerStackReadModelBuilder exposes KiCad stackup layers, materials, and thickness summaries.'
     })
 
+    assert.deepEqual(byId.get('pcb_layer_usage_report'), {
+        id: 'pcb_layer_usage_report',
+        label: 'KiCad PCB layer-usage report',
+        category: 'diagnostics_reporting',
+        status: 'implemented',
+        kicadNative: false,
+        altiumCapability:
+            'Compare declared PCB layers with primitive layer usage.',
+        kicadCapability:
+            'Compare KiCad declared layer tables with used primitive layers, unused declared layers, and undeclared used layers.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-additional-parity-read-models.test.mjs'],
+        summary:
+            'KicadPcbLayerUsageReportBuilder reports declared, used, unused, and undeclared KiCad PCB layers.'
+    })
+
+    assert.deepEqual(byId.get('pcb_fidelity_diagnostics'), {
+        id: 'pcb_fidelity_diagnostics',
+        label: 'KiCad PCB fidelity diagnostics',
+        category: 'diagnostics_reporting',
+        status: 'implemented',
+        kicadNative: false,
+        altiumCapability:
+            'Flag complex imported PCB constructs that require consumer review.',
+        kicadCapability:
+            'Flag complex parsed KiCad PCB pads, zone policies, thick arcs, and unknown preserved source nodes.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-additional-parity-read-models.test.mjs'],
+        summary:
+            'KicadPcbFidelityDiagnosticsBuilder reports parser-fidelity diagnostics for complex KiCad PCB constructs.'
+    })
+
+    assert.deepEqual(byId.get('pcb_3d_model_readiness'), {
+        id: 'pcb_3d_model_readiness',
+        label: 'KiCad PCB 3D model readiness',
+        category: 'diagnostics_reporting',
+        status: 'implemented',
+        kicadNative: false,
+        altiumCapability:
+            'Report 3D component model references, missing assets, and generated body fallbacks.',
+        kicadCapability:
+            'Report KiCad PCB 3D model references, unresolved companion assets, transforms, formats, fallback component needs, and procedural fallback package family and size.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: [
+            'tests/core/kicad-additional-parity-read-models.test.mjs',
+            'tests/core/kicad-pcb-3d-model-readiness-fallbacks.test.mjs'
+        ],
+        summary:
+            'KicadPcb3dModelReadinessReportBuilder summarizes KiCad model references and procedural fallback package readiness.'
+    })
+
+    assert.deepEqual(byId.get('pcb_geometry_readiness'), {
+        id: 'pcb_geometry_readiness',
+        label: 'KiCad PCB geometry readiness',
+        category: 'diagnostics_reporting',
+        status: 'implemented',
+        kicadNative: false,
+        altiumCapability:
+            'Report conversion-sensitive geometry such as thick arcs, curves, and approximated body shapes.',
+        kicadCapability:
+            'Report renderer-sensitive KiCad geometry such as thick arcs, custom pads, curves, text boxes, and multi-contour zones.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-additional-parity-read-models.test.mjs'],
+        summary:
+            'KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive KiCad PCB geometry findings.'
+    })
+
     assert.deepEqual(byId.get('image_payload_manifest'), {
         id: 'image_payload_manifest',
         label: 'KiCad image payload manifest',
@@ -420,13 +503,17 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
         altiumCapability:
             'Build deterministic schematic render-operation sidecars for SVG regression and CI diffing workflows.',
         kicadCapability:
-            'Build deterministic KiCad schematic render-operation sidecars for lines, pins, and stroke text in SVG regression and CI diffing workflows.',
+            'Build deterministic KiCad schematic render-operation sidecars for lines, pins, sheet entries, images, frame objects, and stroke text in SVG regression and CI diffing workflows.',
         entrypoints: ['kicad-toolkit/renderers', 'kicad-toolkit'],
         docs: [
             'docs/api.md#renderers',
             'docs/model-format.md#schema-contracts'
         ],
-        tests: ['tests/ui/kicad-svg-semantic-metadata.test.mjs'],
+        tests: [
+            'tests/ui/kicad-svg-semantic-metadata.test.mjs',
+            'tests/ui/schematic-svg-frame-and-style-renderer.test.mjs',
+            'tests/ui/schematic-svg-sheet-entry-and-image-renderer.test.mjs'
+        ],
         summary:
             'SchematicRenderOpsSidecarBuilder emits kicad-toolkit.schematic.render-ops.a1 rows and SchematicSvgRenderer embeds them in SVG metadata.'
     })
@@ -449,6 +536,26 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
         tests: ['tests/core/kicad-parity-helper-apis.test.mjs'],
         summary:
             'KicadSchematicQaReportBuilder exposes document-level schematic QA without invoking KiCad ERC.'
+    })
+
+    assert.deepEqual(byId.get('schematic_geometry_readiness'), {
+        id: 'schematic_geometry_readiness',
+        label: 'KiCad schematic geometry readiness',
+        category: 'diagnostics_reporting',
+        status: 'implemented',
+        kicadNative: false,
+        altiumCapability:
+            'Build deterministic schematic geometry readiness diagnostics.',
+        kicadCapability:
+            'Build deterministic KiCad schematic renderer-readiness diagnostics for Beziers, arcs, rounded rectangles, text frames, pin styles, authored graphic styles, and unknown graphics.',
+        entrypoints: ['kicad-toolkit/parser', 'kicad-toolkit'],
+        docs: [
+            'docs/api.md#parser',
+            'docs/model-format.md#helper-report-fields'
+        ],
+        tests: ['tests/core/kicad-schematic-geometry-readiness.test.mjs'],
+        summary:
+            'KicadSchematicGeometryReadinessReportBuilder exposes schematic geometry readiness without invoking KiCad ERC.'
     })
 
     assert.deepEqual(byId.get('parse_kicad_design_rules'), {

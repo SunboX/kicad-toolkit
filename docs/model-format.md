@@ -64,14 +64,15 @@ array convention.
 Focused machine-readable schemas are available under
 `docs/schemas/kicad_toolkit/` for the normalized root, project bundle, netlist
 JSON, schematic SVG semantic metadata, schematic SVG render-operation
-metadata, PCB SVG semantic metadata, CI artifact bundle, contract gate, project
-document graph, expected-artifact manifest, project output digest, source
-coverage, SVG/model cross-link report, parser
+metadata, schematic geometry readiness, PCB SVG semantic metadata, CI artifact
+bundle, contract gate, project document graph, expected-artifact manifest,
+project output digest, source coverage, SVG/model cross-link report, parser
 compatibility fuzz report, PCB route analysis, PCB statistics, PCB layer stack,
-PCB dimensions, PCB region semantics, PCB rule read model, PCB rigid-flex
-topology, PCB ownership graph, schematic ownership graph, schematic hierarchy
-graph, project BOM/PnP reconciliation, library QA, library merge-plan, and
-schematic QA contracts.
+PCB layer usage, PCB fidelity diagnostics, PCB 3D model readiness, PCB geometry
+readiness, PCB dimensions, PCB region semantics, PCB rule read model, PCB
+rigid-flex topology, PCB ownership graph, schematic ownership graph, schematic
+hierarchy graph, project BOM/PnP reconciliation, library QA, library
+merge-plan, and schematic QA contracts.
 
 ## Schematic Fields
 
@@ -81,6 +82,8 @@ labels, hierarchical sheets, sheet entries, junctions, no-connect markers,
 graphical shapes, embedded file metadata, simple net metadata, and the raw
 KiCad S-expression AST as `kicadAst`. Coordinates remain in recovered KiCad
 sheet units until the SVG renderer maps them into SVG space.
+Parsed schematic renderer models attach renderer-sensitive geometry findings
+at `schematic.geometryReadiness`.
 
 Component entries include designator, source library id, value, footprint,
 unit/convert selection, placement transform, mirror/orientation metadata,
@@ -151,6 +154,13 @@ available; unresolved variables are left unchanged.
 KiCad `gr_text_box` and `fp_text_box` entries also preserve `textBox` metadata
 with source type, shape, border, knockout, corner points, margins, width, and
 height for 3D scene layout consumers.
+
+Schematic root graphics, symbol graphics, wires, text boxes, and table cells
+preserve authored KiCad style fields when present. Optional `strokeStyle`,
+`strokeColor`, and `fillColor` values carry the source stroke type and CSS-ready
+RGBA colors; renderers fall back to theme colors when these fields are absent.
+Schematic text boxes and table cells preserve frame geometry, margins, fill,
+font, text, and UUID metadata for deterministic SVG rendering.
 
 ## Library Fields
 
@@ -326,6 +336,38 @@ material counts, copper/dielectric roles, layer thicknesses, dielectric
 properties, and stackup option summaries. Parsed PCB renderer models attach
 this report at `pcb.layerStack`.
 
+`KicadPcbLayerUsageReportBuilder.build()` returns
+`kicad-toolkit.pcb.layer-usage.a1` reports with declared layer rows, used layer
+rows, undeclared used-layer diagnostics, unused declared-layer indexes, and
+per-kind layer indexes. Parsed PCB renderer models attach this report at
+`pcb.layerUsage`.
+
+`KicadPcbFidelityDiagnosticsBuilder.build()` returns
+`kicad-toolkit.pcb.fidelity-diagnostics.a1` reports with review diagnostics for
+complex pads, custom pad primitives, local pad policies, zone fill and
+connection policies, thick arcs, and unknown preserved source nodes. Parsed
+PCB renderer models attach this report at `pcb.fidelityDiagnostics`.
+
+`KicadPcb3dModelReadinessReportBuilder.build()` returns
+`kicad-toolkit.pcb.3d-model-readiness.a1` reports with component model
+references, available-asset resolution status, model formats, transforms,
+fallback needs, resolved procedural package family and size for generated-body
+fallbacks, and diagnostics. Parsed PCB renderer models attach this report at
+`pcb.modelReadiness`.
+
+`KicadPcbGeometryReadinessReportBuilder.build()` returns
+`kicad-toolkit.pcb.geometry-readiness.a1` reports with renderer-sensitive
+geometry findings for thick arcs, curve primitives, multi-contour zones, text
+boxes, custom pads, and custom-pad curves. Parsed PCB renderer models attach
+this report at `pcb.geometryReadiness`.
+
+`KicadSchematicGeometryReadinessReportBuilder.build()` returns
+`kicad-toolkit.schematic.geometry-readiness.a1` reports with renderer-sensitive
+schematic findings for Beziers, long or degenerate arcs, rounded rectangles,
+multiline text frames, unusual fills or strokes, unsupported pin styles, and
+unknown root graphics. Parsed schematic renderer models attach this report at
+`schematic.geometryReadiness`.
+
 `KicadPcbDimensionReadModelBuilder.build()` returns
 `kicad-toolkit.pcb.dimensions.a1` reports with KiCad dimension rows, layer
 keys, points, dimension text, measured values, and per-layer indexes. Parsed
@@ -333,8 +375,9 @@ PCB renderer models attach this report at `pcb.dimensions`.
 
 `KicadPcbRegionSemanticsBuilder.build()` returns
 `kicad-toolkit.pcb.region-semantics.a1` reports with KiCad copper zones,
-keepout zones, keepout target flags, board-region rows, and layer indexes.
-Parsed PCB renderer models attach this report at `pcb.regionSemantics`.
+keepout zones, keepout target flags, hatch and fill policy metadata,
+board-region rows, and layer indexes. Parsed PCB renderer models attach this
+report at `pcb.regionSemantics`.
 
 `KicadPcbRuleReadModelBuilder.build()` returns
 `kicad-toolkit.pcb.rule-read-model.a1` reports with typed KiCad custom-rule
@@ -400,8 +443,9 @@ asset rows, font dependency rows, and warning diagnostics.
 
 `SchematicRenderOpsSidecarBuilder.build()` returns
 `kicad-toolkit.schematic.render-ops.a1` reports with schematic line, pin, and
-stroke-text operation rows. `SchematicSvgRenderer.render()` embeds the same
-contract in `schematic-render-ops-metadata` for SVG regression workflows.
+sheet-entry marker, image, frame, and stroke-text operation rows.
+`SchematicSvgRenderer.render()` embeds the same contract in
+`schematic-render-ops-metadata` for SVG regression workflows.
 
 `KicadSchematicQaReportBuilder.build()` returns
 `kicad-toolkit.schematic.qa.a1` reports with schematic text counts, font-family

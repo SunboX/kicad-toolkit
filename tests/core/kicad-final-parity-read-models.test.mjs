@@ -124,21 +124,58 @@ test('KicadSourceCoverageReportBuilder summarizes supported and preserved S-expr
         rootName: 'kicad_sch',
         nodeCount: 11,
         supportedNodeCount: 10,
-        preservedOnlyNodeCount: 1,
+        typedNodeCount: 5,
+        knownUntypedNodeCount: 5,
+        preservedOnlyNodeCount: 6,
         unsupportedNodeCount: 1,
+        unknownNodeCount: 1,
         maxDepth: 4,
-        diagnosticCount: 1
+        diagnosticCount: 5
+    })
+    assert.deepEqual(report.nodesByName.at, {
+        name: 'at',
+        count: 1,
+        family: 'geometry',
+        supported: true,
+        known: true,
+        typed: false,
+        preserved: true,
+        coverageStatus: 'known-untyped',
+        maxDepth: 2
     })
     assert.deepEqual(report.nodesByName.mystery_node, {
         name: 'mystery_node',
         count: 1,
         family: 'unknown',
         supported: false,
+        known: false,
+        typed: false,
         preserved: true,
+        coverageStatus: 'unknown',
         maxDepth: 1
+    })
+    assert.deepEqual(report.diagnostics[0], {
+        code: 'kicad.source-coverage.known-untyped-node',
+        severity: 'info',
+        nodeName: 'at',
+        message:
+            'KiCad S-expression node is known and preserved without a first-class typed parser row.'
     })
     assert.deepEqual(report.indexes.nodeNamesBySupport.unsupported, [
         'mystery_node'
+    ])
+    assert.deepEqual(report.indexes.nodeNamesBySupport.typed, [
+        'kicad_sch',
+        'lib_id',
+        'symbol',
+        'version',
+        'wire'
+    ])
+    assert.deepEqual(report.indexes.nodeNamesBySupport.knownUntyped, [
+        'at',
+        'pts',
+        'value',
+        'xy'
     ])
     assert.deepEqual(report.indexes.nodeNamesByFamily.component, ['symbol'])
 })

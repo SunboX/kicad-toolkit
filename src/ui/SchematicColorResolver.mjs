@@ -18,6 +18,7 @@ export class SchematicColorResolver {
      * @returns {string}
      */
     static resolveInkColor(primitive = {}) {
+        if (primitive.strokeColor) return primitive.strokeColor
         if (primitive.ownerIndex) return symbolColor
         if (primitive.sourceType === 'polyline') return sheetGraphicColor
         if (primitive.isBus) return sheetGraphicColor
@@ -33,8 +34,15 @@ export class SchematicColorResolver {
      * @returns {string}
      */
     static resolveFillColor(primitive = {}) {
-        if (primitive.fill === 'outline') return symbolColor
-        if (primitive.fill && primitive.fill !== 'none') return symbolFillColor
+        if (primitive.fill === 'outline') {
+            return (
+                primitive.fillColor ||
+                SchematicColorResolver.resolveInkColor(primitive)
+            )
+        }
+        if (primitive.fill && primitive.fill !== 'none') {
+            return primitive.fillColor || symbolFillColor
+        }
         return 'none'
     }
 
@@ -45,7 +53,7 @@ export class SchematicColorResolver {
      */
     static resolveBackgroundFillColor(primitive = {}) {
         if (primitive.fill && !['none', 'outline'].includes(primitive.fill)) {
-            return symbolFillColor
+            return primitive.fillColor || symbolFillColor
         }
         return 'none'
     }
@@ -57,7 +65,10 @@ export class SchematicColorResolver {
      */
     static resolveForegroundFillColor(primitive = {}) {
         if (primitive.fill === 'outline') {
-            return SchematicColorResolver.resolveInkColor(primitive)
+            return (
+                primitive.fillColor ||
+                SchematicColorResolver.resolveInkColor(primitive)
+            )
         }
         return 'none'
     }
@@ -68,6 +79,7 @@ export class SchematicColorResolver {
      * @returns {string}
      */
     static resolveTextColor(text = {}) {
+        if (text.strokeColor) return text.strokeColor
         if (text.ownerIndex) return labelColor
         if (text.labelKind === 'global') return globalLabelColor
         if (text.labelKind === 'hierarchical') return sheetGraphicColor

@@ -80,7 +80,7 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         createsBackup: false,
         mutatesInput: false,
         summary:
-            'Builds deterministic KiCad schematic SVG render-operation metadata for CI diffs.'
+            'Builds deterministic KiCad schematic SVG render-operation metadata for lines, pins, sheet entries, images, frame objects, and stroke text.'
     })
     assert.deepEqual(byId.get('ci_artifact_bundle'), {
         id: 'ci_artifact_bundle',
@@ -141,6 +141,66 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         mutatesInput: false,
         summary:
             'Builds KiCad PCB stackup material, dielectric, and thickness summaries.'
+    })
+    assert.deepEqual(byId.get('pcb_layer_usage_report'), {
+        id: 'pcb_layer_usage_report',
+        label: 'PCB layer-usage report',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['layer usage report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports declared, used, unused, and undeclared KiCad PCB layers.'
+    })
+    assert.deepEqual(byId.get('pcb_fidelity_diagnostics'), {
+        id: 'pcb_fidelity_diagnostics',
+        label: 'PCB fidelity diagnostics',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['fidelity diagnostics'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Flags complex parsed KiCad PCB constructs that need consumer review.'
+    })
+    assert.deepEqual(byId.get('pcb_3d_model_readiness'), {
+        id: 'pcb_3d_model_readiness',
+        label: 'PCB 3D model readiness',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['3D model readiness report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports KiCad PCB 3D model references, unresolved assets, and procedural fallback package details.'
+    })
+    assert.deepEqual(byId.get('pcb_geometry_readiness'), {
+        id: 'pcb_geometry_readiness',
+        label: 'PCB geometry readiness',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['geometry readiness report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports renderer-sensitive KiCad PCB geometry such as thick arcs, custom pads, curves, and multi-contour zones.'
     })
     assert.deepEqual(byId.get('project_output_digest'), {
         id: 'project_output_digest',
@@ -322,6 +382,21 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         summary:
             'Reports unresolved schematic text variables, title-block gaps, and document style summaries.'
     })
+    assert.deepEqual(byId.get('schematic_geometry_readiness'), {
+        id: 'schematic_geometry_readiness',
+        label: 'Schematic geometry readiness',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['schematic geometry readiness report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Reports renderer-sensitive KiCad schematic geometry, text frames, pin styles, authored graphic styles, and unknown graphics.'
+    })
     assert.deepEqual(byId.get('pcb_rule_read_model'), {
         id: 'pcb_rule_read_model',
         label: 'PCB rule read model',
@@ -356,7 +431,7 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         category: 'reporting'
     })
 
-    assert.equal(reporting.total, 24)
+    assert.equal(reporting.total, 29)
     assert.deepEqual(Object.keys(reporting.categories), ['reporting'])
 })
 

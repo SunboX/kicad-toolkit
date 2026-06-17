@@ -51,6 +51,16 @@ export class KicadPcbZoneParser {
                     layer,
                     side: KicadLayerResolver.sideFromLayer(layer),
                     ...net,
+                    hatch: parseHatch(SExpressionTree.child(node, 'hatch')),
+                    connectPads: parseConnectPads(
+                        SExpressionTree.child(node, 'connect_pads')
+                    ),
+                    minThickness: optionalNumber(
+                        SExpressionTree.child(node, 'min_thickness')
+                    ),
+                    fillPolicy: parseFillPolicy(
+                        SExpressionTree.child(node, 'fill')
+                    ),
                     strokeWidth: 0,
                     fill: true,
                     points: contours[0] || [],
@@ -87,6 +97,14 @@ function parseZoneSemanticRow(node, zoneIndex, netResolver) {
         layerKey,
         netName: net.netName || '',
         netIndex: net.netIndex,
+        hatch: parseHatch(SExpressionTree.child(node, 'hatch')),
+        connectPads: parseConnectPads(
+            SExpressionTree.child(node, 'connect_pads')
+        ),
+        minThickness: optionalNumber(
+            SExpressionTree.child(node, 'min_thickness')
+        ),
+        fillPolicy: parseFillPolicy(SExpressionTree.child(node, 'fill')),
         priority: SExpressionTree.numberValue(
             SExpressionTree.child(node, 'priority'),
             0
@@ -95,6 +113,76 @@ function parseZoneSemanticRow(node, zoneIndex, netResolver) {
         keepoutTargets,
         isKeepout: Object.values(keepoutTargets).some(Boolean)
     })
+}
+
+/**
+ * Parses zone hatch metadata.
+ * @param {Array | undefined} node Hatch node.
+ * @returns {object | undefined}
+ */
+function parseHatch(node) {
+    if (!node) return undefined
+    return stripEmpty({
+        style: String(node[1] || ''),
+        pitch: optionalNumber(node[2])
+    })
+}
+
+/**
+ * Parses zone pad connection metadata.
+ * @param {Array | undefined} node Connect-pads node.
+ * @returns {object | undefined}
+ */
+function parseConnectPads(node) {
+    if (!node) return undefined
+    return stripEmpty({
+        mode: scalarStrings(node)[0] || '',
+        clearance: optionalNumber(SExpressionTree.child(node, 'clearance'))
+    })
+}
+
+/**
+ * Parses zone fill policy metadata.
+ * @param {Array | undefined} node Fill node.
+ * @returns {object | undefined}
+ */
+function parseFillPolicy(node) {
+    if (!node) return undefined
+    const modeNode = SExpressionTree.child(node, 'mode')
+    const scalarMode = scalarStrings(node)[0] || ''
+    return stripEmpty({
+        mode: SExpressionTree.textValue(modeNode, scalarMode || 'solid'),
+        thermalGap: optionalNumber(SExpressionTree.child(node, 'thermal_gap')),
+        thermalBridgeWidth: optionalNumber(
+            SExpressionTree.child(node, 'thermal_bridge_width')
+        ),
+        arcSegments: optionalNumber(
+            SExpressionTree.child(node, 'arc_segments')
+        ),
+        smoothing: SExpressionTree.textValue(
+            SExpressionTree.child(node, 'smoothing')
+        ),
+        radius: optionalNumber(SExpressionTree.child(node, 'radius')),
+        islandRemovalMode: SExpressionTree.textValue(
+            SExpressionTree.child(node, 'island_removal_mode')
+        ),
+        islandAreaMin: optionalNumber(
+            SExpressionTree.child(node, 'island_area_min')
+        )
+    })
+}
+
+/**
+ * Lists direct scalar strings after a node name.
+ * @param {Array | undefined} node Node.
+ * @returns {string[]}
+ */
+function scalarStrings(node) {
+    if (!Array.isArray(node)) return []
+    return node
+        .slice(1)
+        .filter((value) => !Array.isArray(value))
+        .map(String)
 }
 
 /**
@@ -142,6 +230,18 @@ function parsePoints(node) {
         x: SExpressionTree.numberValue(entry[1], 0),
         y: SExpressionTree.numberValue(entry[2], 0)
     }))
+}
+
+/**
+ * Parses an optional number from a node or scalar.
+ * @param {Array | unknown} value Candidate value.
+ * @returns {number | undefined}
+ */
+function optionalNumber(value) {
+    if (value === undefined || value === null) return undefined
+    const source = Array.isArray(value) ? value[1] : value
+    const parsed = Number(source)
+    return Number.isFinite(parsed) ? parsed : undefined
 }
 
 /**

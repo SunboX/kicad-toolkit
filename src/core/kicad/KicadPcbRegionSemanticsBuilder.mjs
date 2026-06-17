@@ -31,6 +31,9 @@ export class KicadPcbRegionSemanticsBuilder {
                 copperZoneCount: zones.filter(
                     (zone) => zone.kind === 'copper-zone'
                 ).length,
+                zoneWithFillPolicyCount: zones.filter(hasFillPolicy).length,
+                zoneWithConnectPolicyCount:
+                    zones.filter(hasConnectPolicy).length,
                 boardRegionCount: boardRegions.length,
                 flexRegionCount: boardRegions.filter(
                     (region) => region.isFlexRegion === true
@@ -85,6 +88,10 @@ function zoneRows(zones) {
             netName: String(zone.netName || zone.net || ''),
             priority: optionalInteger(zone.priority) ?? 0,
             pointCount: Array.isArray(zone.points) ? zone.points.length : 0,
+            hatch: cloneObject(zone.hatch),
+            connectPads: cloneObject(zone.connectPads),
+            minThickness: optionalNumber(zone.minThickness) ?? undefined,
+            fillPolicy: cloneObject(zone.fillPolicy),
             keepoutTargets
         })
     })
@@ -149,6 +156,34 @@ function keepoutTargetCount(zone) {
 }
 
 /**
+ * Returns true when a zone has fill policy metadata.
+ * @param {object} zone Zone row.
+ * @returns {boolean}
+ */
+function hasFillPolicy(zone) {
+    return Object.keys(zone.fillPolicy || {}).length > 0
+}
+
+/**
+ * Returns true when a zone has connection policy metadata.
+ * @param {object} zone Zone row.
+ * @returns {boolean}
+ */
+function hasConnectPolicy(zone) {
+    return Object.keys(zone.connectPads || {}).length > 0
+}
+
+/**
+ * Clones a plain object when it has fields.
+ * @param {object | undefined} value Candidate object.
+ * @returns {object | undefined}
+ */
+function cloneObject(value) {
+    if (!value || Object.keys(value).length === 0) return undefined
+    return { ...value }
+}
+
+/**
  * Groups row keys by one field.
  * @param {object[]} rows Rows to group.
  * @param {string} field Field name.
@@ -173,6 +208,16 @@ function keysBy(rows, field) {
 function optionalInteger(value) {
     const number = Number(value)
     return Number.isInteger(number) ? number : null
+}
+
+/**
+ * Parses an optional finite number.
+ * @param {unknown} value Candidate value.
+ * @returns {number | null}
+ */
+function optionalNumber(value) {
+    const number = Number(value)
+    return Number.isFinite(number) ? number : null
 }
 
 /**

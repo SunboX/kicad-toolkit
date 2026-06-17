@@ -5,7 +5,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
     KicadParser,
+    KicadPcb3dModelReadinessReportBuilder,
     KicadPcbDimensionReadModelBuilder,
+    KicadPcbFidelityDiagnosticsBuilder,
+    KicadPcbGeometryReadinessReportBuilder,
+    KicadPcbLayerUsageReportBuilder,
     KicadPcbLayerStackReadModelBuilder,
     KicadPcbRegionSemanticsBuilder,
     KicadSchematicOwnershipGraphBuilder
@@ -80,6 +84,76 @@ test('KicadPcbLayerStackReadModelBuilder summarizes KiCad stackup material layer
     })
 })
 
+test('KicadPcbLayerUsageReportBuilder compares declared and used PCB layers', () => {
+    const report = KicadPcbLayerUsageReportBuilder.build({
+        layerDefinitions: [
+            { ordinal: 0, name: 'F.Cu', type: 'signal', userName: '' },
+            { ordinal: 31, name: 'B.Cu', type: 'signal', userName: '' },
+            { ordinal: 44, name: 'Edge.Cuts', type: 'user', userName: '' },
+            { ordinal: 47, name: 'Dwgs.User', type: 'user', userName: '' },
+            { ordinal: 48, name: 'F.Fab', type: 'user', userName: '' }
+        ],
+        tracks: [{ layer: 'F.Cu' }],
+        vias: [{ layers: ['F.Cu', 'B.Cu'] }],
+        pads: [{ layers: ['F.Cu', 'B.Cu'] }],
+        polygons: [{ layer: 'F.Cu' }, { layer: 'User.Drawings' }],
+        drawings: [{ type: 'line', layer: 'Edge.Cuts' }],
+        texts: [{ layer: 'Dwgs.User' }]
+    })
+
+    assert.equal(report.schema, 'kicad-toolkit.pcb.layer-usage.a1')
+    assert.deepEqual(report.summary, {
+        declaredLayerCount: 5,
+        usedLayerCount: 5,
+        declaredUsedLayerCount: 4,
+        declaredUnusedLayerCount: 1,
+        undeclaredUsedLayerCount: 1,
+        useRecordCount: 9,
+        diagnosticCount: 1
+    })
+    assert.deepEqual(report.layersByKey['F.Cu'], {
+        layerKey: 'F.Cu',
+        ordinal: 0,
+        declared: true,
+        used: true,
+        useCount: 4,
+        useKinds: ['pad', 'polygon', 'track', 'via'],
+        type: 'signal',
+        userName: '',
+        side: 'front',
+        layerClass: 'copper',
+        isCopper: true,
+        isTechnical: false
+    })
+    assert.deepEqual(report.layersByKey['F.Fab'], {
+        layerKey: 'F.Fab',
+        ordinal: 48,
+        declared: true,
+        used: false,
+        useCount: 0,
+        useKinds: [],
+        type: 'user',
+        userName: '',
+        side: 'front',
+        layerClass: 'fabrication',
+        isCopper: false,
+        isTechnical: true
+    })
+    assert.deepEqual(report.diagnostics, [
+        {
+            code: 'kicad.pcb.layer-usage.undeclared-used-layer',
+            severity: 'warning',
+            layerKey: 'User.Drawings',
+            message:
+                'KiCad PCB uses a layer that is not present in the declared layer table.'
+        }
+    ])
+    assert.deepEqual(report.indexes.layersByUse.undeclaredUsed, [
+        'User.Drawings'
+    ])
+    assert.deepEqual(report.indexes.layerKeysByKind.pad, ['B.Cu', 'F.Cu'])
+})
+
 test('KicadPcbDimensionReadModelBuilder promotes dimension graphics to read model rows', () => {
     const report = KicadPcbDimensionReadModelBuilder.build(createPcb())
 
@@ -133,6 +207,8 @@ test('KicadPcbRegionSemanticsBuilder reports KiCad keepout zones and board regio
         zoneCount: 2,
         keepoutZoneCount: 1,
         copperZoneCount: 1,
+        zoneWithFillPolicyCount: 2,
+        zoneWithConnectPolicyCount: 1,
         boardRegionCount: 1,
         flexRegionCount: 1,
         rigidRegionCount: 0,
@@ -149,6 +225,20 @@ test('KicadPcbRegionSemanticsBuilder reports KiCad keepout zones and board regio
             netName: '',
             priority: 2,
             pointCount: 4,
+            hatch: { style: 'edge', pitch: 0.5 },
+            connectPads: {
+                mode: 'thru_hole_only',
+                clearance: 0.09144
+            },
+            minThickness: 0.2,
+            fillPolicy: {
+                mode: 'solid',
+                thermalGap: 0.4,
+                thermalBridgeWidth: 0.3,
+                smoothing: 'fillet',
+                islandRemovalMode: 'minimum_area',
+                islandAreaMin: 1.25
+            },
             keepoutTargets: {
                 tracks: true,
                 vias: false,
@@ -166,6 +256,11 @@ test('KicadPcbRegionSemanticsBuilder reports KiCad keepout zones and board regio
             netName: 'GND',
             priority: 0,
             pointCount: 4,
+            fillPolicy: {
+                mode: 'hatched',
+                thermalGap: 0.5,
+                thermalBridgeWidth: 0.25
+            },
             keepoutTargets: {}
         }
     ])
@@ -182,6 +277,123 @@ test('KicadPcbRegionSemanticsBuilder reports KiCad keepout zones and board regio
         'B.Cu': ['zone-1'],
         'F.Cu': ['zone-0']
     })
+})
+
+test('KicadPcbFidelityDiagnosticsBuilder flags complex parsed PCB constructs', () => {
+    const report = KicadPcbFidelityDiagnosticsBuilder.build(createRiskyPcb())
+
+    assert.equal(report.schema, 'kicad-toolkit.pcb.fidelity-diagnostics.a1')
+    assert.deepEqual(report.summary, {
+        diagnosticCount: 7,
+        warningCount: 5,
+        infoCount: 2,
+        complexPadCount: 1,
+        customPadPrimitiveCount: 2,
+        zonePolicyCount: 2,
+        highRiskConstructCount: 3
+    })
+    assert.deepEqual(
+        report.diagnostics.map((diagnostic) => diagnostic.code),
+        [
+            'kicad.pcb.fidelity.complex-pad',
+            'kicad.pcb.fidelity.custom-pad-primitives',
+            'kicad.pcb.fidelity.pad-local-policy',
+            'kicad.pcb.fidelity.zone-fill-policy',
+            'kicad.pcb.fidelity.zone-connect-policy',
+            'kicad.pcb.fidelity.thick-arc',
+            'kicad.pcb.fidelity.unknown-source-node'
+        ]
+    )
+    assert.deepEqual(report.indexes.diagnosticsBySeverity.warning, [
+        'fidelity-0',
+        'fidelity-1',
+        'fidelity-2',
+        'fidelity-5',
+        'fidelity-6'
+    ])
+    assert.deepEqual(report.indexes.diagnosticsByConstruct.pad, [
+        'fidelity-0',
+        'fidelity-1',
+        'fidelity-2'
+    ])
+})
+
+test('KicadPcb3dModelReadinessReportBuilder summarizes model references and fallbacks', () => {
+    const report = KicadPcb3dModelReadinessReportBuilder.build(
+        createRiskyPcb(),
+        {
+            assets: [
+                {
+                    name: 'body.step',
+                    relativePath: 'models/body.step',
+                    format: 'step'
+                }
+            ]
+        }
+    )
+
+    assert.equal(report.schema, 'kicad-toolkit.pcb.3d-model-readiness.a1')
+    assert.deepEqual(report.summary, {
+        componentCount: 3,
+        componentWithModelCount: 2,
+        modelReferenceCount: 3,
+        resolvedModelCount: 1,
+        unresolvedModelCount: 2,
+        fallbackComponentCount: 1,
+        formatCount: 3,
+        diagnosticCount: 3
+    })
+    assert.deepEqual(report.indexes.modelsByFormat, {
+        package: ['model-2'],
+        step: ['model-0'],
+        wrl: ['model-1']
+    })
+    assert.deepEqual(report.indexes.unresolvedModels, ['model-1', 'model-2'])
+    assert.deepEqual(
+        report.diagnostics.map((diagnostic) => diagnostic.code),
+        [
+            'kicad.pcb.3d-model.unresolved-reference',
+            'kicad.pcb.3d-model.procedural-fallback',
+            'kicad.pcb.3d-model.component-without-model'
+        ]
+    )
+})
+
+test('KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive geometry', () => {
+    const report =
+        KicadPcbGeometryReadinessReportBuilder.build(createRiskyPcb())
+
+    assert.equal(report.schema, 'kicad-toolkit.pcb.geometry-readiness.a1')
+    assert.deepEqual(report.summary, {
+        findingCount: 6,
+        warningCount: 3,
+        infoCount: 3,
+        thickArcCount: 1,
+        multiContourZoneCount: 1,
+        curvePrimitiveCount: 2,
+        textBoxCount: 1,
+        customPadCount: 1
+    })
+    assert.deepEqual(
+        report.findings.map((finding) => finding.code),
+        [
+            'kicad.pcb.geometry.thick-arc',
+            'kicad.pcb.geometry.curve-primitive',
+            'kicad.pcb.geometry.multi-contour-zone',
+            'kicad.pcb.geometry.text-box',
+            'kicad.pcb.geometry.custom-pad',
+            'kicad.pcb.geometry.custom-pad-curve'
+        ]
+    )
+    assert.deepEqual(report.indexes.findingsBySeverity.warning, [
+        'geometry-0',
+        'geometry-2',
+        'geometry-4'
+    ])
+    assert.deepEqual(report.indexes.findingsByConstruct.curve, [
+        'geometry-1',
+        'geometry-5'
+    ])
 })
 
 test('KicadSchematicOwnershipGraphBuilder indexes schematic owner-child links', () => {
@@ -324,6 +536,12 @@ test('KicadParser attaches stackup dimensions and region semantics sidecars', ()
                         (layer "Dwgs.User")
                     )
                 )
+                (gr_line
+                    (start 0 0)
+                    (end 10 0)
+                    (stroke (width 0.15) (type solid))
+                    (layer "Edge.Cuts")
+                )
                 (zone
                     (net 0)
                     (net_name "")
@@ -339,6 +557,8 @@ test('KicadParser attaches stackup dimensions and region semantics sidecars', ()
                         (copperpour not_allowed)
                         (footprints allowed)
                     )
+                    (connect_pads thru_hole_only (clearance 0.09144))
+                    (min_thickness 0.2)
                     (fill (thermal_gap 0.4) (thermal_bridge_width 0.3))
                     (polygon
                         (pts
@@ -356,6 +576,22 @@ test('KicadParser attaches stackup dimensions and region semantics sidecars', ()
     assert.equal(model.pcb.layerStack.summary.layerCount, 3)
     assert.equal(model.pcb.dimensions.summary.dimensionCount, 1)
     assert.equal(model.pcb.regionSemantics.summary.keepoutZoneCount, 1)
+    assert.equal(model.pcb.layerUsage.summary.declaredUnusedLayerCount, 1)
+    assert.equal(model.pcb.fidelityDiagnostics.summary.diagnosticCount, 2)
+    assert.equal(model.pcb.geometryReadiness.summary.findingCount, 0)
+    assert.equal(model.pcb.modelReadiness.summary.componentCount, 0)
+    assert.deepEqual(model.pcb.layerUsage.indexes.layersByUse.unusedDeclared, [
+        'B.Cu'
+    ])
+    assert.deepEqual(model.pcb.kicadBoard.zoneSemantics[0].fillPolicy, {
+        mode: 'solid',
+        thermalGap: 0.4,
+        thermalBridgeWidth: 0.3
+    })
+    assert.deepEqual(model.pcb.regionSemantics.zones[0].connectPads, {
+        mode: 'thru_hole_only',
+        clearance: 0.09144
+    })
 })
 
 /**
@@ -398,6 +634,20 @@ function createPcb() {
                 layerKey: 'F.Cu',
                 netName: '',
                 priority: 2,
+                hatch: { style: 'edge', pitch: 0.5 },
+                connectPads: {
+                    mode: 'thru_hole_only',
+                    clearance: 0.09144
+                },
+                minThickness: 0.2,
+                fillPolicy: {
+                    mode: 'solid',
+                    thermalGap: 0.4,
+                    thermalBridgeWidth: 0.3,
+                    smoothing: 'fillet',
+                    islandRemovalMode: 'minimum_area',
+                    islandAreaMin: 1.25
+                },
                 points: [
                     { x: 0, y: 0 },
                     { x: 10, y: 0 },
@@ -418,6 +668,11 @@ function createPcb() {
                 layerKey: 'B.Cu',
                 netName: 'GND',
                 priority: 0,
+                fillPolicy: {
+                    mode: 'hatched',
+                    thermalGap: 0.5,
+                    thermalBridgeWidth: 0.25
+                },
                 points: [
                     { x: 0, y: 0 },
                     { x: 20, y: 0 },
@@ -428,6 +683,137 @@ function createPcb() {
             }
         ],
         boardRegions: []
+    }
+}
+
+/**
+ * Builds a fake PCB with rendering and readiness edge cases.
+ * @returns {object}
+ */
+function createRiskyPcb() {
+    return {
+        fileName: 'risky-board.kicad_pcb',
+        components: [
+            {
+                componentIndex: 0,
+                designator: 'U1',
+                footprintId: 'fp-u1',
+                modelName: 'body.step',
+                modelPath: '${KIPRJMOD}/models/body.step',
+                modelTransform: {
+                    offset: { x: 0, y: 0, z: 1 },
+                    rotate: { x: 0, y: 0, z: 90 },
+                    scale: { x: 1, y: 1, z: 1 }
+                }
+            },
+            {
+                componentIndex: 1,
+                designator: 'J1',
+                footprintId: 'fp-j1',
+                modelName: 'missing.wrl',
+                modelPath: '${KIPRJMOD}/models/missing.wrl'
+            },
+            {
+                componentIndex: 2,
+                designator: 'TP1',
+                footprintId: 'fp-tp1'
+            }
+        ],
+        pads: [
+            {
+                id: 'pad-u1-1',
+                footprintId: 'fp-u1',
+                ownerId: 'fp-u1',
+                name: '1',
+                shape: 'custom',
+                layers: ['F.Cu', 'F.Mask'],
+                solderMaskMargin: 0.05,
+                solderPasteMargin: -0.02,
+                clearance: 0.15,
+                zoneConnect: 2,
+                thermalBridgeWidth: 0.35,
+                thermalGap: 0.22,
+                customPrimitives: [
+                    {
+                        type: 'curve',
+                        points: [
+                            { x: -0.5, y: 0 },
+                            { x: -0.25, y: 0.4 },
+                            { x: 0.25, y: -0.4 },
+                            { x: 0.5, y: 0 }
+                        ]
+                    },
+                    {
+                        type: 'arc',
+                        start: { x: -0.5, y: 0 },
+                        mid: { x: 0, y: 0.4 },
+                        end: { x: 0.5, y: 0 }
+                    }
+                ]
+            }
+        ],
+        arcs: [
+            {
+                id: 'arc-0',
+                layer: 'F.Cu',
+                width: 2.4,
+                radius: 1,
+                sourceType: 'arc'
+            }
+        ],
+        drawings: [
+            {
+                id: 'curve-0',
+                type: 'curve',
+                sourceType: 'gr_curve',
+                layer: 'F.SilkS',
+                points: [
+                    { x: 0, y: 0 },
+                    { x: 1, y: 1 },
+                    { x: 2, y: -1 },
+                    { x: 3, y: 0 }
+                ]
+            },
+            {
+                id: 'text-box-0',
+                type: 'text_box',
+                sourceType: 'gr_text_box',
+                layer: 'F.SilkS',
+                value: 'BOX'
+            }
+        ],
+        polygons: [
+            {
+                id: 'zone-0',
+                type: 'zone',
+                layer: 'F.Cu',
+                contours: [[{ x: 0, y: 0 }], [{ x: 1, y: 1 }]]
+            }
+        ],
+        zoneSemantics: [
+            {
+                zoneIndex: 0,
+                layerKey: 'F.Cu',
+                fillPolicy: {
+                    mode: 'hatched',
+                    thermalGap: 0.4,
+                    thermalBridgeWidth: 0.3
+                },
+                connectPads: { mode: 'thru_hole_only', clearance: 0.09144 }
+            }
+        ],
+        kicadBoard: {
+            sourceCoverage: {
+                nodesByName: {
+                    mystery_node: {
+                        name: 'mystery_node',
+                        known: false,
+                        typed: false,
+                        count: 1
+                    }
+                }
+            }
+        }
     }
 }
 
