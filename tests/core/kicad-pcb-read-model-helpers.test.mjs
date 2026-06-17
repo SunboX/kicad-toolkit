@@ -561,7 +561,12 @@ test('KicadFootprintLibraryParityReportBuilder counts advanced KiCad footprint f
         modelReferenceFootprintCount: 1,
         imageGraphicCount: 1,
         barcodeGraphicCount: 1,
-        privateGraphicCount: 1
+        privateGraphicCount: 1,
+        diagnosticCount: 0,
+        unknownLayerCount: 0,
+        unknownPadShapeCount: 0,
+        unknownPadTypeCount: 0,
+        padDrillTypeMismatchCount: 0
     })
     assert.deepEqual(report.footprints[0].advancedFields, {
         customPadPrimitives: 1,
@@ -572,6 +577,64 @@ test('KicadFootprintLibraryParityReportBuilder counts advanced KiCad footprint f
         imageGraphics: 1,
         barcodeGraphics: 1,
         privateGraphics: 1
+    })
+})
+
+test('KicadFootprintLibraryParityReportBuilder reports footprint fidelity diagnostics', () => {
+    const report = KicadFootprintLibraryParityReportBuilder.build({
+        footprints: [
+            {
+                name: 'EDGE_CASE_FOOTPRINT',
+                pads: [
+                    {
+                        number: '1',
+                        type: 'smd',
+                        shape: 'hexagon',
+                        drill: 0.3,
+                        layers: ['F.Cu', 'Mechanical.1']
+                    },
+                    {
+                        number: '2',
+                        type: 'press_fit',
+                        shape: 'rect',
+                        layers: ['F.Cu']
+                    }
+                ],
+                drawings: [{ type: 'line', layer: 'Documentation' }],
+                texts: [{ value: 'REF**', layer: 'F.SilkS' }]
+            }
+        ]
+    })
+
+    assert.equal(report.summary.diagnosticCount, 5)
+    assert.equal(report.summary.unknownLayerCount, 2)
+    assert.equal(report.summary.unknownPadShapeCount, 1)
+    assert.equal(report.summary.unknownPadTypeCount, 1)
+    assert.equal(report.summary.padDrillTypeMismatchCount, 1)
+    assert.deepEqual(
+        report.diagnostics.map((diagnostic) => diagnostic.code),
+        [
+            'kicad.footprint-library.fidelity.unknown-layer',
+            'kicad.footprint-library.fidelity.unknown-layer',
+            'kicad.footprint-library.fidelity.unknown-pad-shape',
+            'kicad.footprint-library.fidelity.unknown-pad-type',
+            'kicad.footprint-library.fidelity.pad-drill-type-mismatch'
+        ]
+    )
+    assert.deepEqual(report.indexes.diagnosticsByCode, {
+        'kicad.footprint-library.fidelity.pad-drill-type-mismatch': [
+            'footprint-fidelity-4'
+        ],
+        'kicad.footprint-library.fidelity.unknown-layer': [
+            'footprint-fidelity-0',
+            'footprint-fidelity-1'
+        ],
+        'kicad.footprint-library.fidelity.unknown-pad-shape': [
+            'footprint-fidelity-2'
+        ],
+        'kicad.footprint-library.fidelity.unknown-pad-type': [
+            'footprint-fidelity-3'
+        ]
     })
 })
 

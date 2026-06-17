@@ -61,6 +61,8 @@ test('KicadSchematicGeometryReadinessReportBuilder summarizes schematic fidelity
         unusualFillCount: 1,
         unusualStrokeCount: 1,
         unsupportedPinStyleCount: 1,
+        pinOutsideBodyCount: 0,
+        fieldOutsideBodyCount: 0,
         unknownGraphicCount: 1
     })
     assert.deepEqual(
@@ -82,6 +84,91 @@ test('KicadSchematicGeometryReadinessReportBuilder summarizes schematic fidelity
         'schematic-geometry-1',
         'schematic-geometry-2'
     ])
+})
+
+test('KicadSchematicGeometryReadinessReportBuilder reports symbol body extent mismatches', () => {
+    const report = KicadSchematicGeometryReadinessReportBuilder.build({
+        rectangles: [
+            {
+                uuid: 'body-u1',
+                ownerIndex: 'symbol-u1',
+                start: { x: -2, y: -2 },
+                end: { x: 2, y: 2 }
+            }
+        ],
+        pins: [
+            {
+                designator: '1',
+                ownerIndex: 'symbol-u1',
+                x: 8,
+                y: 0,
+                length: 2,
+                orientation: 'left',
+                visible: true
+            },
+            {
+                designator: '2',
+                ownerIndex: 'symbol-u1',
+                x: -2,
+                y: 0,
+                length: 2,
+                orientation: 'right',
+                visible: true
+            }
+        ],
+        texts: [
+            {
+                id: 'field-u1-reference',
+                ownerIndex: 'symbol-u1',
+                propertyName: 'Reference',
+                text: 'U1',
+                x: 9,
+                y: 0
+            }
+        ]
+    })
+
+    assert.equal(report.summary.pinOutsideBodyCount, 1)
+    assert.equal(report.summary.fieldOutsideBodyCount, 1)
+    assert.deepEqual(
+        report.findings.map((finding) => ({
+            code: finding.code,
+            construct: finding.construct,
+            sourceKey: finding.sourceKey,
+            ownerIndex: finding.ownerIndex,
+            bounds: finding.bodyBounds
+        })),
+        [
+            {
+                code: 'kicad.schematic.geometry.pin-outside-symbol-body',
+                construct: 'pin',
+                sourceKey: '1',
+                ownerIndex: 'symbol-u1',
+                bounds: {
+                    minX: -2,
+                    minY: -2,
+                    maxX: 2,
+                    maxY: 2,
+                    width: 4,
+                    height: 4
+                }
+            },
+            {
+                code: 'kicad.schematic.geometry.field-outside-symbol-body',
+                construct: 'field',
+                sourceKey: 'field-u1-reference',
+                ownerIndex: 'symbol-u1',
+                bounds: {
+                    minX: -2,
+                    minY: -2,
+                    maxX: 2,
+                    maxY: 2,
+                    width: 4,
+                    height: 4
+                }
+            }
+        ]
+    )
 })
 
 test('KicadParser attaches schematic geometry readiness sidecars', () => {

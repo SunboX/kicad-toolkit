@@ -982,7 +982,8 @@ function normalizeBoardText(text) {
         rotation: text.rotation,
         layer: text.layer,
         side: text.side,
-        ownerIndex: text.ownerId || undefined
+        ownerIndex: text.ownerId || undefined,
+        ...(text.fontFace ? { fontFace: text.fontFace } : {})
     }
 }
 

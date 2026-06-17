@@ -224,6 +224,43 @@ export class SExpressionTree {
     }
 
     /**
+     * Reads direct property nodes into a case-insensitive lookup map.
+     * @param {Array | undefined} node Parent node.
+     * @returns {Map<string, { key: string, value: string }>}
+     */
+    static caseInsensitiveProperties(node) {
+        const lookup = new Map()
+        for (const [key, value] of SExpressionTree.properties(node)) {
+            const normalized = key.toLowerCase()
+            if (!lookup.has(normalized)) {
+                lookup.set(normalized, { key, value })
+            }
+        }
+        return lookup
+    }
+
+    /**
+     * Reads one direct property value.
+     * @param {Array | undefined} node Parent node.
+     * @param {string} name Property name.
+     * @param {string} [fallback] Fallback value.
+     * @param {{ caseInsensitive?: boolean }} [options] Lookup options.
+     * @returns {string}
+     */
+    static propertyValue(node, name, fallback = '', options = {}) {
+        if (options.caseInsensitive) {
+            return (
+                SExpressionTree.caseInsensitiveProperties(node).get(
+                    String(name || '').toLowerCase()
+                )?.value ?? fallback
+            )
+        }
+        return (
+            SExpressionTree.properties(node).get(String(name || '')) ?? fallback
+        )
+    }
+
+    /**
      * Reads direct property nodes into a plain object.
      * @param {Array | undefined} node Parent node.
      * @returns {Record<string, string>}

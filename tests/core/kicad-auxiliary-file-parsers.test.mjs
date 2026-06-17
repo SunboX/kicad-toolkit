@@ -278,6 +278,8 @@ test('KicadLegacyLibraryParser exposes legacy .lib and .dcm files for inspection
     assert.deepEqual(libModel.summary, {
         title: 'Device',
         symbolCount: 1,
+        pinCount: 1,
+        graphicCount: 0,
         documentationCount: 0,
         moduleCount: 0
     })
@@ -289,7 +291,15 @@ test('KicadLegacyLibraryParser exposes legacy .lib and .dcm files for inspection
             y: 0,
             length: 100,
             orientation: 'R',
-            electricalType: 'P'
+            electricalType: 'P',
+            unit: 1,
+            convert: 1,
+            nameSize: 50,
+            numberSize: 50,
+            shapeToken: '',
+            pinStyle: 'line',
+            hidden: false,
+            visible: true
         }
     ])
     assert.equal(dcmModel.fileType, 'dcm')
@@ -298,6 +308,84 @@ test('KicadLegacyLibraryParser exposes legacy .lib and .dcm files for inspection
         description: 'Resistor',
         keywords: 'passive resistor',
         datasheet: 'https://example.invalid/resistor.pdf'
+    })
+})
+
+test('KicadLegacyLibraryParser preserves legacy symbol pin flags and graphics', () => {
+    const model = KicadLegacyLibraryParser.parse(legacyGraphicSymbolSource(), {
+        fileName: 'Logic.lib'
+    })
+    const symbol = model.symbols[0]
+
+    assert.deepEqual(model.summary, {
+        title: 'Logic',
+        symbolCount: 1,
+        pinCount: 2,
+        graphicCount: 3,
+        documentationCount: 0,
+        moduleCount: 0
+    })
+    assert.deepEqual(
+        symbol.pins.map((pin) => ({
+            name: pin.name,
+            number: pin.number,
+            electricalType: pin.electricalType,
+            shapeToken: pin.shapeToken,
+            pinStyle: pin.pinStyle,
+            hidden: pin.hidden,
+            visible: pin.visible
+        })),
+        [
+            {
+                name: '~OE',
+                number: '1',
+                electricalType: 'I',
+                shapeToken: 'IN',
+                pinStyle: 'inverted',
+                hidden: true,
+                visible: false
+            },
+            {
+                name: 'CLK',
+                number: '2',
+                electricalType: 'I',
+                shapeToken: 'C',
+                pinStyle: 'clock',
+                hidden: false,
+                visible: true
+            }
+        ]
+    )
+    assert.deepEqual(symbol.graphics.rectangles[0], {
+        type: 'rectangle',
+        start: { x: -50, y: 50 },
+        end: { x: 50, y: -50 },
+        unit: 0,
+        convert: 1,
+        strokeWidth: 0,
+        fill: 'none'
+    })
+    assert.deepEqual(symbol.graphics.circles[0], {
+        type: 'circle',
+        center: { x: 0, y: 0 },
+        radius: 25,
+        unit: 0,
+        convert: 1,
+        strokeWidth: 0,
+        fill: 'none'
+    })
+    assert.deepEqual(symbol.graphics.polylines[0], {
+        type: 'polyline',
+        pointCount: 3,
+        points: [
+            { x: -50, y: -50 },
+            { x: 0, y: 50 },
+            { x: 50, y: -50 }
+        ],
+        unit: 0,
+        convert: 1,
+        strokeWidth: 0,
+        fill: 'none'
     })
 })
 
@@ -469,6 +557,30 @@ DEF R R 0 40 Y Y 1 F N
 F0 "R" 0 0 50 H V C CNN
 F1 "R" 0 100 50 H V C CNN
 X ~ 1 -100 0 100 R 50 50 1 1 P
+ENDDEF
+#End Library`
+}
+
+/**
+ * Builds a fake legacy symbol library fixture with DRAW primitives.
+ * @returns {string}
+ */
+function legacyGraphicSymbolSource() {
+    return `EESchema-LIBRARY Version 2.4
+#encoding utf-8
+#
+# GATE
+#
+DEF GATE U 0 40 Y Y 1 F N
+F0 "U" 0 0 50 H V C CNN
+F1 "GATE" 0 100 50 H V C CNN
+DRAW
+S -50 50 50 -50 0 1 0 N
+C 0 0 25 0 1 0 N
+P 3 0 1 0 -50 -50 0 50 50 -50 N
+X ~OE 1 -100 0 100 R 50 50 1 1 I IN
+X CLK 2 100 0 100 L 50 50 1 1 I C
+ENDDRAW
 ENDDEF
 #End Library`
 }

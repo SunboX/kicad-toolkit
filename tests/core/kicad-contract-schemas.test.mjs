@@ -6,6 +6,17 @@ import fs from 'node:fs'
 import test from 'node:test'
 import { NormalizedModelSchema } from '../../src/parser.mjs'
 
+/**
+ * Reads one schema fixture relative to this test file.
+ * @param {string} filePath Relative schema file path.
+ * @returns {object}
+ */
+function readSchema(filePath) {
+    return JSON.parse(
+        fs.readFileSync(new URL(filePath, import.meta.url), 'utf8')
+    )
+}
+
 test('machine-readable KiCad helper schemas are split for downstream consumers', () => {
     const schemaFiles = [
         [
@@ -196,12 +207,70 @@ test('machine-readable KiCad helper schemas are split for downstream consumers',
     ]
 
     for (const [filePath, schemaId, emittedSchemaId] of schemaFiles) {
-        const schema = JSON.parse(
-            fs.readFileSync(new URL(filePath, import.meta.url), 'utf8')
-        )
+        const schema = readSchema(filePath)
 
         assert.equal(schema.$id, schemaId)
         assert.equal(schema.properties.schema.const, emittedSchemaId)
         assert.equal(schema.additionalProperties, true)
     }
+})
+
+test('machine-readable schemas publish readiness and legacy detail fields', () => {
+    const modelReadiness = readSchema(
+        '../../docs/schemas/kicad_toolkit/pcb_3d_model_readiness_a1.schema.json'
+    )
+    const fidelity = readSchema(
+        '../../docs/schemas/kicad_toolkit/pcb_fidelity_diagnostics_a1.schema.json'
+    )
+    const pcbGeometry = readSchema(
+        '../../docs/schemas/kicad_toolkit/pcb_geometry_readiness_a1.schema.json'
+    )
+    const schematicGeometry = readSchema(
+        '../../docs/schemas/kicad_toolkit/schematic_geometry_readiness_a1.schema.json'
+    )
+    const normalizedModel = readSchema(
+        '../../docs/schemas/kicad_toolkit/normalized_model_a1.schema.json'
+    )
+
+    assert.ok(modelReadiness.properties.models.items.properties.searchKeys)
+    assert.ok(modelReadiness.properties.models.items.properties.candidateModels)
+    assert.ok(modelReadiness.properties.models.items.properties.pad1Orientation)
+    assert.ok(
+        modelReadiness.properties.indexes.properties.candidateModelsByAssetKey
+    )
+
+    assert.ok(fidelity.properties.summary.properties.missingFontFaceCount)
+    assert.ok(fidelity.properties.summary.properties.suspiciousTextPayloadCount)
+    assert.ok(fidelity.properties.diagnostics.items.properties.fontFace)
+    assert.ok(fidelity.properties.diagnostics.items.properties.issues)
+
+    assert.ok(pcbGeometry.properties.summary.properties.missingCourtyardCount)
+    assert.ok(
+        pcbGeometry.properties.summary.properties.courtyardUndercoverageCount
+    )
+    assert.ok(pcbGeometry.properties.findings.items.properties.padBounds)
+    assert.ok(pcbGeometry.properties.findings.items.properties.courtyardBounds)
+
+    assert.ok(
+        schematicGeometry.properties.summary.properties.pinOutsideBodyCount
+    )
+    assert.ok(
+        schematicGeometry.properties.summary.properties.fieldOutsideBodyCount
+    )
+    assert.ok(schematicGeometry.properties.findings.items.properties.ownerIndex)
+    assert.ok(schematicGeometry.properties.findings.items.properties.bodyBounds)
+
+    const legacyBranch = normalizedModel.oneOf.find((branch) => {
+        return branch.properties.kind.const === 'legacy-library'
+    })
+    assert.ok(legacyBranch.properties.summary.properties.pinCount)
+    assert.ok(legacyBranch.properties.summary.properties.graphicCount)
+    assert.equal(
+        legacyBranch.properties.symbols.items.$ref,
+        '#/$defs/legacySymbol'
+    )
+    assert.ok(normalizedModel.$defs.legacyPin.properties.shapeToken)
+    assert.ok(normalizedModel.$defs.legacyPin.properties.pinStyle)
+    assert.ok(normalizedModel.$defs.legacyGraphics.properties.rectangles)
+    assert.ok(normalizedModel.$defs.legacyGraphics.properties.arcs)
 })

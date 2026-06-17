@@ -59,6 +59,36 @@ test('KicadParser exposes declared PCB metadata in the renderer model', () => {
     assert.equal(document.pcb.components[0].designator, 'M1')
 })
 
+test('KicadParser preserves PCB text font faces for fidelity diagnostics', () => {
+    const document = KicadParser.parseArrayBuffer(
+        'font-face.kicad_pcb',
+        bytesFor(`
+            (kicad_pcb
+                (version 20240108)
+                (generator "kicad-toolkit-test")
+                (layers
+                    (0 "F.Cu" signal)
+                    (37 "F.SilkS" user)
+                    (44 "Edge.Cuts" user)
+                )
+                (gr_text "FACE"
+                    (at 0 0 0)
+                    (layer "F.SilkS")
+                    (effects (font (face "Inter") (size 1 1)))
+                )
+            )
+        `)
+    )
+
+    assert.equal(document.pcb.texts[0].fontFace, 'Inter')
+    assert.deepEqual(
+        document.pcb.fidelityDiagnostics.diagnostics.map(
+            (diagnostic) => diagnostic.code
+        ),
+        ['kicad.pcb.fidelity.missing-font-face']
+    )
+})
+
 test('KicadParser exposes KiCad footprint model metadata on PCB components', () => {
     const document = KicadParser.parseArrayBuffer(
         'models.kicad_pcb',

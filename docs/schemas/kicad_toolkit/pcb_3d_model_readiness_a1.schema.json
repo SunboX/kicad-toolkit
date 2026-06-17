@@ -9,12 +9,53 @@
         },
         "summary": {
             "type": "object",
+            "properties": {
+                "componentCount": { "type": "number" },
+                "componentWithModelCount": { "type": "number" },
+                "modelReferenceCount": { "type": "number" },
+                "resolvedModelCount": { "type": "number" },
+                "unresolvedModelCount": { "type": "number" },
+                "fallbackComponentCount": { "type": "number" },
+                "formatCount": { "type": "number" },
+                "diagnosticCount": { "type": "number" }
+            },
             "additionalProperties": true
         },
         "models": {
             "type": "array",
             "items": {
                 "type": "object",
+                "properties": {
+                    "key": { "type": "string" },
+                    "componentIndex": { "type": "number" },
+                    "designator": { "type": "string" },
+                    "footprintId": { "type": "string" },
+                    "name": { "type": "string" },
+                    "path": { "type": "string" },
+                    "format": { "type": "string" },
+                    "fallback": { "type": "boolean" },
+                    "resolved": { "type": "boolean" },
+                    "resolvedAssetKey": { "type": "string" },
+                    "fallbackPackage": {
+                        "type": "object",
+                        "additionalProperties": true
+                    },
+                    "searchKeys": {
+                        "type": "array",
+                        "items": { "$ref": "#/$defs/searchKey" }
+                    },
+                    "candidateModels": {
+                        "type": "array",
+                        "items": { "$ref": "#/$defs/candidateModel" }
+                    },
+                    "pad1Orientation": {
+                        "$ref": "#/$defs/pad1Orientation"
+                    },
+                    "transform": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
                 "additionalProperties": true
             }
         },
@@ -22,13 +63,78 @@
             "type": "array",
             "items": {
                 "type": "object",
+                "properties": {
+                    "key": { "type": "string" },
+                    "code": { "type": "string" },
+                    "severity": { "type": "string" },
+                    "modelKey": { "type": "string" },
+                    "componentIndex": { "type": "number" },
+                    "fallbackFamily": { "type": "string" },
+                    "fallbackSizeMil": {
+                        "type": "object",
+                        "additionalProperties": true
+                    },
+                    "suggestedSearchKeys": {
+                        "type": "array",
+                        "items": { "$ref": "#/$defs/searchKey" }
+                    },
+                    "suggestedRotationZ": { "type": "number" },
+                    "message": { "type": "string" }
+                },
                 "additionalProperties": true
             }
         },
         "indexes": {
             "type": "object",
+            "properties": {
+                "modelsByFormat": { "$ref": "#/$defs/keyIndex" },
+                "unresolvedModels": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                },
+                "diagnosticsByCode": { "$ref": "#/$defs/keyIndex" },
+                "candidateModelsByAssetKey": { "$ref": "#/$defs/keyIndex" }
+            },
             "additionalProperties": true
         }
     },
-    "required": ["schema", "summary", "models", "diagnostics", "indexes"]
+    "required": ["schema", "summary", "models", "diagnostics", "indexes"],
+    "$defs": {
+        "candidateModel": {
+            "type": "object",
+            "properties": {
+                "assetKey": { "type": "string" },
+                "name": { "type": "string" },
+                "path": { "type": "string" },
+                "format": { "type": "string" },
+                "score": { "type": "number" },
+                "resolved": { "type": "boolean" },
+                "matchedKeys": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                }
+            },
+            "additionalProperties": true
+        },
+        "keyIndex": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        },
+        "pad1Orientation": {
+            "type": "object",
+            "properties": {
+                "padNumber": { "type": "string" },
+                "relativeX": { "type": "number" },
+                "relativeY": { "type": "number" },
+                "suggestedRotationZ": { "type": "number" }
+            },
+            "additionalProperties": true
+        },
+        "searchKey": {
+            "type": "string"
+        }
+    }
 }

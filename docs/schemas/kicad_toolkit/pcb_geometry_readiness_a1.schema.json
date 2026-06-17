@@ -9,19 +9,66 @@
         },
         "summary": {
             "type": "object",
+            "properties": {
+                "findingCount": { "type": "number" },
+                "warningCount": { "type": "number" },
+                "infoCount": { "type": "number" },
+                "thickArcCount": { "type": "number" },
+                "multiContourZoneCount": { "type": "number" },
+                "curvePrimitiveCount": { "type": "number" },
+                "textBoxCount": { "type": "number" },
+                "customPadCount": { "type": "number" },
+                "missingCourtyardCount": { "type": "number" },
+                "courtyardUndercoverageCount": { "type": "number" }
+            },
             "additionalProperties": true
         },
         "findings": {
             "type": "array",
             "items": {
                 "type": "object",
+                "properties": {
+                    "key": { "type": "string" },
+                    "severity": { "type": "string" },
+                    "code": { "type": "string" },
+                    "construct": { "type": "string" },
+                    "sourceKey": { "type": "string" },
+                    "padBounds": { "$ref": "#/$defs/bounds" },
+                    "courtyardBounds": { "$ref": "#/$defs/bounds" },
+                    "message": { "type": "string" }
+                },
                 "additionalProperties": true
             }
         },
         "indexes": {
             "type": "object",
+            "properties": {
+                "findingsBySeverity": { "$ref": "#/$defs/keyIndex" },
+                "findingsByConstruct": { "$ref": "#/$defs/keyIndex" }
+            },
             "additionalProperties": true
         }
     },
-    "required": ["schema", "summary", "findings", "indexes"]
+    "required": ["schema", "summary", "findings", "indexes"],
+    "$defs": {
+        "bounds": {
+            "type": "object",
+            "properties": {
+                "minX": { "type": "number" },
+                "minY": { "type": "number" },
+                "maxX": { "type": "number" },
+                "maxY": { "type": "number" },
+                "width": { "type": "number" },
+                "height": { "type": "number" }
+            },
+            "additionalProperties": true
+        },
+        "keyIndex": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        }
+    }
 }

@@ -289,6 +289,8 @@ test('KicadPcbFidelityDiagnosticsBuilder flags complex parsed PCB constructs', (
         infoCount: 2,
         complexPadCount: 1,
         customPadPrimitiveCount: 2,
+        missingFontFaceCount: 0,
+        suspiciousTextPayloadCount: 0,
         zonePolicyCount: 2,
         highRiskConstructCount: 3
     })
@@ -316,6 +318,62 @@ test('KicadPcbFidelityDiagnosticsBuilder flags complex parsed PCB constructs', (
         'fidelity-1',
         'fidelity-2'
     ])
+})
+
+test('KicadPcbFidelityDiagnosticsBuilder flags suspicious text payloads', () => {
+    const report = KicadPcbFidelityDiagnosticsBuilder.build({
+        texts: [
+            {
+                id: 'board-text-replacement',
+                value: 'Label\uFFFDBad'
+            },
+            {
+                id: 'board-text-control',
+                value: 'Label\u0000Bad\u0001'
+            },
+            {
+                id: 'board-text-ok',
+                value: 'Line A\nLine B\tTabbed'
+            }
+        ],
+        footprints: [
+            {
+                id: 'footprint-u1',
+                reference: 'U\uFFFD1',
+                value: 'MCU'
+            }
+        ]
+    })
+
+    assert.equal(report.summary.suspiciousTextPayloadCount, 3)
+    assert.deepEqual(
+        report.diagnostics.map((diagnostic) => ({
+            code: diagnostic.code,
+            construct: diagnostic.construct,
+            sourceKey: diagnostic.sourceKey,
+            issues: diagnostic.issues
+        })),
+        [
+            {
+                code: 'kicad.pcb.fidelity.suspicious-text-payload',
+                construct: 'text',
+                sourceKey: 'board-text-replacement',
+                issues: ['replacement-character']
+            },
+            {
+                code: 'kicad.pcb.fidelity.suspicious-text-payload',
+                construct: 'text',
+                sourceKey: 'board-text-control',
+                issues: ['null-character', 'control-character']
+            },
+            {
+                code: 'kicad.pcb.fidelity.suspicious-text-payload',
+                construct: 'footprint-field',
+                sourceKey: 'footprint-u1:reference',
+                issues: ['replacement-character']
+            }
+        ]
+    )
 })
 
 test('KicadPcb3dModelReadinessReportBuilder summarizes model references and fallbacks', () => {
@@ -359,6 +417,64 @@ test('KicadPcb3dModelReadinessReportBuilder summarizes model references and fall
     )
 })
 
+test('KicadPcb3dModelReadinessReportBuilder suggests deterministic model lookup hints', () => {
+    const report = KicadPcb3dModelReadinessReportBuilder.build({
+        components: [
+            {
+                componentIndex: 0,
+                designator: 'U1',
+                footprintId: 'Package_QFN:QFN-32-1EP_5x5mm_P0.5mm',
+                pattern: 'Package_QFN:QFN-32-1EP_5x5mm_P0.5mm',
+                x: 10,
+                y: 20,
+                pads: [
+                    {
+                        number: '1',
+                        x: 9,
+                        y: 21
+                    },
+                    {
+                        number: '2',
+                        x: 11,
+                        y: 19
+                    }
+                ],
+                models: []
+            }
+        ]
+    })
+
+    assert.deepEqual(report.models[0].searchKeys, [
+        'PACKAGE',
+        'QFN',
+        'QFN-32-1EP',
+        '32',
+        '1EP',
+        'EP',
+        '5X5MM',
+        'P0.5MM',
+        '05P'
+    ])
+    assert.deepEqual(report.models[0].pad1Orientation, {
+        padNumber: '1',
+        relativeX: -1,
+        relativeY: 1,
+        suggestedRotationZ: -90
+    })
+    assert.deepEqual(report.diagnostics[0].suggestedSearchKeys, [
+        'PACKAGE',
+        'QFN',
+        'QFN-32-1EP',
+        '32',
+        '1EP',
+        'EP',
+        '5X5MM',
+        'P0.5MM',
+        '05P'
+    ])
+    assert.equal(report.diagnostics[0].suggestedRotationZ, -90)
+})
+
 test('KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive geometry', () => {
     const report =
         KicadPcbGeometryReadinessReportBuilder.build(createRiskyPcb())
@@ -372,7 +488,9 @@ test('KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive geometr
         multiContourZoneCount: 1,
         curvePrimitiveCount: 2,
         textBoxCount: 1,
-        customPadCount: 1
+        customPadCount: 1,
+        missingCourtyardCount: 0,
+        courtyardUndercoverageCount: 0
     })
     assert.deepEqual(
         report.findings.map((finding) => finding.code),
@@ -394,6 +512,75 @@ test('KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive geometr
         'geometry-1',
         'geometry-5'
     ])
+})
+
+test('KicadPcbGeometryReadinessReportBuilder reports courtyard extent readiness', () => {
+    const report = KicadPcbGeometryReadinessReportBuilder.build({
+        footprints: [
+            {
+                id: 'footprint:U1:0',
+                reference: 'U1',
+                pads: [
+                    {
+                        id: 'pad-u1-1',
+                        shape: 'rect',
+                        x: 0,
+                        y: 0,
+                        width: 2,
+                        height: 1,
+                        rotation: 0
+                    }
+                ],
+                drawings: []
+            },
+            {
+                id: 'footprint:U2:1',
+                reference: 'U2',
+                pads: [
+                    {
+                        id: 'pad-u2-1',
+                        shape: 'rect',
+                        x: 0,
+                        y: 0,
+                        width: 2,
+                        height: 2,
+                        rotation: 0
+                    }
+                ],
+                drawings: [
+                    {
+                        id: 'crtyd-u2',
+                        type: 'polygon',
+                        layer: 'F.CrtYd',
+                        points: [
+                            { x: -0.5, y: -0.5 },
+                            { x: 0.5, y: -0.5 },
+                            { x: 0.5, y: 0.5 },
+                            { x: -0.5, y: 0.5 }
+                        ]
+                    }
+                ]
+            }
+        ]
+    })
+
+    assert.equal(report.summary.missingCourtyardCount, 1)
+    assert.equal(report.summary.courtyardUndercoverageCount, 1)
+    assert.deepEqual(
+        report.findings.map((finding) => finding.code),
+        [
+            'kicad.pcb.geometry.footprint-missing-courtyard',
+            'kicad.pcb.geometry.footprint-courtyard-undercoverage'
+        ]
+    )
+    assert.deepEqual(report.findings[1].padBounds, {
+        minX: -1,
+        minY: -1,
+        maxX: 1,
+        maxY: 1,
+        width: 2,
+        height: 2
+    })
 })
 
 test('KicadSchematicOwnershipGraphBuilder indexes schematic owner-child links', () => {

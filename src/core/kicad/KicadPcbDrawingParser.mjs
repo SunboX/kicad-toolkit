@@ -667,6 +667,7 @@ function parseGeneratedItem(node, index, ownerId) {
  */
 function parseTextLikeNode(node, context) {
     const font = child(child(node, 'effects'), 'font')
+    const fontFace = textValue(child(font, 'face'))
     const size = child(font, 'size') || ['size', 1, 1]
     const justify = parseJustify(node)
     return {
@@ -690,6 +691,7 @@ function parseTextLikeNode(node, context) {
         thickness: numberValue(child(font, 'thickness')?.[1], 0.12),
         visible: !hasChild(node, 'hide'),
         excludeFromPositionFiles: false,
+        ...(fontFace ? { fontFace } : {}),
         ...(context.sourceType ? { sourceType: context.sourceType } : {}),
         ...(context.textBox ? { textBox: context.textBox } : {})
     }

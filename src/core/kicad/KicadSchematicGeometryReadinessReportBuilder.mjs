@@ -72,6 +72,8 @@ export class KicadSchematicGeometryReadinessReportBuilder {
             ...unusualFillFindings(schematic),
             ...unusualStrokeFindings(schematic),
             ...unsupportedPinStyleFindings(schematic),
+            ...pinOutsideBodyFindings(schematic),
+            ...fieldOutsideBodyFindings(schematic),
             ...unknownRootNodeFindings(schematic)
         ])
 
@@ -313,11 +315,72 @@ function summary(schematic, findings) {
             findings,
             'kicad.schematic.geometry.unsupported-pin-style'
         ),
+        pinOutsideBodyCount: codeCount(
+            findings,
+            'kicad.schematic.geometry.pin-outside-symbol-body'
+        ),
+        fieldOutsideBodyCount: codeCount(
+            findings,
+            'kicad.schematic.geometry.field-outside-symbol-body'
+        ),
         unknownGraphicCount: codeCount(
             findings,
             'kicad.schematic.geometry.unknown-root-node'
         )
     }
+}
+
+/**
+ * Builds findings for symbol pins outside their parsed body bounds.
+ * @param {object} schematic Schematic model.
+ * @returns {object[]}
+ */
+function pinOutsideBodyFindings(schematic) {
+    const bodyBounds = symbolBodyBoundsByOwner(schematic)
+    return (schematic.pins || [])
+        .filter((pin) => pin?.visible !== false)
+        .map((pin) => ({ pin, bounds: bodyBounds.get(String(pin.ownerIndex)) }))
+        .filter(({ pin, bounds }) => {
+            return bounds && !pointInsideBounds(point(pin), bounds)
+        })
+        .map(({ pin, bounds }) => ({
+            severity: 'warning',
+            code: 'kicad.schematic.geometry.pin-outside-symbol-body',
+            construct: 'pin',
+            sourceKey: sourceKey(pin),
+            ownerIndex: String(pin.ownerIndex || ''),
+            bodyBounds: describeBounds(bounds),
+            message:
+                'KiCad schematic symbol pin anchor falls outside the parsed symbol body bounds.'
+        }))
+}
+
+/**
+ * Builds findings for symbol fields outside their parsed body bounds.
+ * @param {object} schematic Schematic model.
+ * @returns {object[]}
+ */
+function fieldOutsideBodyFindings(schematic) {
+    const bodyBounds = symbolBodyBoundsByOwner(schematic)
+    return (schematic.texts || [])
+        .filter((text) => text?.ownerIndex && isSymbolField(text))
+        .map((text) => ({
+            text,
+            bounds: bodyBounds.get(String(text.ownerIndex))
+        }))
+        .filter(({ text, bounds }) => {
+            return bounds && !pointInsideBounds(point(text), bounds)
+        })
+        .map(({ text, bounds }) => ({
+            severity: 'info',
+            code: 'kicad.schematic.geometry.field-outside-symbol-body',
+            construct: 'field',
+            sourceKey: sourceKey(text),
+            ownerIndex: String(text.ownerIndex || ''),
+            bodyBounds: describeBounds(bounds),
+            message:
+                'KiCad schematic symbol field anchor falls outside the parsed symbol body bounds.'
+        }))
 }
 
 /**
@@ -351,6 +414,157 @@ function point(value) {
  */
 function hasMultipleLines(value) {
     return /\r|\n/u.test(String(value || ''))
+}
+
+/**
+ * Builds symbol body bounds keyed by owner index.
+ * @param {object} schematic Schematic model.
+ * @returns {Map<string, object>}
+ */
+function symbolBodyBoundsByOwner(schematic) {
+    const boundsByOwner = new Map()
+    for (const primitive of bodyPrimitives(schematic)) {
+        const ownerIndex = String(primitive?.ownerIndex || '')
+        if (!ownerIndex) continue
+        const primitiveBounds = boundsForPrimitive(primitive)
+        if (!primitiveBounds) continue
+        boundsByOwner.set(
+            ownerIndex,
+            mergeBounds(boundsByOwner.get(ownerIndex), primitiveBounds)
+        )
+    }
+    return boundsByOwner
+}
+
+/**
+ * Collects symbol body primitives.
+ * @param {object} schematic Schematic model.
+ * @returns {object[]}
+ */
+function bodyPrimitives(schematic) {
+    return [
+        ...(schematic.rectangles || []),
+        ...(schematic.ellipses || []),
+        ...(schematic.polygons || []),
+        ...(schematic.lines || [])
+    ]
+}
+
+/**
+ * Resolves bounds for one schematic primitive.
+ * @param {object} primitive Primitive row.
+ * @returns {{ minX: number, minY: number, maxX: number, maxY: number } | null}
+ */
+function boundsForPrimitive(primitive) {
+    if (primitive?.center && primitive?.radius !== undefined) {
+        const center = point(primitive.center)
+        const radius = Number(primitive.radius || 0)
+        return {
+            minX: center.x - radius,
+            minY: center.y - radius,
+            maxX: center.x + radius,
+            maxY: center.y + radius
+        }
+    }
+
+    const points = primitivePoints(primitive)
+    if (points.length === 0) return null
+    return boundsForPoints(points)
+}
+
+/**
+ * Lists representative points for a primitive.
+ * @param {object} primitive Primitive row.
+ * @returns {{ x: number, y: number }[]}
+ */
+function primitivePoints(primitive) {
+    if ((primitive?.points || []).length) {
+        return primitive.points.map(point)
+    }
+    return [primitive?.start, primitive?.end]
+        .filter(Boolean)
+        .map((entry) => point(entry))
+}
+
+/**
+ * Builds bounds for points.
+ * @param {{ x: number, y: number }[]} points Points.
+ * @returns {{ minX: number, minY: number, maxX: number, maxY: number }}
+ */
+function boundsForPoints(points) {
+    return {
+        minX: Math.min(...points.map((entry) => entry.x)),
+        minY: Math.min(...points.map((entry) => entry.y)),
+        maxX: Math.max(...points.map((entry) => entry.x)),
+        maxY: Math.max(...points.map((entry) => entry.y))
+    }
+}
+
+/**
+ * Merges two bounds.
+ * @param {object | undefined} current Existing bounds.
+ * @param {object} next Next bounds.
+ * @returns {{ minX: number, minY: number, maxX: number, maxY: number }}
+ */
+function mergeBounds(current, next) {
+    if (!current) return { ...next }
+    return {
+        minX: Math.min(current.minX, next.minX),
+        minY: Math.min(current.minY, next.minY),
+        maxX: Math.max(current.maxX, next.maxX),
+        maxY: Math.max(current.maxY, next.maxY)
+    }
+}
+
+/**
+ * Checks whether a point is inside bounds.
+ * @param {{ x: number, y: number }} value Point.
+ * @param {object} bounds Bounds.
+ * @returns {boolean}
+ */
+function pointInsideBounds(value, bounds) {
+    return (
+        value.x >= bounds.minX &&
+        value.x <= bounds.maxX &&
+        value.y >= bounds.minY &&
+        value.y <= bounds.maxY
+    )
+}
+
+/**
+ * Describes bounds with derived dimensions.
+ * @param {object} bounds Bounds.
+ * @returns {{ minX: number, minY: number, maxX: number, maxY: number, width: number, height: number }}
+ */
+function describeBounds(bounds) {
+    return {
+        minX: roundMetric(bounds.minX),
+        minY: roundMetric(bounds.minY),
+        maxX: roundMetric(bounds.maxX),
+        maxY: roundMetric(bounds.maxY),
+        width: roundMetric(bounds.maxX - bounds.minX),
+        height: roundMetric(bounds.maxY - bounds.minY)
+    }
+}
+
+/**
+ * Checks whether a schematic text row represents a symbol field.
+ * @param {object} text Text row.
+ * @returns {boolean}
+ */
+function isSymbolField(text) {
+    return Boolean(text?.propertyName || text?.fieldName || text?.field)
+}
+
+/**
+ * Rounds a metric value to stable precision.
+ * @param {unknown} value Candidate value.
+ * @returns {number}
+ */
+function roundMetric(value) {
+    const number = Number(value)
+    if (!Number.isFinite(number)) return 0
+    return Math.round(number * 1000) / 1000
 }
 
 /**

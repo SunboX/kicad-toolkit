@@ -225,7 +225,10 @@ references.
 Legacy `.lib`, `.dcm`, and `.mod` files emit a `legacy-library` root with
 lightweight symbol, documentation, and module inspection records. These helper
 records are intentionally not a full conversion to modern `.kicad_sch`,
-`.kicad_sym`, or `.kicad_mod` models.
+`.kicad_sym`, or `.kicad_mod` models. Legacy symbol rows expose recovered
+`pinCount` and `graphicCount` summary fields, raw source lines, pins with unit
+and convert selectors, text sizes, legacy shape tokens, normalized pin styles,
+hidden/visible flags, and parsed DRAW rectangles, circles, polylines, and arcs.
 
 ## Project Loading Fields
 
@@ -345,26 +348,31 @@ per-kind layer indexes. Parsed PCB renderer models attach this report at
 `KicadPcbFidelityDiagnosticsBuilder.build()` returns
 `kicad-toolkit.pcb.fidelity-diagnostics.a1` reports with review diagnostics for
 complex pads, custom pad primitives, local pad policies, zone fill and
-connection policies, thick arcs, and unknown preserved source nodes. Parsed
-PCB renderer models attach this report at `pcb.fidelityDiagnostics`.
+connection policies, explicit font faces without matching available font
+assets, suspicious replacement/null/control characters in text payloads, thick
+arcs, and unknown preserved source nodes. Parsed PCB renderer models attach
+this report at `pcb.fidelityDiagnostics`.
 
 `KicadPcb3dModelReadinessReportBuilder.build()` returns
 `kicad-toolkit.pcb.3d-model-readiness.a1` reports with component model
 references, available-asset resolution status, model formats, transforms,
 fallback needs, resolved procedural package family and size for generated-body
-fallbacks, and diagnostics. Parsed PCB renderer models attach this report at
-`pcb.modelReadiness`.
+fallbacks, footprint search keys, pad-1 orientation hints, ranked available
+asset candidates, and diagnostics. Parsed PCB renderer models attach this
+report at `pcb.modelReadiness`.
 
 `KicadPcbGeometryReadinessReportBuilder.build()` returns
 `kicad-toolkit.pcb.geometry-readiness.a1` reports with renderer-sensitive
 geometry findings for thick arcs, curve primitives, multi-contour zones, text
-boxes, custom pads, and custom-pad curves. Parsed PCB renderer models attach
-this report at `pcb.geometryReadiness`.
+boxes, custom pads, custom-pad curves, missing footprint courtyards, and
+courtyard bounds that do not cover all pad geometry. Parsed PCB renderer models
+attach this report at `pcb.geometryReadiness`.
 
 `KicadSchematicGeometryReadinessReportBuilder.build()` returns
 `kicad-toolkit.schematic.geometry-readiness.a1` reports with renderer-sensitive
 schematic findings for Beziers, long or degenerate arcs, rounded rectangles,
 multiline text frames, unusual fills or strokes, unsupported pin styles, and
+symbol-owned pin or field anchors outside parsed symbol body bounds, and
 unknown root graphics. Parsed schematic renderer models attach this report at
 `schematic.geometryReadiness`.
 

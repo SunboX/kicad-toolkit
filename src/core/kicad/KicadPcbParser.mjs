@@ -648,6 +648,7 @@ function parseTextNode(node, context) {
     const side = KicadLayerResolver.sideFromLayer(layer) || context.fallbackSide
     const position = transformLocalPoint(localAt, context.transform)
     const font = child(child(node, 'effects'), 'font')
+    const fontFace = textValue(child(font, 'face'))
     const size = child(font, 'size') || ['size', 1, 1]
     const justify = parseJustify(node)
     const rotation = transformTextRotation(
@@ -659,7 +660,6 @@ function parseTextNode(node, context) {
         ...(context.textContext || {}),
         text: { layer }
     })
-
     return {
         id: context.id,
         ownerId: context.ownerId,
@@ -679,7 +679,8 @@ function parseTextNode(node, context) {
         sizeY: numberValue(size[2], numberValue(size[1], 1)),
         thickness: numberValue(child(font, 'thickness')?.[1], 0.12),
         visible: context.visible !== false,
-        excludeFromPositionFiles: context.excludeFromPositionFiles === true
+        excludeFromPositionFiles: context.excludeFromPositionFiles === true,
+        ...(fontFace ? { fontFace } : {})
     }
 }
 
@@ -966,7 +967,6 @@ function basename(path) {
 function numberValue(value, fallback) {
     return SExpressionTree.numberValue(value, fallback)
 }
-
 /**
  * Reads a KiCad boolean-like value with fallback.
  * @param {unknown} value

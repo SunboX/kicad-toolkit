@@ -573,6 +573,42 @@
                 },
                 "fileType": {
                     "enum": ["lib", "dcm", "mod"]
+                },
+                "summary": {
+                    "type": "object",
+                    "properties": {
+                        "symbolCount": { "type": "number" },
+                        "pinCount": { "type": "number" },
+                        "graphicCount": { "type": "number" },
+                        "documentationCount": { "type": "number" },
+                        "moduleCount": { "type": "number" }
+                    },
+                    "additionalProperties": {
+                        "type": ["number", "string", "boolean", "null"]
+                    }
+                },
+                "symbols": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/legacySymbol"
+                    }
+                },
+                "documentation": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "rawSource": {
+                    "type": "string"
                 }
             }
         },
@@ -622,6 +658,154 @@
                 },
                 "y": {
                     "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "legacySymbol": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "reference": {
+                    "type": "string"
+                },
+                "fields": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "pins": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/legacyPin"
+                    }
+                },
+                "graphics": {
+                    "$ref": "#/$defs/legacyGraphics"
+                },
+                "rawLines": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "pinCount": {
+                    "type": "number"
+                },
+                "graphicCount": {
+                    "type": "number"
+                }
+            },
+            "additionalProperties": true
+        },
+        "legacyPin": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                },
+                "length": {
+                    "type": "number"
+                },
+                "orientation": {
+                    "type": "string"
+                },
+                "electricalType": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "number"
+                },
+                "convert": {
+                    "type": "number"
+                },
+                "nameSize": {
+                    "type": "number"
+                },
+                "numberSize": {
+                    "type": "number"
+                },
+                "shapeToken": {
+                    "type": "string"
+                },
+                "pinStyle": {
+                    "type": "string"
+                },
+                "hidden": {
+                    "type": "boolean"
+                },
+                "visible": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": true
+        },
+        "legacyGraphics": {
+            "type": "object",
+            "properties": {
+                "rectangles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/legacyGraphic"
+                    }
+                },
+                "circles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/legacyGraphic"
+                    }
+                },
+                "polylines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/legacyGraphic"
+                    }
+                },
+                "arcs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/legacyGraphic"
+                    }
+                }
+            },
+            "additionalProperties": true
+        },
+        "legacyGraphic": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "number"
+                },
+                "convert": {
+                    "type": "number"
+                },
+                "width": {
+                    "type": "number"
+                },
+                "fill": {
+                    "type": "string"
+                },
+                "points": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/point"
+                    }
                 }
             },
             "additionalProperties": true

@@ -168,10 +168,11 @@ from normalized parser data.
 `KicadSchematicGeometryReadinessReportBuilder.build()` exposes the matching
 schematic-side renderer-readiness report for Beziers, arcs, rounded
 rectangles, fixed text frames, pin styles, authored graphic styles, and unknown
-graphics. Schematic SVG output renders text boxes and table cells with
-deterministic stroke-font text, hierarchical sheet entries, and schematic
-image payloads with placeholders for missing image data. It honors authored
-schematic stroke/fill colors and stroke patterns when present.
+graphics, plus symbol-owned pins or fields outside parsed body bounds.
+Schematic SVG output renders text boxes and table cells with deterministic
+stroke-font text, hierarchical sheet entries, and schematic image payloads with
+placeholders for missing image data. It honors authored schematic stroke/fill
+colors and stroke patterns when present.
 Route analysis includes per-net layer participation, connected route groups,
 track/arc lengths, and caller-supplied differential-pair summaries.
 Layer-stack, layer-usage, fidelity, geometry-readiness, model-readiness,
@@ -180,7 +181,10 @@ renderer models at `pcb.layerStack`, `pcb.layerUsage`,
 `pcb.fidelityDiagnostics`, `pcb.geometryReadiness`, `pcb.modelReadiness`,
 `pcb.dimensions`, `pcb.regionSemantics`, and `pcb.rigidFlexTopology`.
 Model-readiness fallbacks include the procedural package family and size that
-scene consumers would use for generated component bodies.
+scene consumers would use for generated component bodies, footprint search
+keys, pad-1 orientation hints, and ranked candidate model assets. Fidelity
+diagnostics include missing named font assets and suspicious text payloads;
+geometry readiness includes missing or undersized footprint courtyards.
 `KicadPcbRuleReadModelBuilder.build()` normalizes KiCad custom DRC rules,
 project design settings, and net classes into typed rule rows.
 `KicadPcbRigidFlexTopologyBuilder.build()` reports KiCad flat-stack and
@@ -232,8 +236,9 @@ uses caller-provided `projectParameters` for variable resolution and leaves
 source models unchanged.
 
 `KicadSchematicGeometryReadinessReportBuilder.build(input)` creates a
-renderer-readiness report for schematic geometry. Parsed schematic renderer
-models attach the report at `schematic.geometryReadiness`.
+renderer-readiness report for schematic geometry, including symbol body-bound
+checks for owned pins and fields. Parsed schematic renderer models attach the
+report at `schematic.geometryReadiness`.
 
 `KicadLibraryQaReportBuilder.build(options)` creates a collection-level library
 QA report for parsed KiCad symbol and footprint libraries. It reports duplicate

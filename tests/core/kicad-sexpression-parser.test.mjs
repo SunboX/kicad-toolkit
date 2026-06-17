@@ -167,6 +167,33 @@ test('SExpressionTree reads nested KiCad list values predictably', () => {
     ])
 })
 
+test('SExpressionTree reads properties through case-insensitive lookup helpers', () => {
+    const parsed = SExpressionParser.parse(`
+        (root
+            (property "Manufacturer" "Fake Parts")
+            (property "VALUE" "10k")
+        )
+    `)
+
+    assert.equal(
+        SExpressionTree.propertyValue(parsed, 'value', '', {
+            caseInsensitive: true
+        }),
+        '10k'
+    )
+    assert.equal(
+        SExpressionTree.propertyValue(parsed, 'value', 'missing'),
+        'missing'
+    )
+    assert.deepEqual(
+        SExpressionTree.caseInsensitiveProperties(parsed).get('manufacturer'),
+        {
+            key: 'Manufacturer',
+            value: 'Fake Parts'
+        }
+    )
+})
+
 test('SExpressionSchema maps common node fields and reports unknown children', () => {
     const parsed = SExpressionParser.parse(`
         (pad "1" smd rect

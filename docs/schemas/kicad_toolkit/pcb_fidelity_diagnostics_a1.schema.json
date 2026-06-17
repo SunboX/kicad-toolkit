@@ -9,19 +9,57 @@
         },
         "summary": {
             "type": "object",
+            "properties": {
+                "diagnosticCount": { "type": "number" },
+                "warningCount": { "type": "number" },
+                "infoCount": { "type": "number" },
+                "complexPadCount": { "type": "number" },
+                "customPadPrimitiveCount": { "type": "number" },
+                "missingFontFaceCount": { "type": "number" },
+                "suspiciousTextPayloadCount": { "type": "number" },
+                "zonePolicyCount": { "type": "number" },
+                "highRiskConstructCount": { "type": "number" }
+            },
             "additionalProperties": true
         },
         "diagnostics": {
             "type": "array",
             "items": {
                 "type": "object",
+                "properties": {
+                    "key": { "type": "string" },
+                    "severity": { "type": "string" },
+                    "code": { "type": "string" },
+                    "construct": { "type": "string" },
+                    "sourceKey": { "type": "string" },
+                    "fontFace": { "type": "string" },
+                    "field": { "type": "string" },
+                    "issues": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    },
+                    "message": { "type": "string" }
+                },
                 "additionalProperties": true
             }
         },
         "indexes": {
             "type": "object",
+            "properties": {
+                "diagnosticsBySeverity": { "$ref": "#/$defs/keyIndex" },
+                "diagnosticsByConstruct": { "$ref": "#/$defs/keyIndex" }
+            },
             "additionalProperties": true
         }
     },
-    "required": ["schema", "summary", "diagnostics", "indexes"]
+    "required": ["schema", "summary", "diagnostics", "indexes"],
+    "$defs": {
+        "keyIndex": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        }
+    }
 }

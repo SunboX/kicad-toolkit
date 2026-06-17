@@ -73,7 +73,8 @@ and mixed library indexes.
 Auxiliary KiCad parser helpers expose `.kicad_jobset` output jobs,
 `.kicad_dru` custom rules, `.kicad_wks` worksheets, exported `.net` netlists,
 `.cmp` footprint associations, and lightweight legacy `.lib`, `.dcm`, and
-`.mod` inspection metadata.
+`.mod` inspection metadata, including recovered symbol pins, DRAW graphics,
+and legacy pin style/visibility flags.
 `KicadJobsetDigestBuilder` composes parsed jobsets into job, destination, and
 jobs-by-destination lookup rows. `KicadEmbeddedAssetInventoryBuilder` builds a
 read-only inventory of embedded schematic files, schematic images, worksheet
@@ -175,7 +176,10 @@ board-statistics, stackup, layer-usage, fidelity, model-readiness,
 geometry-readiness, dimension, region/keepout, and primitive-ownership read
 models. Route-analysis rows include per-net layer participation, track/arc
 lengths, connected route groups, and differential-pair summaries when supplied
-by callers.
+by callers. Fidelity diagnostics also surface missing named font assets and
+suspicious text payloads, geometry readiness reports footprint courtyard gaps,
+and model-readiness rows include footprint search keys, pad-1 orientation
+hints, and ranked candidate model assets.
 `KicadSchematicOwnershipGraphBuilder.build()` exposes schematic component,
 pin, text, sheet-entry, directive, rule-area, and net ownership rows.
 `KicadPcbReviewMetadataBuilder.build()` adapts route-analysis rows into
@@ -203,8 +207,8 @@ model assets, and symbol unit mismatches.
 schematic text variables, title-block gaps, and document style summaries.
 `KicadSchematicGeometryReadinessReportBuilder.build()` reports
 renderer-sensitive schematic geometry, text frames, pin styles, authored
-graphic styles, and unknown graphics. Parsed schematic documents attach this
-report at
+graphic styles, symbol-owned pins or fields outside parsed body bounds, and
+unknown graphics. Parsed schematic documents attach this report at
 `schematic.geometryReadiness`.
 `KicadHostCapabilityDiagnosticsBuilder.build()` mirrors the host capability
 diagnostic contract for KiCad render hosts.
@@ -327,7 +331,8 @@ and authored line widths.
 `KicadSchematicGeometryReadinessReportBuilder.build(input)` returns
 renderer-readiness findings for schematic Beziers, long or degenerate arcs,
 rounded rectangles, fixed text frames, pin styles, authored graphic styles, and
-preserved unknown graphics.
+symbol-owned pins or fields outside parsed body bounds, plus preserved unknown
+graphics.
 `KicadProjectBomPnpReconciliationBuilder.build(options)` returns project-level
 BOM/PnP drift findings, and `KicadLibraryQaReportBuilder.build(options)`
 returns library collection QA and read-only merge-plan diagnostics for symbol

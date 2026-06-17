@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { Geometry } from './Geometry.mjs'
+import { KicadLayerResolver } from './KicadLayerResolver.mjs'
+import { KicadPcbDrawingParser } from './KicadPcbDrawingParser.mjs'
+import { KicadPcbPadParser } from './KicadPcbPadParser.mjs'
+
 const schemaId = 'kicad-toolkit.pcb.geometry-readiness.a1'
+const boundsTolerance = 0.001
 
 /**
  * Builds rendering-sensitive PCB geometry readiness reports.
@@ -18,7 +24,8 @@ export class KicadPcbGeometryReadinessReportBuilder {
             ...curveFindings(pcb),
             ...multiContourZoneFindings(pcb),
             ...textBoxFindings(pcb),
-            ...customPadFindings(pcb)
+            ...customPadFindings(pcb),
+            ...courtyardFindings(pcb)
         ])
 
         return {
@@ -141,6 +148,54 @@ function customPadFindings(pcb) {
 }
 
 /**
+ * Builds findings for missing or undersized footprint courtyards.
+ * @param {object} pcb PCB model.
+ * @returns {object[]}
+ */
+function courtyardFindings(pcb) {
+    const findings = []
+    for (const footprint of footprintRows(pcb)) {
+        const pads = footprintPads(footprint, pcb)
+        const padPoints = pads.flatMap(KicadPcbPadParser.pointsForPad)
+        if (padPoints.length === 0) continue
+
+        const courtyardDrawings = footprintDrawings(footprint, pcb).filter(
+            isCourtyardDrawing
+        )
+        const padBounds = Geometry.boundsFromPoints(padPoints)
+        if (courtyardDrawings.length === 0) {
+            findings.push({
+                severity: 'warning',
+                code: 'kicad.pcb.geometry.footprint-missing-courtyard',
+                construct: 'courtyard',
+                sourceKey: sourceKey(footprint),
+                padBounds: roundBounds(padBounds),
+                message:
+                    'KiCad PCB footprint has pad geometry but no courtyard drawing.'
+            })
+            continue
+        }
+
+        const courtyardBounds = Geometry.boundsFromPoints(
+            courtyardDrawings.flatMap(KicadPcbDrawingParser.pointsForDrawing)
+        )
+        if (!boundsContain(courtyardBounds, padBounds)) {
+            findings.push({
+                severity: 'warning',
+                code: 'kicad.pcb.geometry.footprint-courtyard-undercoverage',
+                construct: 'courtyard',
+                sourceKey: sourceKey(footprint),
+                padBounds: roundBounds(padBounds),
+                courtyardBounds: roundBounds(courtyardBounds),
+                message:
+                    'KiCad PCB footprint courtyard bounds do not cover all pad geometry.'
+            })
+        }
+    }
+    return findings
+}
+
+/**
  * Returns true when an arc has a stroke at least as thick as its radius.
  * @param {object} arc Arc row.
  * @returns {boolean}
@@ -196,6 +251,15 @@ function summary(pcb, findings) {
             .length,
         customPadCount: (pcb.pads || []).filter((pad) => {
             return String(pad?.shape || '') === 'custom'
+        }).length,
+        missingCourtyardCount: findings.filter((row) => {
+            return row.code === 'kicad.pcb.geometry.footprint-missing-courtyard'
+        }).length,
+        courtyardUndercoverageCount: findings.filter((row) => {
+            return (
+                row.code ===
+                'kicad.pcb.geometry.footprint-courtyard-undercoverage'
+            )
         }).length
     }
 }
@@ -207,6 +271,109 @@ function summary(pcb, findings) {
  */
 function sourceBoard(pcb) {
     return pcb?.kicadBoard || pcb?.pcb?.kicadBoard || pcb?.pcb || {}
+}
+
+/**
+ * Lists footprint rows from a PCB model.
+ * @param {object} pcb PCB model.
+ * @returns {object[]}
+ */
+function footprintRows(pcb) {
+    return uniqueObjects([
+        ...(pcb.footprints || []),
+        ...(sourceBoard(pcb).footprints || [])
+    ])
+}
+
+/**
+ * Lists pads belonging to one footprint.
+ * @param {object} footprint Footprint row.
+ * @param {object} pcb PCB model.
+ * @returns {object[]}
+ */
+function footprintPads(footprint, pcb) {
+    const footprintId = sourceKey(footprint)
+    return uniqueObjects([
+        ...(footprint.pads || []),
+        ...(pcb.pads || []).filter((pad) =>
+            belongsToFootprint(pad, footprintId)
+        ),
+        ...(sourceBoard(pcb).pads || []).filter((pad) =>
+            belongsToFootprint(pad, footprintId)
+        )
+    ])
+}
+
+/**
+ * Lists drawings belonging to one footprint.
+ * @param {object} footprint Footprint row.
+ * @param {object} pcb PCB model.
+ * @returns {object[]}
+ */
+function footprintDrawings(footprint, pcb) {
+    const footprintId = sourceKey(footprint)
+    return uniqueObjects([
+        ...(footprint.drawings || []),
+        ...(pcb.drawings || []).filter((drawing) =>
+            belongsToFootprint(drawing, footprintId)
+        ),
+        ...(sourceBoard(pcb).drawings || []).filter((drawing) =>
+            belongsToFootprint(drawing, footprintId)
+        )
+    ])
+}
+
+/**
+ * Returns true when a primitive belongs to a footprint id.
+ * @param {object} primitive Primitive row.
+ * @param {string} footprintId Footprint id.
+ * @returns {boolean}
+ */
+function belongsToFootprint(primitive, footprintId) {
+    return [primitive?.footprintId, primitive?.ownerId, primitive?.ownerIndex]
+        .map(String)
+        .includes(footprintId)
+}
+
+/**
+ * Returns true when a drawing is on a courtyard layer.
+ * @param {object} drawing Drawing row.
+ * @returns {boolean}
+ */
+function isCourtyardDrawing(drawing) {
+    const layer = String(drawing?.layer || drawing?.layerKey || '')
+    return KicadLayerResolver.metadataForLayer(layer).layerClass === 'courtyard'
+}
+
+/**
+ * Returns true when outer bounds contain inner bounds.
+ * @param {object} outer Outer bounds.
+ * @param {object} inner Inner bounds.
+ * @returns {boolean}
+ */
+function boundsContain(outer, inner) {
+    return (
+        outer.minX <= inner.minX + boundsTolerance &&
+        outer.minY <= inner.minY + boundsTolerance &&
+        outer.maxX >= inner.maxX - boundsTolerance &&
+        outer.maxY >= inner.maxY - boundsTolerance
+    )
+}
+
+/**
+ * Rounds bounds for deterministic report output.
+ * @param {object} bounds Bounds.
+ * @returns {object}
+ */
+function roundBounds(bounds) {
+    return {
+        minX: roundMetric(bounds.minX),
+        minY: roundMetric(bounds.minY),
+        maxX: roundMetric(bounds.maxX),
+        maxY: roundMetric(bounds.maxY),
+        width: roundMetric(bounds.width),
+        height: roundMetric(bounds.height)
+    }
 }
 
 /**
@@ -233,4 +400,24 @@ function keysBy(rows, field) {
         groups[key].push(row.key)
     }
     return Object.fromEntries(Object.entries(groups).sort())
+}
+
+/**
+ * Deduplicates object references while preserving order.
+ * @param {object[]} values Candidate rows.
+ * @returns {object[]}
+ */
+function uniqueObjects(values) {
+    return values.filter((value, index, all) => all.indexOf(value) === index)
+}
+
+/**
+ * Rounds report metrics to stable precision.
+ * @param {unknown} value Numeric value.
+ * @returns {number}
+ */
+function roundMetric(value) {
+    const number = Number(value)
+    if (!Number.isFinite(number)) return 0
+    return Math.round(number * 1000) / 1000
 }
