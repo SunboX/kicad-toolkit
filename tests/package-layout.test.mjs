@@ -115,6 +115,8 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadSvgUtils',
         'PcbArcUtils',
         'PcbEdgeFacingGlyphNormalizer',
+        'KicadPcbRenderOutlineAdapter',
+        'PcbFootprintPadAxisNormalizer',
         'PcbFootprintPrimitiveSelector',
         'PcbInteractionIndex',
         'PcbInteractionItemRegistry',
@@ -136,6 +138,14 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'preparePcbSideResolvedRenderModel'
     ])
     assertPublicApi(scene3dApi, [
+        'KicadScene3dBoardOutlineAdapter',
+        'KicadScene3dCopperLayerAdapter',
+        'KicadScene3dCopperTrackCutoutBuilder',
+        'KicadScene3dModelRegistryAdapter',
+        'KicadScene3dPadShapeAdapter',
+        'KicadScene3dSilkscreenKeepoutAdapter',
+        'KicadScene3dSilkscreenSmoothingAdapter',
+        'KicadScene3dWrlUnitScaleAdapter',
         'PcbScene3dBuilder',
         'PcbScene3dModelRegistry',
         'PcbScene3dPackages',

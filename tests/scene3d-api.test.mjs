@@ -247,7 +247,7 @@ test('PcbScene3dBuilder emits copper pad keepouts for silkscreen clipping', () =
     const ys = keepout.map((point) => point.y)
 
     assert.equal(scene.detail.silkscreen.top.drillCutouts.length, 1)
-    assert.equal(keepout.length, 32)
+    assert.equal(keepout.length, 256)
     assert.equal(Math.round(Math.max(...xs) - Math.min(...xs)), 80)
     assert.equal(Math.round(Math.max(...ys) - Math.min(...ys)), 80)
 })

@@ -7,8 +7,14 @@ import { PcbScene3dLayerMapper } from './PcbScene3dLayerMapper.mjs'
 import { PcbScene3dCopperTextBuilder } from './PcbScene3dCopperTextBuilder.mjs'
 import { PcbScene3dDrillCutoutBuilder } from './PcbScene3dDrillCutoutBuilder.mjs'
 import { PcbScene3dExternalPlacementBuilder } from './PcbScene3dExternalPlacementBuilder.mjs'
+import { PcbScene3dModelRegistry } from './PcbScene3dModelRegistry.mjs'
 import { PcbScene3dPackages } from './PcbScene3dPackages.mjs'
 import { PcbScene3dSilkscreenCutoutBuilder } from './PcbScene3dSilkscreenCutoutBuilder.mjs'
+import { KicadScene3dBoardOutlineAdapter } from './KicadScene3dBoardOutlineAdapter.mjs'
+import { KicadScene3dCopperLayerAdapter } from './KicadScene3dCopperLayerAdapter.mjs'
+import { KicadScene3dModelRegistryAdapter } from './KicadScene3dModelRegistryAdapter.mjs'
+import { KicadScene3dWrlUnitScaleAdapter } from './KicadScene3dWrlUnitScaleAdapter.mjs'
+import { PcbFootprintPadAxisNormalizer } from './ui/PcbFootprintPadAxisNormalizer.mjs'
 import { KicadStrokeFont } from './ui/KicadStrokeFont.mjs'
 
 const milsPerMillimeter = 1000 / 25.4
@@ -17,7 +23,16 @@ const kicadFirstLineHeightRatio = 1.17
 const kicadStrokeBaselineFudgeRatio = 0.052
 
 export { PcbScene3dPackages } from './PcbScene3dPackages.mjs'
+export { PcbScene3dModelRegistry } from './PcbScene3dModelRegistry.mjs'
 export { PcbScene3dTextBoxLayoutResolver } from './PcbScene3dTextBoxLayoutResolver.mjs'
+export { KicadScene3dBoardOutlineAdapter } from './KicadScene3dBoardOutlineAdapter.mjs'
+export { KicadScene3dCopperLayerAdapter } from './KicadScene3dCopperLayerAdapter.mjs'
+export { KicadScene3dCopperTrackCutoutBuilder } from './KicadScene3dCopperTrackCutoutBuilder.mjs'
+export { KicadScene3dModelRegistryAdapter } from './KicadScene3dModelRegistryAdapter.mjs'
+export { KicadScene3dPadShapeAdapter } from './KicadScene3dPadShapeAdapter.mjs'
+export { KicadScene3dSilkscreenKeepoutAdapter } from './KicadScene3dSilkscreenKeepoutAdapter.mjs'
+export { KicadScene3dSilkscreenSmoothingAdapter } from './KicadScene3dSilkscreenSmoothingAdapter.mjs'
+export { KicadScene3dWrlUnitScaleAdapter } from './KicadScene3dWrlUnitScaleAdapter.mjs'
 
 /**
  * Builds data-only 3D scene descriptions for KiCad PCB documents.
@@ -30,15 +45,19 @@ export class PcbScene3dBuilder {
      * @returns {object}
      */
     static build(documentModel, options = {}) {
-        const pcb = documentModel?.pcb || {}
+        const sceneDocumentModel = KicadScene3dBoardOutlineAdapter.apply(
+            PcbFootprintPadAxisNormalizer.apply(documentModel)
+        )
+        const pcb = sceneDocumentModel?.pcb || {}
         const boardOutline = pcb.boardOutline || {}
         const thicknessMil = Number(options.boardThicknessMil || 63) || 63
         const registry =
-            options.modelRegistry instanceof PcbScene3dModelRegistry
+            options.modelRegistry &&
+            typeof options.modelRegistry.resolveComponentModel === 'function'
                 ? options.modelRegistry
-                : new PcbScene3dModelRegistry({
-                      sessionAssets: options.sessionAssets || []
-                  })
+                : new KicadScene3dModelRegistryAdapter(
+                      options.sessionAssets || []
+                  )
         const board = {
             widthMil: Number(boardOutline.widthMil || 0),
             heightMil: Number(boardOutline.heightMil || 0),
@@ -136,36 +155,38 @@ export class PcbScene3dBuilder {
             board
         )
         const copperTexts = PcbScene3dCopperTextBuilder.build(
-            documentModel,
+            sceneDocumentModel,
             board
         )
 
-        return {
-            sourceFormat: documentModel?.sourceFormat || 'kicad',
-            coordinateSystem: 'kicad-3d-y-up',
-            board,
-            layers: pcb.layers || [],
-            components,
-            pads,
-            tracks,
-            vias,
-            zones: polygons,
-            texts,
-            externalPlacements,
-            detail: {
+        return KicadScene3dWrlUnitScaleAdapter.apply(
+            KicadScene3dCopperLayerAdapter.apply({
+                sourceFormat: sceneDocumentModel?.sourceFormat || 'kicad',
+                coordinateSystem: 'kicad-3d-y-up',
+                board,
+                layers: pcb.layers || [],
+                components,
                 pads,
                 tracks,
-                arcs,
-                fills,
                 vias,
-                polygons,
-                copperTexts,
-                silkscreen
-            },
-            externalModels: components
-                .map((component) => component.externalModel)
-                .filter(Boolean)
-        }
+                zones: polygons,
+                texts,
+                externalPlacements,
+                detail: {
+                    pads,
+                    tracks,
+                    arcs,
+                    fills,
+                    vias,
+                    polygons,
+                    copperTexts,
+                    silkscreen
+                },
+                externalModels: components
+                    .map((component) => component.externalModel)
+                    .filter(Boolean)
+            })
+        )
     }
 
     /**
@@ -256,89 +277,6 @@ export class PcbScene3dScenePreparator {
 }
 
 /**
- * Resolves companion 3D model assets for KiCad footprints.
- */
-export class PcbScene3dModelRegistry {
-    #assets
-
-    /**
-     * Creates a model registry.
-     * @param {{ sessionAssets?: object[] }} [options] Registry options.
-     */
-    constructor(options = {}) {
-        this.#assets = Array.from(options.sessionAssets || [])
-    }
-
-    /**
-     * Creates a model registry from session files.
-     * @param {object[]} sessionAssets Session assets.
-     * @returns {PcbScene3dModelRegistry}
-     */
-    static create(sessionAssets) {
-        return new PcbScene3dModelRegistry({ sessionAssets })
-    }
-
-    /**
-     * Returns the currently registered session assets.
-     * @returns {object[]}
-     */
-    get assets() {
-        return [...this.#assets]
-    }
-
-    /**
-     * Finds a companion asset for a component.
-     * @param {object} component Component placement.
-     * @returns {object | null}
-     */
-    resolveForComponent(component) {
-        const keys = [
-            component?.modelName,
-            component?.modelPath,
-            component?.pattern,
-            component?.source,
-            component?.description
-        ]
-            .filter(Boolean)
-            .map(normalizeMatchKey)
-
-        if (!keys.length) return null
-
-        return (
-            this.#assets.find((asset) => {
-                const assetName = normalizeMatchKey(
-                    asset.name || asset.path || ''
-                )
-                return keys.some((key) => {
-                    return (
-                        assetName === key ||
-                        assetName.startsWith(key + '.') ||
-                        assetName.includes('/' + key + '.')
-                    )
-                })
-            }) || null
-        )
-    }
-
-    /**
-     * Resolves a component model using the Altium-style method name.
-     * @param {object} component Component placement.
-     * @returns {object | null}
-     */
-    resolveComponentModel(component) {
-        return this.resolveForComponent(component)
-    }
-
-    /**
-     * KiCad normalized models do not yet expose explicit body-model records.
-     * @returns {null}
-     */
-    resolveComponentBodyModel() {
-        return null
-    }
-}
-
-/**
  * Renders compact scene summary markup.
  */
 export class PcbScene3dSummaryRenderer {
@@ -363,20 +301,6 @@ export class PcbScene3dSummaryRenderer {
             '</section>'
         ].join('')
     }
-}
-
-/**
- * Normalizes asset and component matching keys.
- * @param {string} value Source value.
- * @returns {string}
- */
-function normalizeMatchKey(value) {
-    return String(value || '')
-        .replace(/\\/g, '/')
-        .split('/')
-        .at(-1)
-        .replace(/\.(step|stp|wrl|vrml)$/i, '')
-        .toLowerCase()
 }
 
 /**

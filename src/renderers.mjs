@@ -4,10 +4,12 @@
 
 export { BomTableRenderer } from './ui/BomTableRenderer.mjs'
 export { KicadStrokeFont } from './ui/KicadStrokeFont.mjs'
+export { KicadPcbRenderOutlineAdapter } from './ui/KicadPcbRenderOutlineAdapter.mjs'
 export { KicadSvgUtils } from './ui/KicadSvgUtils.mjs'
 export { PcbArcUtils } from './ui/PcbArcUtils.mjs'
 export { PcbEdgeFacingGlyphNormalizer } from './ui/PcbEdgeFacingGlyphNormalizer.mjs'
 export { PcbFootprintPrimitiveSelector } from './ui/PcbFootprintPrimitiveSelector.mjs'
+export { PcbFootprintPadAxisNormalizer } from './ui/PcbFootprintPadAxisNormalizer.mjs'
 export { PcbInteractionIndex } from './ui/PcbInteractionIndex.mjs'
 export { PcbInteractionItemRegistry } from './ui/PcbInteractionItemRegistry.mjs'
 export { PcbInteractionLayerModel } from './ui/PcbInteractionLayerModel.mjs'
