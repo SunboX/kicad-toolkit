@@ -74,6 +74,44 @@ function createRoundedOutlineDocument() {
 }
 
 /**
+ * Builds a minimal KiCad PCB document whose native Edge.Cuts arc must be
+ * reversed while connecting the board outline.
+ * @returns {object}
+ */
+function createReversedArcOutlineDocument() {
+    const documentModel = createRoundedOutlineDocument()
+    documentModel.pcb.kicadBoard.outlines = [
+        {
+            type: 'line',
+            layer: 'Edge.Cuts',
+            start: { x: 0, y: 0 },
+            end: { x: 0, y: 10 }
+        },
+        {
+            type: 'line',
+            layer: 'Edge.Cuts',
+            start: { x: 0, y: 10 },
+            end: { x: 15, y: 10 }
+        },
+        {
+            type: 'arc',
+            layer: 'Edge.Cuts',
+            start: { x: 15, y: 0 },
+            mid: { x: 20, y: 5 },
+            end: { x: 15, y: 10 }
+        },
+        {
+            type: 'line',
+            layer: 'Edge.Cuts',
+            start: { x: 15, y: 0 },
+            end: { x: 0, y: 0 }
+        }
+    ]
+
+    return documentModel
+}
+
+/**
  * Builds a minimal KiCad PCB document with one explicit WRL model reference.
  * @returns {object}
  */
@@ -134,6 +172,57 @@ test('PcbScene3dBuilder preserves KiCad Edge.Cuts arcs in board outlines', () =>
         ['line', 'line', 'line', 'line']
     )
 })
+
+test('PcbScene3dBuilder preserves KiCad Edge.Cuts arc sweep angles', () => {
+    const scene = PcbScene3dBuilder.build(createRoundedOutlineDocument())
+    const arc = scene.board.segments.find((segment) => segment.type === 'arc')
+
+    assert.equal(Math.round(arc.y1), 394)
+    assert.equal(Math.round(arc.y2), 0)
+    assert.equal(Math.round(arc.startAngle), -270)
+    assert.equal(Math.round(arc.endAngle), -90)
+    assert.equal(Math.round(arc.sweepAngle), -180)
+})
+
+test('PcbScene3dBuilder realigns reversed KiCad Edge.Cuts arc angles', () => {
+    const scene = PcbScene3dBuilder.build(createReversedArcOutlineDocument())
+    const arc = scene.board.segments.find((segment) => segment.type === 'arc')
+
+    assertPointClose(pointOnArc(arc, arc.startAngle), {
+        x: arc.x1,
+        y: arc.y1
+    })
+    assertPointClose(pointOnArc(arc, arc.startAngle + arc.sweepAngle), {
+        x: arc.x2,
+        y: arc.y2
+    })
+})
+
+/**
+ * Resolves an arc point at an absolute angle.
+ * @param {object} arc Arc segment.
+ * @param {number} angleDeg Angle in degrees.
+ * @returns {{ x: number, y: number }}
+ */
+function pointOnArc(arc, angleDeg) {
+    const angleRad = (Number(angleDeg || 0) * Math.PI) / 180
+
+    return {
+        x: Number(arc.cx || 0) + Math.cos(angleRad) * Number(arc.radius || 0),
+        y: Number(arc.cy || 0) + Math.sin(angleRad) * Number(arc.radius || 0)
+    }
+}
+
+/**
+ * Asserts two points are nearly equal.
+ * @param {{ x: number, y: number }} actual Actual point.
+ * @param {{ x: number, y: number }} expected Expected point.
+ * @returns {void}
+ */
+function assertPointClose(actual, expected) {
+    assert.ok(Math.abs(actual.x - expected.x) < 0.001)
+    assert.ok(Math.abs(actual.y - expected.y) < 0.001)
+}
 
 test('PcbScene3dBuilder prefers exact KiCad model file extensions', () => {
     const scene = PcbScene3dBuilder.build(createModelReferenceDocument(), {

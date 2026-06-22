@@ -16,7 +16,9 @@ export class PcbScene3dLayerMapper {
      */
     static boardSegments(segments, board) {
         return (segments || []).map((segment) =>
-            PcbScene3dLayerMapper.segment(segment, board)
+            String(segment?.type || '').toLowerCase() === 'arc'
+                ? PcbScene3dLayerMapper.arc(segment, board)
+                : PcbScene3dLayerMapper.segment(segment, board)
         )
     }
 
@@ -82,7 +84,12 @@ export class PcbScene3dLayerMapper {
      */
     static arc(arc, board) {
         const mapped = {
-            ...PcbScene3dLayerMapper.#mapYFields(arc, board, ['y']),
+            ...PcbScene3dLayerMapper.#mapYFields(arc, board, [
+                'y',
+                'y1',
+                'y2',
+                'cy'
+            ]),
             startAngle: -Number(arc?.startAngle || 0),
             endAngle: -Number(arc?.endAngle || 0)
         }

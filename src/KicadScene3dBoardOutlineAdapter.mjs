@@ -1,3 +1,5 @@
+import { KicadArcGeometry } from './core/kicad/KicadArcGeometry.mjs'
+
 const MILS_PER_MILLIMETER = 1000 / 25.4
 
 /**
@@ -5,7 +7,6 @@ const MILS_PER_MILLIMETER = 1000 / 25.4
  */
 export class KicadScene3dBoardOutlineAdapter {
     static #POINT_MATCH_TOLERANCE_MM = 0.35
-    static #ARC_DETERMINANT_EPSILON = 1e-9
 
     /**
      * Returns a document model whose 3D outline follows native KiCad edges.
@@ -97,12 +98,8 @@ export class KicadScene3dBoardOutlineAdapter {
                 return null
             }
 
-            const center = KicadScene3dBoardOutlineAdapter.#arcCenter(
-                start,
-                mid,
-                end
-            )
-            if (!center) {
+            const arc = KicadArcGeometry.fromThreePoints(start, mid, end)
+            if (!arc) {
                 return { type: 'line', start, end }
             }
 
@@ -111,8 +108,11 @@ export class KicadScene3dBoardOutlineAdapter {
                 start,
                 mid,
                 end,
-                center,
-                radius: KicadScene3dBoardOutlineAdapter.#distance(center, start)
+                center: arc.center,
+                radius: arc.radius,
+                startAngle: arc.startAngle,
+                endAngle: arc.endAngle,
+                sweepAngle: arc.sweepAngle
             }
         }
 
@@ -187,6 +187,26 @@ export class KicadScene3dBoardOutlineAdapter {
      * @returns {object}
      */
     static #reverseSegment(segment) {
+        if (segment.type === 'arc') {
+            const arc = KicadArcGeometry.fromThreePoints(
+                segment.end,
+                segment.mid,
+                segment.start
+            )
+            if (arc) {
+                return {
+                    ...segment,
+                    start: segment.end,
+                    end: segment.start,
+                    center: arc.center,
+                    radius: arc.radius,
+                    startAngle: arc.startAngle,
+                    endAngle: arc.endAngle,
+                    sweepAngle: arc.sweepAngle
+                }
+            }
+        }
+
         return {
             ...segment,
             start: segment.end,
@@ -203,44 +223,6 @@ export class KicadScene3dBoardOutlineAdapter {
         const x = Number(point?.x)
         const y = Number(point?.y)
         return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null
-    }
-
-    /**
-     * Resolves a circle center from three arc points.
-     * @param {{ x: number, y: number }} start Arc start.
-     * @param {{ x: number, y: number }} mid Arc midpoint.
-     * @param {{ x: number, y: number }} end Arc end.
-     * @returns {{ x: number, y: number } | null}
-     */
-    static #arcCenter(start, mid, end) {
-        const determinant =
-            2 *
-            (start.x * (mid.y - end.y) +
-                mid.x * (end.y - start.y) +
-                end.x * (start.y - mid.y))
-        if (
-            Math.abs(determinant) <=
-            KicadScene3dBoardOutlineAdapter.#ARC_DETERMINANT_EPSILON
-        ) {
-            return null
-        }
-
-        const startSquare = start.x * start.x + start.y * start.y
-        const midSquare = mid.x * mid.x + mid.y * mid.y
-        const endSquare = end.x * end.x + end.y * end.y
-
-        return {
-            x:
-                (startSquare * (mid.y - end.y) +
-                    midSquare * (end.y - start.y) +
-                    endSquare * (start.y - mid.y)) /
-                determinant,
-            y:
-                (startSquare * (end.x - mid.x) +
-                    midSquare * (start.x - end.x) +
-                    endSquare * (mid.x - start.x)) /
-                determinant
-        }
     }
 
     /**
@@ -328,6 +310,9 @@ export class KicadScene3dBoardOutlineAdapter {
             converted.radius = KicadScene3dBoardOutlineAdapter.#toMil(
                 segment.radius
             )
+            converted.startAngle = segment.startAngle
+            converted.endAngle = segment.endAngle
+            converted.sweepAngle = segment.sweepAngle
         }
 
         return converted
