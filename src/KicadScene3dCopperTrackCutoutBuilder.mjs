@@ -1,9 +1,7 @@
-const TOP_COPPER_LAYER_ID = 1
-const BOTTOM_COPPER_LAYER_ID = 32
 const MIN_SEGMENT_LENGTH_MIL = 0.001
 
 /**
- * Splits KiCad 3D copper tracks around drill holes and exposed pad surfaces.
+ * Splits KiCad 3D copper tracks around drill holes.
  */
 export class KicadScene3dCopperTrackCutoutBuilder {
     /**
@@ -25,17 +23,17 @@ export class KicadScene3dCopperTrackCutoutBuilder {
     }
 
     /**
-     * Builds route cutouts from drill apertures and exposed pad copper.
+     * Builds route cutouts from drill apertures.
      * @param {object[] | undefined} pads Scene pad detail.
      * @param {object[] | undefined} vias Scene via detail.
-     * @returns {{ x: number, y: number, radius: number, layerId: number | null }[]}
+     * @returns {object[]}
      */
     static #buildCutouts(pads, vias) {
         const seen = new Set()
-        const cutouts = [
-            ...KicadScene3dCopperTrackCutoutBuilder.#drillCutouts(pads, vias),
-            ...KicadScene3dCopperTrackCutoutBuilder.#padSurfaceCutouts(pads)
-        ]
+        const cutouts = KicadScene3dCopperTrackCutoutBuilder.#drillCutouts(
+            pads,
+            vias
+        )
         const output = []
 
         for (const cutout of cutouts) {
@@ -55,7 +53,7 @@ export class KicadScene3dCopperTrackCutoutBuilder {
      * Builds physical drill cutouts.
      * @param {object[] | undefined} pads Scene pad detail.
      * @param {object[] | undefined} vias Scene via detail.
-     * @returns {{ x: number, y: number, radius: number, layerId: null }[]}
+     * @returns {object[]}
      */
     static #drillCutouts(pads, vias) {
         return [...(pads || []), ...(vias || [])]
@@ -68,7 +66,7 @@ export class KicadScene3dCopperTrackCutoutBuilder {
     /**
      * Builds one physical drill cutout.
      * @param {object} primitive Pad or via primitive.
-     * @returns {{ x: number, y: number, radius: number, layerId: null } | null}
+     * @returns {object | null}
      */
     static #drillCutout(primitive) {
         const x = Number(primitive?.x)
@@ -84,83 +82,44 @@ export class KicadScene3dCopperTrackCutoutBuilder {
             return null
         }
 
-        return { x, y, radius, layerId: null }
-    }
-
-    /**
-     * Builds cutouts for exposed pad faces so covered traces do not show
-     * through pad annuli.
-     * @param {object[] | undefined} pads Scene pad detail.
-     * @returns {{ x: number, y: number, radius: number, layerId: number }[]}
-     */
-    static #padSurfaceCutouts(pads) {
-        return (pads || [])
-            .flatMap((pad) => [
-                KicadScene3dCopperTrackCutoutBuilder.#padSurfaceCutout(
-                    pad,
-                    'top'
-                ),
-                KicadScene3dCopperTrackCutoutBuilder.#padSurfaceCutout(
-                    pad,
-                    'bottom'
-                )
-            ])
-            .filter(Boolean)
-    }
-
-    /**
-     * Builds one exposed pad-face cutout.
-     * @param {object} pad Scene pad detail.
-     * @param {'top' | 'bottom'} side Pad side.
-     * @returns {{ x: number, y: number, radius: number, layerId: number } | null}
-     */
-    static #padSurfaceCutout(pad, side) {
-        if (
-            KicadScene3dCopperTrackCutoutBuilder.#maskOpening(pad, side) ===
-            false
-        ) {
-            return null
-        }
-
-        const x = Number(pad?.x)
-        const y = Number(pad?.y)
-        const width = Number(
-            side === 'bottom' ? pad?.sizeBottomX : pad?.sizeTopX
-        )
-        const height = Number(
-            side === 'bottom' ? pad?.sizeBottomY : pad?.sizeTopY
-        )
-        const radius = Math.max(width, height) / 2
-
-        if (!Number.isFinite(x + y) || radius <= 0) {
-            return null
-        }
-
         return {
             x,
             y,
             radius,
-            layerId:
-                side === 'bottom' ? BOTTOM_COPPER_LAYER_ID : TOP_COPPER_LAYER_ID
+            shape: 'circle',
+            kind: 'drill',
+            hasCopperAnnulus:
+                KicadScene3dCopperTrackCutoutBuilder.#copperAnnulusRadius(
+                    primitive
+                ) >
+                radius + MIN_SEGMENT_LENGTH_MIL,
+            layerId: null
         }
     }
 
     /**
-     * Resolves explicit solder-mask opening state for one pad side.
-     * @param {object} pad Scene pad detail.
-     * @param {'top' | 'bottom'} side Pad side.
-     * @returns {boolean | undefined}
+     * Resolves the maximum copper radius around a drilled primitive.
+     * @param {object} primitive Pad or via primitive.
+     * @returns {number}
      */
-    static #maskOpening(pad, side) {
-        return side === 'bottom'
-            ? pad?.hasBottomSolderMaskOpening
-            : pad?.hasTopSolderMaskOpening
+    static #copperAnnulusRadius(primitive) {
+        return (
+            Math.max(
+                Number(primitive?.diameter || 0),
+                Number(primitive?.sizeTopX || 0),
+                Number(primitive?.sizeTopY || 0),
+                Number(primitive?.sizeMidX || 0),
+                Number(primitive?.sizeMidY || 0),
+                Number(primitive?.sizeBottomX || 0),
+                Number(primitive?.sizeBottomY || 0)
+            ) / 2
+        )
     }
 
     /**
      * Splits one track around intersecting cutouts.
      * @param {object} track Copper track.
-     * @param {{ x: number, y: number, radius: number, layerId: number | null }[]} cutouts
+     * @param {object[]} cutouts
      * Route cutouts.
      * @returns {object[]}
      */
@@ -188,7 +147,7 @@ export class KicadScene3dCopperTrackCutoutBuilder {
     /**
      * Resolves the normalized track interval removed by one cutout.
      * @param {object} track Copper track.
-     * @param {{ x: number, y: number, radius: number, layerId: number | null }} cutout
+     * @param {object} cutout
      * Route cutout.
      * @returns {{ start: number, end: number } | null}
      */
@@ -222,8 +181,10 @@ export class KicadScene3dCopperTrackCutoutBuilder {
             Number(cutout.y) - projectionPoint.y
         )
         const cutRadius =
-            Number(cutout.radius || 0) +
-            Math.max(Number(track?.width || 0), 1) / 2
+            KicadScene3dCopperTrackCutoutBuilder.#trackCutoutRadius(
+                track,
+                cutout
+            )
 
         if (perpendicularDistance > cutRadius) {
             return null
@@ -245,6 +206,21 @@ export class KicadScene3dCopperTrackCutoutBuilder {
         }
 
         return { start: intervalStart, end: intervalEnd }
+    }
+
+    /**
+     * Resolves the route interval radius for one cutout.
+     * @param {object} track Copper track.
+     * @param {object} cutout Route cutout.
+     * @returns {number}
+     */
+    static #trackCutoutRadius(track, cutout) {
+        const radius = Number(cutout.radius || 0)
+        if (cutout.kind === 'drill' && cutout.hasCopperAnnulus) {
+            return radius
+        }
+
+        return radius + Math.max(Number(track?.width || 0), 1) / 2
     }
 
     /**
@@ -377,16 +353,21 @@ export class KicadScene3dCopperTrackCutoutBuilder {
 
     /**
      * Builds a stable cutout dedupe key.
-     * @param {{ x: number, y: number, radius: number, layerId: number | null }} cutout
+     * @param {object} cutout
      * Route cutout.
      * @returns {string}
      */
     static #cutoutKey(cutout) {
         return [
+            cutout.kind || 'cutout',
+            cutout.shape || 'shape',
             cutout.layerId === null ? '*' : Number(cutout.layerId),
             Number(cutout.x || 0).toFixed(4),
             Number(cutout.y || 0).toFixed(4),
-            Number(cutout.radius || 0).toFixed(4)
+            Number(cutout.radius || 0).toFixed(4),
+            Number(cutout.width || 0).toFixed(4),
+            Number(cutout.height || 0).toFixed(4),
+            Number(cutout.rotation || 0).toFixed(4)
         ].join(':')
     }
 }

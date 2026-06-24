@@ -22,6 +22,7 @@ export class CircuitJsonModelAdapterElements {
     static appendPcbHole(circuitJson, idScope, pad, padIndex, placement) {
         const center = placement.center
         const holeDiameter = Primitives.milNumber(pad.holeDiameter, 0)
+        const portHints = placement.portHints || [placement.portHint]
 
         if (pad.isPlated === false) {
             circuitJson.push({
@@ -44,7 +45,7 @@ export class CircuitJsonModelAdapterElements {
             ]),
             pcb_component_id: placement.pcbComponentId,
             pcb_port_id: placement.pcbPortId,
-            port_hints: [placement.portHint],
+            port_hints: portHints,
             shape: 'circle',
             outer_diameter: Primitives.milNumber(
                 pad.sizeTopX || pad.sizeX || pad.diameter,
@@ -108,11 +109,41 @@ export class CircuitJsonModelAdapterElements {
             return
         }
 
-        circuitJson.push({
+        const rawName = Primitives.string(name, 'NET')
+        const netName = CircuitJsonModelAdapterElements.#uniqueSourceNetName(
+            circuitJson,
+            rawName
+        )
+        const sourceNet = {
             type: 'source_net',
             source_net_id: sourceNetId,
-            name: Primitives.string(name, 'NET'),
+            name: netName,
             member_source_group_ids: []
-        })
+        }
+
+        if (rawName !== netName) sourceNet.raw_name = rawName
+        circuitJson.push(sourceNet)
+    }
+
+    /**
+     * Returns a source-net name that does not collide with existing names.
+     * @param {object[]} circuitJson Circuit JSON elements.
+     * @param {string} rawName Raw source net label.
+     * @returns {string}
+     */
+    static #uniqueSourceNetName(circuitJson, rawName) {
+        const baseName = Primitives.sourceNetName(rawName, 'NET')
+        const existingNames = new Set(
+            circuitJson
+                .filter((element) => element.type === 'source_net')
+                .map((element) => String(element.name || '').trim())
+                .filter(Boolean)
+        )
+
+        if (!existingNames.has(baseName)) return baseName
+        for (let suffix = 2; ; suffix += 1) {
+            const candidate = `${baseName}_${suffix}`
+            if (!existingNames.has(candidate)) return candidate
+        }
     }
 }

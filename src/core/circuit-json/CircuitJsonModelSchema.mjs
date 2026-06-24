@@ -6,7 +6,7 @@
  * Defines the Circuit JSON contract emitted by public parser roots.
  */
 export class CircuitJsonModelSchema {
-    static CURRENT_SCHEMA_ID = 'https://github.com/tscircuit/circuit-json'
+    static CURRENT_SCHEMA_ID = 'urn:kicad-toolkit:circuit-json:a1'
 
     static CURRENT_SCHEMA_VERSION = '0.0.433'
 

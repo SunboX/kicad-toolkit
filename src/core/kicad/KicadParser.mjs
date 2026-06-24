@@ -4,6 +4,7 @@
 import { strFromU8 } from 'fflate'
 import { KicadArcGeometry } from './KicadArcGeometry.mjs'
 import { KicadAuxiliaryParserRouter } from './KicadAuxiliaryParserRouter.mjs'
+import { KicadBoardOutlineBuilder } from './KicadBoardOutlineBuilder.mjs'
 import { KicadFootprintLibraryParser } from './KicadFootprintLibraryParser.mjs'
 import { KicadPcbLayerMetadata } from './KicadPcbLayerMetadata.mjs'
 import { KicadPcbDocumentSidecarBuilder } from './KicadPcbDocumentSidecarBuilder.mjs'
@@ -149,6 +150,7 @@ export class KicadParser {
                 x2: toMil(drawing.end.x),
                 y2: toMil(drawing.end.y),
                 width: toMil(drawing.strokeWidth || 0.2),
+                layer: drawing.layer,
                 layerCode: 1,
                 layerId: KicadPcbLayerMetadata.layerIdForName(drawing.layer),
                 ...optionalNetIndex(drawing.netIndex),
@@ -161,6 +163,8 @@ export class KicadParser {
                 y: toMil(drawing.y),
                 diameter: toMil(drawing.size),
                 holeDiameter: toMil(drawing.drill || 0),
+                layer: drawing.layer,
+                layers: layerList(drawing.layer),
                 ...optionalNetIndex(drawing.netIndex),
                 netName: drawing.netName || ''
             }))
@@ -182,6 +186,7 @@ export class KicadParser {
                     endAngle: metrics?.endAngle || 0,
                     sweepAngle: metrics?.sweepAngle || 0,
                     width: toMil(drawing.strokeWidth || 0.2),
+                    layer: drawing.layer,
                     componentIndex: null,
                     layerCode: 1,
                     layerId: KicadPcbLayerMetadata.layerIdForName(
@@ -195,13 +200,16 @@ export class KicadParser {
         const polygons = [
             ...board.outlines.map((outline) => ({
                 layer: outline.layer || 'Edge.Cuts',
-                segments: segmentsFromPoints(outline.points || [])
+                segments: KicadBoardOutlineBuilder.segmentsFromPoints(
+                    outline.points || [],
+                    toMil
+                )
             })),
             ...(board.drawings || [])
                 .filter((drawing) => drawing.type === 'zone')
                 .map(zonePolygonFromDrawing)
         ].filter((polygon) => polygon.segments.length > 0)
-        const boardOutline = boardOutlineFromBoard(board)
+        const boardOutline = KicadBoardOutlineBuilder.build(board, toMil)
         const bom = groupBoardBomRows(board.footprints || [])
         const primitiveLayers = KicadPcbLayerMetadata.primitiveLayers(board)
         const layerDefinitions = Array.isArray(board.layers) ? board.layers : []
@@ -296,6 +304,18 @@ export class KicadParser {
  */
 function toMil(value) {
     return Number(value || 0) * milsPerMillimeter
+}
+
+/**
+ * Splits a comma-separated layer list from a KiCad primitive.
+ * @param {unknown} layer Layer text.
+ * @returns {string[]}
+ */
+function layerList(layer) {
+    return String(layer || '')
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
 }
 
 /**
@@ -848,76 +868,18 @@ function zonePolygonFromDrawing(zone) {
         connectPads: zone.connectPads || {},
         minThickness: zone.minThickness,
         fillPolicy: zone.fillPolicy || {},
-        segments: segmentsFromPoints(contours[0] || []),
-        contours: contours.map(segmentsFromPoints).filter((entry) => {
-            return entry.length > 0
-        })
+        segments: KicadBoardOutlineBuilder.segmentsFromPoints(
+            contours[0] || [],
+            toMil
+        ),
+        contours: contours
+            .map((points) =>
+                KicadBoardOutlineBuilder.segmentsFromPoints(points, toMil)
+            )
+            .filter((entry) => {
+                return entry.length > 0
+            })
     }
-}
-
-/**
- * Builds mil segments from KiCad points.
- * @param {{ x: number, y: number }[]} points Points.
- * @returns {object[]}
- */
-function segmentsFromPoints(points) {
-    const segments = []
-    for (let index = 0; index < points.length; index += 1) {
-        const start = points[index]
-        const end = points[(index + 1) % points.length]
-        if (!start || !end) continue
-        segments.push({
-            type: 'line',
-            x1: toMil(start.x),
-            y1: toMil(start.y),
-            x2: toMil(end.x),
-            y2: toMil(end.y)
-        })
-    }
-    return segments
-}
-
-/**
- * Builds a normalized board outline.
- * @param {object} board KiCad board.
- * @returns {object}
- */
-function boardOutlineFromBoard(board) {
-    const outline = (board.outlines || [])[0]
-    const points = outline?.points?.length
-        ? outline.points
-        : boundsPoints(board.bounds)
-    const bounds = board.bounds || {
-        minX: 0,
-        minY: 0,
-        width: 1,
-        height: 1
-    }
-    return {
-        widthMil: toMil(bounds.width),
-        heightMil: toMil(bounds.height),
-        minX: toMil(bounds.minX),
-        minY: toMil(bounds.minY),
-        segments: segmentsFromPoints(points)
-    }
-}
-
-/**
- * Returns rectangle points from bounds.
- * @param {object} bounds Bounds.
- * @returns {{ x: number, y: number }[]}
- */
-function boundsPoints(bounds) {
-    const minX = Number(bounds?.minX || 0)
-    const minY = Number(bounds?.minY || 0)
-    const maxX = Number(bounds?.maxX || minX + 1)
-    const maxY = Number(bounds?.maxY || minY + 1)
-    return [
-        { x: minX, y: minY },
-        { x: maxX, y: minY },
-        { x: maxX, y: maxY },
-        { x: minX, y: maxY }
-    ]
 }
 
 /**

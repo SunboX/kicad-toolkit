@@ -111,6 +111,68 @@ function symbolSource() {
 }
 
 /**
+ * Returns a fake symbol with arc graphics and one port on each side.
+ * @returns {string}
+ */
+function portGeometrySymbolSource() {
+    return `
+        (kicad_symbol_lib
+            (version 20231120)
+            (generator "kicad-toolkit-test")
+            (symbol "Fake:Ported"
+                (property "Reference" "U"
+                    (at 0 4 0)
+                    (effects (font (size 1.27 1.27)))
+                )
+                (property "Value" "Ported"
+                    (at 0 -4 0)
+                    (effects (font (size 1.27 1.27)))
+                )
+                (symbol "Fake:Ported_0_1"
+                    (rectangle
+                        (start -2 2)
+                        (end 2 -2)
+                        (stroke (width 0.15) (type default))
+                        (fill (type none))
+                    )
+                    (arc
+                        (start 1 0)
+                        (mid 0 1)
+                        (end -1 0)
+                        (stroke (width 0.15) (type default))
+                        (fill (type none))
+                    )
+                    (pin passive line
+                        (at -5 0 0)
+                        (length 3)
+                        (name "L" (effects (font (size 1.27 1.27))))
+                        (number "1" (effects (font (size 1.27 1.27))))
+                    )
+                    (pin passive line
+                        (at 5 0 180)
+                        (length 3)
+                        (name "R" (effects (font (size 1.27 1.27))))
+                        (number "2" (effects (font (size 1.27 1.27))))
+                    )
+                    (pin passive line
+                        (at 0 5 270)
+                        (length 3)
+                        (name "T" (effects (font (size 1.27 1.27))))
+                        (number "3" (effects (font (size 1.27 1.27))))
+                    )
+                    (pin passive line
+                        (at 0 -5 90)
+                        (length 3)
+                        (name "B" (effects (font (size 1.27 1.27))))
+                        (number "4" (effects (font (size 1.27 1.27))))
+                    )
+                )
+            )
+        )
+    `
+}
+
+/**
  * Verifies standalone .kicad_mod documents parse as footprint libraries.
  */
 test('parses standalone KiCad footprint library files', () => {
@@ -232,5 +294,61 @@ test('routes standalone KiCad symbol files through the parser facade', () => {
             .filter((element) => element.type === 'source_port')
             .map((element) => element.pin_number),
         [1, 2]
+    )
+    assert.equal(
+        circuitJson.some((element) => element.type === 'schematic_symbol'),
+        true
+    )
+    assert.equal(
+        circuitJson.some((element) => element.type === 'schematic_component'),
+        true
+    )
+    assert.equal(
+        circuitJson.some((element) => element.type === 'schematic_port'),
+        true
+    )
+    assert.equal(
+        circuitJson.some((element) => element.type === 'schematic_rect'),
+        true
+    )
+    assert.equal(
+        circuitJson.some((element) => element.type === 'schematic_line'),
+        true
+    )
+    assert.equal(
+        circuitJson.some((element) => element.type === 'schematic_text'),
+        true
+    )
+})
+
+/**
+ * Verifies standalone symbol previews retain arc and port placement metadata.
+ */
+test('emits schematic arc and port placement metadata for symbol previews', () => {
+    const circuitJson = KicadParser.parseArrayBuffer(
+        'Ported.kicad_sym',
+        bytes(portGeometrySymbolSource())
+    )
+    const arc = circuitJson.find((element) => element.type === 'schematic_arc')
+    const ports = circuitJson
+        .filter((element) => element.type === 'schematic_port')
+        .toSorted((a, b) => a.center.x - b.center.x || a.center.y - b.center.y)
+
+    assert.ok(arc)
+    assert.deepEqual(arc.start, { x: 1, y: 0 })
+    assert.deepEqual(arc.mid, { x: 0, y: 1 })
+    assert.deepEqual(arc.end, { x: -1, y: 0 })
+    assert.equal(arc.stroke_width, 0.15)
+    assert.deepEqual(
+        ports.map((port) => ({
+            side: port.side_of_component,
+            distance: port.distance_from_component_edge
+        })),
+        [
+            { side: 'left', distance: 3 },
+            { side: 'bottom', distance: 3 },
+            { side: 'top', distance: 3 },
+            { side: 'right', distance: 3 }
+        ]
     )
 })

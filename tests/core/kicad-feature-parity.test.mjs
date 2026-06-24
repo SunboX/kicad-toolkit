@@ -371,7 +371,7 @@ test('KicadFeatureParity inventories implemented KiCad-native parity features', 
             'docs/api.md#parser',
             'docs/model-format.md#helper-report-fields'
         ],
-        tests: ['tests/core/kicad-additional-parity-read-models.test.mjs'],
+        tests: ['tests/core/kicad-pcb-geometry-readiness.test.mjs'],
         summary:
             'KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive KiCad PCB geometry findings.'
     })

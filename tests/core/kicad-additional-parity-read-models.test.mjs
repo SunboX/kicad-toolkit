@@ -8,7 +8,6 @@ import {
     KicadPcb3dModelReadinessReportBuilder,
     KicadPcbDimensionReadModelBuilder,
     KicadPcbFidelityDiagnosticsBuilder,
-    KicadPcbGeometryReadinessReportBuilder,
     KicadPcbLayerUsageReportBuilder,
     KicadPcbLayerStackReadModelBuilder,
     KicadPcbRegionSemanticsBuilder,
@@ -473,114 +472,6 @@ test('KicadPcb3dModelReadinessReportBuilder suggests deterministic model lookup 
         '05P'
     ])
     assert.equal(report.diagnostics[0].suggestedRotationZ, -90)
-})
-
-test('KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive geometry', () => {
-    const report =
-        KicadPcbGeometryReadinessReportBuilder.build(createRiskyPcb())
-
-    assert.equal(report.schema, 'kicad-toolkit.pcb.geometry-readiness.a1')
-    assert.deepEqual(report.summary, {
-        findingCount: 6,
-        warningCount: 3,
-        infoCount: 3,
-        thickArcCount: 1,
-        multiContourZoneCount: 1,
-        curvePrimitiveCount: 2,
-        textBoxCount: 1,
-        customPadCount: 1,
-        missingCourtyardCount: 0,
-        courtyardUndercoverageCount: 0
-    })
-    assert.deepEqual(
-        report.findings.map((finding) => finding.code),
-        [
-            'kicad.pcb.geometry.thick-arc',
-            'kicad.pcb.geometry.curve-primitive',
-            'kicad.pcb.geometry.multi-contour-zone',
-            'kicad.pcb.geometry.text-box',
-            'kicad.pcb.geometry.custom-pad',
-            'kicad.pcb.geometry.custom-pad-curve'
-        ]
-    )
-    assert.deepEqual(report.indexes.findingsBySeverity.warning, [
-        'geometry-0',
-        'geometry-2',
-        'geometry-4'
-    ])
-    assert.deepEqual(report.indexes.findingsByConstruct.curve, [
-        'geometry-1',
-        'geometry-5'
-    ])
-})
-
-test('KicadPcbGeometryReadinessReportBuilder reports courtyard extent readiness', () => {
-    const report = KicadPcbGeometryReadinessReportBuilder.build({
-        footprints: [
-            {
-                id: 'footprint:U1:0',
-                reference: 'U1',
-                pads: [
-                    {
-                        id: 'pad-u1-1',
-                        shape: 'rect',
-                        x: 0,
-                        y: 0,
-                        width: 2,
-                        height: 1,
-                        rotation: 0
-                    }
-                ],
-                drawings: []
-            },
-            {
-                id: 'footprint:U2:1',
-                reference: 'U2',
-                pads: [
-                    {
-                        id: 'pad-u2-1',
-                        shape: 'rect',
-                        x: 0,
-                        y: 0,
-                        width: 2,
-                        height: 2,
-                        rotation: 0
-                    }
-                ],
-                drawings: [
-                    {
-                        id: 'crtyd-u2',
-                        type: 'polygon',
-                        layer: 'F.CrtYd',
-                        points: [
-                            { x: -0.5, y: -0.5 },
-                            { x: 0.5, y: -0.5 },
-                            { x: 0.5, y: 0.5 },
-                            { x: -0.5, y: 0.5 }
-                        ]
-                    }
-                ]
-            }
-        ]
-    })
-
-    assert.equal(report.summary.missingCourtyardCount, 1)
-    assert.equal(report.summary.courtyardUndercoverageCount, 1)
-    assert.deepEqual(
-        report.findings.map((finding) => finding.code),
-        [
-            'kicad.pcb.geometry.footprint-missing-courtyard',
-            'kicad.pcb.geometry.footprint-courtyard-undercoverage'
-        ]
-    )
-    assert.deepEqual(report.findings[1].padBounds, {
-        minX: -1,
-        minY: -1,
-        maxX: 1,
-        maxY: 1,
-        width: 2,
-        height: 2
-    })
 })
 
 test('KicadSchematicOwnershipGraphBuilder indexes schematic owner-child links', () => {

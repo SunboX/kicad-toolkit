@@ -405,6 +405,14 @@ test('PcbScene3dBuilder maps PCB primitives into KiCad 3D layer space', () => {
                     layer: 'F.Cu',
                     segments: [
                         { type: 'line', x1: 10, y1: 20, x2: 90, y2: 120 }
+                    ],
+                    contours: [
+                        [
+                            { x: 10, y: 20 },
+                            { x: 90, y: 20 },
+                            { x: 90, y: 120 },
+                            { x: 10, y: 120 }
+                        ]
                     ]
                 }
             ],
@@ -438,6 +446,12 @@ test('PcbScene3dBuilder maps PCB primitives into KiCad 3D layer space', () => {
     assert.equal(scene.detail.vias[0].y, 425)
     assert.equal(scene.detail.polygons[0].segments[0].y1, 480)
     assert.equal(scene.detail.polygons[0].segments[0].y2, 380)
+    assert.deepEqual(scene.detail.polygons[0].contours[0], [
+        { x: 10, y: 480 },
+        { x: 90, y: 480 },
+        { x: 90, y: 380 },
+        { x: 10, y: 380 }
+    ])
     assert.equal(scene.texts[0].y, 434)
     assert.equal(scene.detail.copperTexts[0].y, 450)
     assert.equal(scene.detail.copperTexts[0].rotation, 330)

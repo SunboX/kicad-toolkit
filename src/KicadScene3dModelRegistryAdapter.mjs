@@ -210,7 +210,7 @@ export class KicadScene3dModelRegistryAdapter {
      */
     static #modelStem(value) {
         return KicadScene3dModelRegistryAdapter.#baseName(value).replace(
-            /\.(?:step|stp|wrl|vrml)$/iu,
+            /\.(?:step|stp|wrl|vrml|glb|gltf|stl|obj)$/iu,
             ''
         )
     }
@@ -221,6 +221,8 @@ export class KicadScene3dModelRegistryAdapter {
      * @returns {boolean}
      */
     static #hasModelExtension(value) {
-        return /\.(?:step|stp|wrl|vrml)$/iu.test(String(value || ''))
+        return /\.(?:step|stp|wrl|vrml|glb|gltf|stl|obj)$/iu.test(
+            String(value || '')
+        )
     }
 }

@@ -21,6 +21,10 @@ test('root entrypoint exports parser and renderer classes', () => {
         typeof rootApi.CircuitJsonModelAdapter.isCircuitJson,
         'function'
     )
+    assert.equal(
+        typeof rootApi.CircuitJsonKicadProjectExporter.export,
+        'function'
+    )
     assert.equal(typeof rootApi.CircuitJsonModelSchema.attach, 'function')
     assert.equal(typeof rootApi.KicadToolkitCapabilities.inventory, 'function')
     assert.equal(typeof rootApi.KicadFeatureParity.inventory, 'function')
@@ -250,6 +254,10 @@ test('root entrypoint exports parser and renderer classes', () => {
 test('specialized entrypoints expose their intended API groups', () => {
     assert.equal(
         typeof parserApi.CircuitJsonModelAdapter.isCircuitJson,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.CircuitJsonKicadProjectExporter.export,
         'function'
     )
     assert.equal(typeof parserApi.CircuitJsonModelSchema.attach, 'function')

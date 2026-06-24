@@ -95,6 +95,15 @@ an integration still needs the legacy renderer model object. The
 renderer compatibility fields keep their `NormalizedModelSchema` id for
 integrations that still check the normalized model contract.
 
+`CircuitJsonConformanceChecker.check(circuitJson)` returns a read-only report
+for internal Circuit JSON references, including duplicate element ids, missing
+source nets, source ports, source traces, and PCB route endpoint ports.
+
+`CircuitJsonKicadProjectExporter.export(circuitJson, options)` emits
+archive-ready KiCad project entries from a Circuit JSON element array,
+including project, schematic, board, symbol library, footprint library,
+library-table, and optional project-local 3D model files.
+
 `KicadPcbParser.parse(source, options)` accepts KiCad `.kicad_pcb` source text
 and returns the lower-level board model that is wrapped by
 `KicadParser.parseArrayBuffer()`. `options.fileName` is copied into the model
@@ -214,8 +223,8 @@ unknown graphics. Parsed schematic documents attach this report at
 diagnostic contract for KiCad render hosts.
 
 Specialized parser helpers are exported for lower-level integrations, including
-`Geometry`, `KicadArcGeometry`, `KicadCiArtifactBundleBuilder`,
-`KicadContractGateReportBuilder`,
+`CircuitJsonKicadProjectExporter`, `Geometry`, `KicadArcGeometry`,
+`KicadCiArtifactBundleBuilder`, `KicadContractGateReportBuilder`,
 `KicadLayerResolver`, `KicadNetResolver`,
 `KicadDesignBlockLibraryParser`, `KicadDesignRulesParser`,
 `KicadEmbeddedAssetInventoryBuilder`,

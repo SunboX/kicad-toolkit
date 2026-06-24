@@ -112,10 +112,12 @@ function createReversedArcOutlineDocument() {
 }
 
 /**
- * Builds a minimal KiCad PCB document with one explicit WRL model reference.
+ * Builds a minimal KiCad PCB document with one explicit model reference.
+ * @param {string} [extension] Model file extension.
  * @returns {object}
  */
-function createModelReferenceDocument() {
+function createModelReferenceDocument(extension = 'wrl') {
+    const modelName = 'body.' + extension
     return {
         sourceFormat: 'kicad',
         kind: 'pcb',
@@ -150,8 +152,8 @@ function createModelReferenceDocument() {
                     rotation: 0,
                     pattern: 'CONN_FAKE',
                     source: 'CONN_FAKE',
-                    modelName: 'body.wrl',
-                    modelPath: '${KIPRJMOD}/parts/body.wrl',
+                    modelName,
+                    modelPath: '${KIPRJMOD}/parts/' + modelName,
                     modelTransform: null
                 }
             ]
@@ -244,6 +246,23 @@ test('PcbScene3dBuilder prefers exact KiCad model file extensions', () => {
 
     assert.equal(scene.externalModels.length, 1)
     assert.equal(scene.externalModels[0].name, 'body.wrl')
+})
+
+test('PcbScene3dBuilder resolves exact GLB model references', () => {
+    const scene = PcbScene3dBuilder.build(createModelReferenceDocument('glb'), {
+        sessionAssets: [
+            {
+                name: 'body.glb',
+                relativePath: 'sample/parts/body.glb',
+                file: new Blob([new Uint8Array([3])]),
+                format: 'glb'
+            }
+        ]
+    })
+
+    assert.equal(scene.externalModels.length, 1)
+    assert.equal(scene.externalModels[0].name, 'body.glb')
+    assert.equal(scene.components[0].externalModel.format, 'glb')
 })
 
 test('PcbScene3dBuilder scales KiCad WRL model units into mil scene units', () => {

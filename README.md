@@ -45,7 +45,8 @@ be reused by other browser or Node-based tools.
   schematic project parameters, and stroke-text metrics
 - Preserve raw KiCad board detail through the wrapped `pcb.kicadBoard` model so
   lower-level KiCad parser output remains inspectable
-- Emit Circuit JSON arrays from parser roots, with non-serialized
+- Emit Circuit JSON arrays from parser roots, including connected PCB routes,
+  endpoint ports, vias, copper pours, board cutouts, and non-serialized
   renderer-compatibility fields for existing consumers
 - Render schematic SVG, PCB SVG, and grouped BOM HTML
 - Build non-interactive PCB 3D scene-description data for host applications,

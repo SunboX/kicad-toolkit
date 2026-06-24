@@ -34,6 +34,14 @@ export class KicadScene3dCopperLayerAdapter {
             detail.vias
         )
         const arcs = KicadScene3dCopperLayerAdapter.#mapPrimitives(detail.arcs)
+        const fills = KicadScene3dCopperLayerAdapter.#mapPrimitives(
+            detail.fills
+        )
+        const polygons = KicadScene3dCopperLayerAdapter.#mapPrimitives(
+            Array.isArray(detail.polygons)
+                ? detail.polygons
+                : sceneDescription?.zones
+        )
         const silkscreen = KicadScene3dSilkscreenSmoothingAdapter.apply(
             KicadScene3dSilkscreenKeepoutAdapter.apply(
                 detail.silkscreen,
@@ -46,11 +54,14 @@ export class KicadScene3dCopperLayerAdapter {
             ...sceneDescription,
             pads,
             tracks,
+            zones: polygons,
             detail: {
                 ...detail,
                 pads,
                 tracks,
                 arcs,
+                fills,
+                polygons,
                 silkscreen
             }
         }

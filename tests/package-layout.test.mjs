@@ -31,6 +31,8 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
     )
 
     assertPublicApi(parserApi, [
+        'CircuitJsonConformanceChecker',
+        'CircuitJsonKicadProjectExporter',
         'CircuitJsonModelAdapter',
         'CircuitJsonModelSchema',
         'Geometry',
@@ -296,6 +298,9 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
     await assertFileExists('../src/core/kicad/KicadSelectedPartExporter.mjs')
     await assertFileExists(
+        '../src/core/kicad/CircuitJsonKicadProjectExporter.mjs'
+    )
+    await assertFileExists(
         '../src/core/kicad/KicadSourceCoverageReportBuilder.mjs'
     )
     await assertFileExists('../src/core/kicad/KicadSymbolLibraryParser.mjs')
@@ -312,6 +317,9 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/core/kicad/SExpressionSchema.mjs')
     await assertFileExists('../src/core/kicad/SExpressionSerializer.mjs')
     await assertFileExists('../src/core/kicad/SExpressionTree.mjs')
+    await assertFileExists(
+        '../src/core/circuit-json/CircuitJsonConformanceChecker.mjs'
+    )
     await assertFileExists(
         '../src/core/circuit-json/CircuitJsonModelAdapter.mjs'
     )

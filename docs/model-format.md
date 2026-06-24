@@ -16,8 +16,25 @@ the previous ECAD Forge parser model for renderers and migration code.
 Every parser result is an array of elements with a `type` field. The adapter
 emits Circuit JSON elements for source project metadata, source components,
 ports, nets, schematic symbols, schematic lines, schematic text, PCB boards,
-PCB components, PCB pads, PCB traces, and PCB vias where those structures are
-available in the source document.
+PCB components, PCB pads, PCB traces, PCB vias, copper pours, and board cutouts
+where those structures are available in the source document. PCB route
+elements are built from connected track, arc, and via primitives so contiguous
+same-net copper is represented as a route instead of isolated segments.
+Source components use supported Circuit JSON `ftype` values inferred from
+reference prefixes, footprints, values, properties, and attributes. Preserved
+metadata includes manufacturer part numbers and normalized
+`supplier_part_numbers` when supplier-like part-number properties are present.
+Numeric pad labels are emitted as source port names such as `pin1` while the
+raw label is kept in `port_hints` and `pin_number` remains numeric.
+Source net labels are canonicalized for Circuit JSON `source_net.name` values,
+with punctuation-heavy or digit-leading labels preserved on `raw_name`.
+Schematic nets with parsed segment groups are emitted as one grouped
+`schematic_trace` connected to the matching source net and source ports, while
+ungrouped wire segments still fall back to individual trace elements.
+`source_project_metadata` includes serialized `conversion_stats` with summary
+and element-count data, a conformance summary for generated references after
+conversion, and includes parser `diagnostics` when warnings or recovery notes
+were produced.
 
 Use `CircuitJsonModelSchema.isModel(result)` to validate that a value is a
 Circuit JSON array. `JSON.stringify(result)` serializes only the Circuit JSON
@@ -57,9 +74,8 @@ The legacy renderer compatibility contract is published as a JSON Schema at
 [`docs/schemas/kicad_toolkit/normalized_model_a1.schema.json`](schemas/kicad_toolkit/normalized_model_a1.schema.json).
 Compatibility fields expose the same id through the top-level `schema` field,
 and consumers can compare it with `NormalizedModelSchema.CURRENT_SCHEMA_ID`.
-The serialized parser return value follows the upstream
-[`tscircuit/circuit-json`](https://github.com/tscircuit/circuit-json) element
-array convention.
+The serialized parser return value follows the Circuit JSON element array
+convention.
 
 Focused machine-readable schemas are available under
 `docs/schemas/kicad_toolkit/` for the normalized root, project bundle, netlist
@@ -97,7 +113,9 @@ component placements, board polygons, routed tracks, routed arcs, vias, pads,
 text, empty compatibility arrays for Altium-style consumers, and the
 lower-level raw KiCad board model as `kicadBoard`. Summary fields expose
 component, layer, outline segment, BOM, net, polygon, track, arc, via, and
-board-size counts.
+board-size counts. Board outlines and cutouts can be recovered from closed
+line chains, polygons, rectangles, circles, arcs, and curves when those
+primitives are present in the parsed board data.
 
 Coordinates projected into the public `pcb` model use mils to match the
 Altium-style renderer contract. The nested `pcb.kicadBoard` model keeps raw
@@ -132,6 +150,12 @@ bound points for rectangular, circular, and oval pads so rotated pads contribute
 accurate lower-level footprint and board extents. Drill offsets are preserved
 on raw pads and applied by the SVG drill renderer. Custom pad primitives can
 include line, circle, polygon, arc, and cubic curve geometry.
+Circuit JSON SMT pad projections map `roundrect` pads to rectangular pad
+elements with `corner_radius`. Exact 90, 180, and 270 degree rotations are folded
+into width/height so simple right-angle pads stay unrotated in serialized
+output; arbitrary pad angles use rotated pad shape names with `ccw_rotation`.
+Custom polygon pad primitives are projected as `polygon` pads with deterministic
+board-space points when the primitive geometry is available.
 
 PCB drawing and copper objects use `type` values such as `line`, `circle`,
 `arc`, `curve`, `polygon`, `segment`, `via`, `zone`, `dimension`, `image`,
@@ -144,6 +168,9 @@ Filled zone objects preserve the first contour on `points` for compatibility
 and expose all recovered contours on `contours` when the source filled polygon
 contains multiple point lists. Circuit JSON polygon projections keep the first
 contour in `segments` and expose additive contour segment groups on `contours`.
+Circuit JSON output also emits copper-layer zone projections as
+`pcb_copper_pour` polygon elements. Via layer spans are preserved when the
+source declares explicit start and end copper layers.
 
 Text entries preserve value, transform, layer, side, mirroring, alignment, font
 size, stroke thickness, visibility, and position-file exclusion metadata.
@@ -177,6 +204,11 @@ Standalone symbol library files emit a `symbol-library` root with
 `schematicLibrary.symbols`. Each symbol preserves its KiCad library name,
 item name, direct properties, pins, nested unit/body symbol records, simple
 graphics grouped by primitive type, and the raw symbol S-expression node.
+Circuit JSON output for standalone symbol libraries includes source components,
+source ports, schematic symbol previews, schematic component placements,
+schematic ports, symbol body graphics, schematic arcs, visible property text,
+and port side/distance metadata so consumers can inspect the library entry
+without first placing it in a sheet.
 
 Library table files emit a `library-table` root with `fileType:
 "fp_lib_table"` or `"sym_lib_table"`. Rows expose KiCad nickname, plugin type,
