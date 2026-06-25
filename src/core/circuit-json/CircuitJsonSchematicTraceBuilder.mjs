@@ -36,13 +36,24 @@ export class CircuitJsonSchematicTraceBuilder {
             schematic.nets
         ).entries()) {
             const segments = Primitives.array(net.segments)
-            if (segments.length === 0) continue
-
             const edges = segments.map((segment) => ({
                 from: Primitives.point(segment.x1, segment.y1),
                 to: Primitives.point(segment.x2, segment.y2)
             }))
-            if (edges.length === 0) continue
+            const connectedSourcePortIds =
+                CircuitJsonSchematicTraceBuilder.#connectedSourcePortIds(
+                    net,
+                    sourcePortIds,
+                    sourcePortIdsByKey
+                )
+            if (
+                edges.length === 0 &&
+                connectedSourcePortIds.length === 0 &&
+                Primitives.array(net.labels).length === 0 &&
+                Primitives.array(net.junctions).length === 0
+            ) {
+                continue
+            }
 
             for (const segment of segments) {
                 consumedSegmentKeys.add(
@@ -62,12 +73,6 @@ export class CircuitJsonSchematicTraceBuilder {
                 'schematic_net',
                 netName || netIndex
             ])
-            const connectedSourcePortIds =
-                CircuitJsonSchematicTraceBuilder.#connectedSourcePortIds(
-                    net,
-                    sourcePortIds,
-                    sourcePortIdsByKey
-                )
 
             circuitJson.push({
                 type: 'source_trace',
@@ -166,7 +171,8 @@ export class CircuitJsonSchematicTraceBuilder {
         const ids = []
         for (const pin of [
             ...Primitives.array(net.pins),
-            ...Primitives.array(net.ports)
+            ...Primitives.array(net.ports),
+            ...Primitives.array(net.powerPorts)
         ]) {
             const direct = sourcePortIds.get(pin)
             if (direct) {

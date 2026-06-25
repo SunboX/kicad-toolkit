@@ -1,6 +1,6 @@
 {
     "name": "kicad-toolkit",
-    "version": "1.0.22",
+    "version": "1.0.26",
     "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
     "keywords": [
         "kicad",
@@ -26,6 +26,7 @@
     "exports": {
         ".": "./src/index.mjs",
         "./parser": "./src/parser.mjs",
+        "./node": "./src/node.mjs",
         "./netlist-query": "./src/netlist-query.mjs",
         "./renderers": "./src/renderers.mjs",
         "./scene3d": "./src/scene3d.mjs",

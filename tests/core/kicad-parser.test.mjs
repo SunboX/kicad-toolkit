@@ -74,13 +74,18 @@ test('KicadParser preserves PCB text font faces for fidelity diagnostics', () =>
                 (gr_text "FACE"
                     (at 0 0 0)
                     (layer "F.SilkS")
-                    (effects (font (face "Inter") (size 1 1)))
+                    (effects (font (face "Inter") (size 1.2 1.4) (thickness 0.18)))
+                    (hide)
                 )
             )
         `)
     )
 
     assert.equal(document.pcb.texts[0].fontFace, 'Inter')
+    assert.equal(document.pcb.texts[0].sizeX, 1.2)
+    assert.equal(document.pcb.texts[0].sizeY, 1.4)
+    assert.equal(document.pcb.texts[0].thickness, 0.18)
+    assert.equal(document.pcb.texts[0].visible, false)
     assert.deepEqual(
         document.pcb.fidelityDiagnostics.diagnostics.map(
             (diagnostic) => diagnostic.code

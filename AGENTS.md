@@ -36,9 +36,9 @@
 ## Library Scope
 
 - Include KiCad `.kicad_pcb` S-expression parsing, board/project ZIP loading,
-  PCB Styler project archive helpers, normalized geometry helpers, layer
-  styling helpers, SVG PCB rendering, KiCad stroke text rendering, component
-  highlighting, and badge overlay rendering.
+  PCB Styler project archive helpers, normalized geometry helpers, selected-part
+  library export adapters, layer styling helpers, SVG PCB rendering, KiCad
+  stroke text rendering, component highlighting, and badge overlay rendering.
 - Do not add host app interaction to this library: no file picker wiring,
   drag/drop orchestration, DOM state management, download UI, WebMCP bridge, or
   app shell code.

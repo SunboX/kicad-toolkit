@@ -5,7 +5,10 @@
 import { CircuitJsonModelSchema } from './CircuitJsonModelSchema.mjs'
 import { CircuitJsonModelAdapterPrimitives } from './CircuitJsonModelAdapterPrimitives.mjs'
 import { CircuitJsonModelAdapterElements } from './CircuitJsonModelAdapterElements.mjs'
+import { CircuitJsonPcbArtworkBuilder } from './CircuitJsonPcbArtworkBuilder.mjs'
 import { CircuitJsonPcbCopperPourBuilder } from './CircuitJsonPcbCopperPourBuilder.mjs'
+import { CircuitJsonPcbLibraryBuilder } from './CircuitJsonPcbLibraryBuilder.mjs'
+import { CircuitJsonPcbTextBuilder } from './CircuitJsonPcbTextBuilder.mjs'
 import { CircuitJsonPcbTraceRouteBuilder } from './CircuitJsonPcbTraceRouteBuilder.mjs'
 import { CircuitJsonProjectMetadataBuilder } from './CircuitJsonProjectMetadataBuilder.mjs'
 import { CircuitJsonSchematicLibraryBuilder } from './CircuitJsonSchematicLibraryBuilder.mjs'
@@ -54,11 +57,7 @@ export class CircuitJsonModelAdapter {
         }
 
         if (model.pcbLibrary) {
-            CircuitJsonModelAdapter.#appendPcbLibrary(
-                circuitJson,
-                model,
-                idScope
-            )
+            CircuitJsonPcbLibraryBuilder.append(circuitJson, model, idScope)
         }
 
         if (model.schematicLibrary) {
@@ -321,6 +320,7 @@ export class CircuitJsonModelAdapter {
     static #appendPcb(circuitJson, model, idScope) {
         const pcb = model.pcb || {}
         const componentIds = new Map()
+        const pcbComponentIds = new Map()
         const sourceNetIds = new Map()
         const portPlacements = []
         const boardId = Primitives.id(idScope, ['pcb_board'])
@@ -361,9 +361,16 @@ export class CircuitJsonModelAdapter {
                 'pcb_component',
                 component.designator || component.name || componentIndex
             ])
-            componentIds.set(
-                Primitives.componentKey(component, componentIndex),
-                sourceComponentId
+            const componentKey = Primitives.componentKey(
+                component,
+                componentIndex
+            )
+            componentIds.set(componentKey, sourceComponentId)
+            pcbComponentIds.set(componentKey, pcbComponentId)
+            CircuitJsonModelAdapter.#indexPcbComponentOwner(
+                pcbComponentIds,
+                component,
+                pcbComponentId
             )
             circuitJson.push(
                 CircuitJsonModelAdapter.#sourceComponent(
@@ -402,6 +409,8 @@ export class CircuitJsonModelAdapter {
             if (portPlacement) portPlacements.push(portPlacement)
         }
 
+        CircuitJsonPcbTextBuilder.append(circuitJson, idScope, pcb.texts)
+
         CircuitJsonPcbTraceRouteBuilder.append(
             circuitJson,
             idScope,
@@ -414,6 +423,25 @@ export class CircuitJsonModelAdapter {
             idScope,
             pcb,
             sourceNetIds
+        )
+        CircuitJsonPcbArtworkBuilder.append(
+            circuitJson,
+            idScope,
+            pcb.drawings,
+            {
+                coordinateUnits: 'mil',
+                ownerComponentIds: pcbComponentIds
+            }
+        )
+        CircuitJsonPcbArtworkBuilder.append(
+            circuitJson,
+            idScope,
+            pcb.kicadBoard?.drawings,
+            {
+                coordinateUnits: 'mm',
+                ownerComponentIds: pcbComponentIds,
+                idParts: ['native']
+            }
         )
 
         for (const [viaIndex, via] of Primitives.array(pcb.vias).entries()) {
@@ -645,29 +673,22 @@ export class CircuitJsonModelAdapter {
     }
 
     /**
-     * Appends minimal PCB library elements as metadata.
-     * @param {object[]} circuitJson
-     * @param {Record<string, unknown>} model
-     * @param {string} idScope
+     * Indexes component owner keys for footprint-owned graphics.
+     * @param {Map<string, string>} pcbComponentIds Owner lookup.
+     * @param {Record<string, unknown>} component Parsed component row.
+     * @param {string} pcbComponentId PCB component id.
      * @returns {void}
      */
-    static #appendPcbLibrary(circuitJson, model, idScope) {
-        for (const [footprintIndex, footprint] of Primitives.array(
-            model.pcbLibrary?.footprints
-        ).entries()) {
-            circuitJson.push({
-                type: 'source_component',
-                source_component_id: Primitives.id(idScope, [
-                    'library_footprint',
-                    footprint.name || footprint.pattern || footprintIndex
-                ]),
-                name: Primitives.string(
-                    footprint.name || footprint.pattern,
-                    `FOOTPRINT_${footprintIndex + 1}`
-                ),
-                ftype: CircuitJsonSourceComponentFtype.infer(footprint),
-                ...CircuitJsonSourceComponentMetadata.fields(footprint)
-            })
+    static #indexPcbComponentOwner(pcbComponentIds, component, pcbComponentId) {
+        for (const key of [
+            component.componentIndex,
+            component.footprintId,
+            component.designator,
+            component.name,
+            component.reference
+        ]) {
+            const value = String(key || '').trim()
+            if (value) pcbComponentIds.set(value, pcbComponentId)
         }
     }
 

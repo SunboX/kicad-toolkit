@@ -1,8 +1,14 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { CircuitJsonKicadProjectContext as Context } from './CircuitJsonKicadProjectContext.mjs'
+import { CircuitJsonKicadProjectMetadata as Metadata } from './CircuitJsonKicadProjectMetadata.mjs'
+import { CircuitJsonKicadProjectPcbArtworkBuilder as ArtworkBuilder } from './CircuitJsonKicadProjectPcbArtworkBuilder.mjs'
+import { CircuitJsonKicadProjectPcbBoardArtworkBuilder as BoardArtworkBuilder } from './CircuitJsonKicadProjectPcbBoardArtworkBuilder.mjs'
+import { CircuitJsonKicadProjectPcbBoardGeometryBuilder as BoardGeometryBuilder } from './CircuitJsonKicadProjectPcbBoardGeometryBuilder.mjs'
+import { CircuitJsonKicadProjectPcbModelBuilder as ModelBuilder } from './CircuitJsonKicadProjectPcbModelBuilder.mjs'
+import { CircuitJsonKicadProjectPcbNetResolver as NetResolver } from './CircuitJsonKicadProjectPcbNetResolver.mjs'
 import { CircuitJsonKicadProjectPcbPadBuilder as PadBuilder } from './CircuitJsonKicadProjectPcbPadBuilder.mjs'
+import { CircuitJsonKicadProjectPcbZoneBuilder as ZoneBuilder } from './CircuitJsonKicadProjectPcbZoneBuilder.mjs'
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
 
 /**
@@ -31,6 +37,7 @@ export class CircuitJsonKicadProjectPcbBuilder {
             ...CircuitJsonKicadProjectPcbBuilder.pcbSegments(context),
             ...CircuitJsonKicadProjectPcbBuilder.pcbVias(context),
             ...CircuitJsonKicadProjectPcbBuilder.copperZones(context),
+            ...CircuitJsonKicadProjectPcbBuilder.keepoutZones(context),
             ...CircuitJsonKicadProjectPcbBuilder.boardGraphics(context)
         ]
     }
@@ -63,7 +70,10 @@ export class CircuitJsonKicadProjectPcbBuilder {
             ['37', 'F.SilkS', 'user'],
             ['38', 'B.Mask', 'user'],
             ['39', 'F.Mask', 'user'],
+            ['40', 'Dwgs.User', 'user'],
             ['44', 'Edge.Cuts', 'user'],
+            ['46', 'B.CrtYd', 'user'],
+            ['47', 'F.CrtYd', 'user'],
             ['49', 'F.Fab', 'user'],
             ['50', 'B.Fab', 'user']
         ]
@@ -125,30 +135,38 @@ export class CircuitJsonKicadProjectPcbBuilder {
         return [
             'footprint',
             options.placed
-                ? context.libraryName + ':' + row.footprintName
+                ? Metadata.footprintLibId(context, row)
                 : row.footprintName,
             [
                 'layer',
-                CircuitJsonKicadProjectPcbBuilder.footprintLayer(component)
+                CircuitJsonKicadProjectPcbBuilder.footprintLayer(component, row)
             ],
             at,
             ['uuid', Utils.uuid('fp:' + row.sourceId)],
-            [
-                'property',
-                'Reference',
-                row.reference,
-                ['at', 0, -1.5, 0],
-                ['layer', 'F.SilkS']
-            ],
-            [
-                'property',
-                'Value',
-                row.value,
-                ['at', 0, 1.5, 0],
-                ['layer', 'F.Fab']
-            ],
+            ...Metadata.footprintPropertyNodes(
+                [
+                    {
+                        name: 'Reference',
+                        value: options.placed
+                            ? row.referenceDesignator || row.reference
+                            : row.reference,
+                        at: [0, -1.5, 0],
+                        layer: 'F.SilkS'
+                    },
+                    {
+                        name: 'Value',
+                        value: row.value,
+                        at: [0, 1.5, 0],
+                        layer: 'F.Fab'
+                    }
+                ],
+                Metadata.footprintMetadata(row)
+            ),
+            ...Metadata.footprintAttributeNodes(row),
+            ...Metadata.footprintEmbeddedFontNodes(row),
             ...CircuitJsonKicadProjectPcbBuilder.padNodes(context, row),
-            ...CircuitJsonKicadProjectPcbBuilder.modelNodes(context)
+            ...ArtworkBuilder.nodes(context, row),
+            ...ModelBuilder.modelNodes(context, row)
         ]
     }
 
@@ -186,24 +204,6 @@ export class CircuitJsonKicadProjectPcbBuilder {
     }
 
     /**
-     * Builds model nodes for footprint references.
-     * @param {object} context Export context.
-     * @returns {Array[]}
-     */
-    static modelNodes(context) {
-        return context.modelFiles.map((model) => [
-            'model',
-            CircuitJsonKicadProjectPcbBuilder.modelPath(
-                context.modelPathPrefix,
-                model.name
-            ),
-            ['offset', ['xyz', 0, 0, 0]],
-            ['scale', ['xyz', 1, 1, 1]],
-            ['rotate', ['xyz', 0, 0, 0]]
-        ])
-    }
-
-    /**
      * Builds routed segment nodes.
      * @param {object} context Export context.
      * @returns {Array[]}
@@ -232,31 +232,59 @@ export class CircuitJsonKicadProjectPcbBuilder {
     static traceSegments(context, trace) {
         const route = Array.isArray(trace.route) ? trace.route : []
         const segments = []
+        const netName = NetResolver.netName(context, trace)
+        let lastKnownLayer =
+            CircuitJsonKicadProjectPcbBuilder.routePointLayer(
+                route[0],
+                'start'
+            ) || trace.layer
 
         for (let index = 0; index < route.length - 1; index += 1) {
-            const start = Utils.point(route[index])
-            const end = Utils.point(route[index + 1])
+            const startPoint = route[index]
+            const endPoint = route[index + 1]
+            const start = CircuitJsonKicadProjectPcbBuilder.routePointPosition(
+                startPoint,
+                'start'
+            )
+            const end = CircuitJsonKicadProjectPcbBuilder.routePointPosition(
+                endPoint,
+                'end'
+            )
             if (!start || !end) continue
-            const netName = Context.netName(trace)
+            if (start.x === end.x && start.y === end.y) continue
+            const startLayer =
+                CircuitJsonKicadProjectPcbBuilder.routePointLayer(
+                    startPoint,
+                    'start'
+                )
+            const endLayer = CircuitJsonKicadProjectPcbBuilder.routePointLayer(
+                endPoint,
+                'end'
+            )
+            const layer =
+                startLayer || endLayer || lastKnownLayer || trace.layer
             segments.push([
                 'segment',
                 ['start', start.x, -start.y],
                 ['end', end.x, -end.y],
                 [
                     'width',
-                    Utils.number(route[index].width ?? trace.width, 0.25)
-                ],
-                [
-                    'layer',
-                    CircuitJsonKicadProjectPcbBuilder.copperLayer(
-                        route[index].layer ||
-                            route[index + 1].layer ||
-                            trace.layer
+                    Utils.number(
+                        CircuitJsonKicadProjectPcbBuilder.routePointWidth(
+                            startPoint
+                        ) ??
+                            CircuitJsonKicadProjectPcbBuilder.routePointWidth(
+                                endPoint
+                            ) ??
+                            trace.width,
+                        0.25
                     )
                 ],
+                ['layer', CircuitJsonKicadProjectPcbBuilder.copperLayer(layer)],
                 ['net', netName ? context.netMap.get(netName) || 0 : 0],
                 ['uuid', Utils.uuid('segment:' + (trace.pcb_trace_id || index))]
             ])
+            lastKnownLayer = endLayer || startLayer || lastKnownLayer
         }
 
         return segments
@@ -268,45 +296,54 @@ export class CircuitJsonKicadProjectPcbBuilder {
      * @returns {Array[]}
      */
     static pcbVias(context) {
+        const seen = new Set()
         return [
             ...context.elements
                 .filter((element) => element?.type === 'pcb_via')
-                .map((via, index) =>
-                    CircuitJsonKicadProjectPcbBuilder.viaNode(
-                        context,
-                        via,
-                        index
-                    )
-                ),
-            ...CircuitJsonKicadProjectPcbBuilder.routeVias(context)
+                .map((via, index) => ({ via, index })),
+            ...CircuitJsonKicadProjectPcbBuilder.routeViaRows(context)
         ]
+            .filter((row) => {
+                const key = CircuitJsonKicadProjectPcbBuilder.viaDedupeKey(
+                    context,
+                    row.via
+                )
+                if (seen.has(key)) return false
+                seen.add(key)
+                return true
+            })
+            .map((row) =>
+                CircuitJsonKicadProjectPcbBuilder.viaNode(
+                    context,
+                    row.via,
+                    row.index
+                )
+            )
     }
 
     /**
-     * Builds route-defined via nodes.
+     * Builds route-defined via rows.
      * @param {object} context Export context.
-     * @returns {Array[]}
+     * @returns {{ via: object, index: number }[]}
      */
-    static routeVias(context) {
+    static routeViaRows(context) {
         return context.elements
             .filter((element) => element?.type === 'pcb_trace')
             .flatMap((trace) =>
                 (Array.isArray(trace.route) ? trace.route : [])
                     .filter((entry) => entry?.route_type === 'via')
-                    .map((entry, index) =>
-                        CircuitJsonKicadProjectPcbBuilder.viaNode(
-                            context,
-                            {
-                                ...entry,
-                                pcb_via_id:
-                                    (trace.pcb_trace_id || 'trace') +
-                                    ':via:' +
-                                    index,
-                                net: Context.netName(trace)
-                            },
-                            index
-                        )
-                    )
+                    .map((entry, index) => ({
+                        via: {
+                            ...entry,
+                            type: 'pcb_via',
+                            pcb_via_id:
+                                (trace.pcb_trace_id || 'trace') +
+                                ':via:' +
+                                index,
+                            net: NetResolver.netName(context, trace)
+                        },
+                        index
+                    }))
             )
     }
 
@@ -319,7 +356,7 @@ export class CircuitJsonKicadProjectPcbBuilder {
      */
     static viaNode(context, via, index) {
         const point = Utils.point(via) || { x: 0, y: 0 }
-        const netName = Context.netName(via)
+        const netName = NetResolver.netName(context, via)
 
         return [
             'via',
@@ -333,32 +370,86 @@ export class CircuitJsonKicadProjectPcbBuilder {
     }
 
     /**
+     * Builds a via identity key for suppressing duplicate route-defined vias.
+     * @param {object} context Export context.
+     * @param {object} via Via element.
+     * @returns {string}
+     */
+    static viaDedupeKey(context, via) {
+        const point = Utils.point(via) || { x: 0, y: 0 }
+        const layers = CircuitJsonKicadProjectPcbBuilder.viaLayers(via)
+            .slice()
+            .sort((left, right) => left.localeCompare(right))
+            .join(',')
+        return [
+            Utils.round(point.x),
+            Utils.round(point.y),
+            layers,
+            NetResolver.netName(context, via)
+        ].join('|')
+    }
+
+    /**
+     * Resolves a route point position.
+     * @param {object} point Route point.
+     * @param {'start' | 'end'} role Segment role.
+     * @returns {{ x: number, y: number } | null}
+     */
+    static routePointPosition(point, role) {
+        const direct = Utils.point(point)
+        if (direct) return direct
+        if (!point) return null
+        if (point.route_type === 'through_pad') {
+            return (
+                Utils.point(role === 'start' ? point.start : point.end) ||
+                Utils.point(point.center)
+            )
+        }
+        return Utils.point(role === 'start' ? point.start : point.end)
+    }
+
+    /**
+     * Resolves a route point layer.
+     * @param {object} point Route point.
+     * @param {'start' | 'end'} role Segment role.
+     * @returns {unknown}
+     */
+    static routePointLayer(point, role) {
+        if (!point) return ''
+        if (point.route_type === 'through_pad') {
+            return role === 'start'
+                ? point.end_layer || point.to_layer || point.layer
+                : point.start_layer || point.from_layer || point.layer
+        }
+        if (point.route_type === 'via') {
+            return role === 'start'
+                ? point.to_layer || point.end_layer || point.layer
+                : point.from_layer || point.start_layer || point.layer
+        }
+        return point.layer || point.start_layer || point.end_layer
+    }
+
+    /**
+     * Resolves a route point width.
+     * @param {object} point Route point.
+     * @returns {unknown}
+     */
+    static routePointWidth(point) {
+        return point?.width ?? point?.trace_width ?? point?.stroke_width
+    }
+
+    /**
      * Builds board outline graphics.
      * @param {object} context Export context.
      * @returns {Array[]}
      */
     static boardGraphics(context) {
-        const bounds = Utils.boardBounds(context.board)
-        const graphics = []
-
-        if (bounds) {
-            graphics.push([
-                'gr_rect',
-                ['start', bounds.minX, -bounds.minY],
-                ['end', bounds.maxX, -bounds.maxY],
-                ['stroke', ['width', 0.1], ['type', 'solid']],
-                ['fill', 'none'],
-                ['layer', 'Edge.Cuts'],
-                ['uuid', Utils.uuid('board:outline')]
-            ])
-        }
-
-        graphics.push(
-            ...CircuitJsonKicadProjectPcbBuilder.cutoutGraphics(context),
+        return [
+            ...BoardGeometryBuilder.nodes(context),
             ...CircuitJsonKicadProjectPcbBuilder.lineGraphics(context),
-            ...CircuitJsonKicadProjectPcbBuilder.textGraphics(context)
-        )
-        return graphics
+            ...CircuitJsonKicadProjectPcbBuilder.textGraphics(context),
+            ...BoardArtworkBuilder.nodes(context)
+        ]
     }
 
     /**
@@ -367,57 +458,21 @@ export class CircuitJsonKicadProjectPcbBuilder {
      * @returns {Array[]}
      */
     static copperZones(context) {
-        return [
-            'pcb_copper_pour',
-            'pcb_ground_plane',
-            'pcb_ground_plane_region'
-        ].flatMap((type) =>
-            context.elements
-                .filter((element) => element?.type === type)
-                .map((element, index) =>
-                    CircuitJsonKicadProjectPcbBuilder.zoneNode(
-                        context,
-                        element,
-                        index
-                    )
-                )
-                .filter(Boolean)
-        )
+        return ZoneBuilder.nodes(context, {
+            copperLayer: CircuitJsonKicadProjectPcbBuilder.copperLayer,
+            netName: NetResolver.netName
+        })
     }
 
     /**
-     * Builds one copper zone node.
+     * Builds PCB keepout zone nodes.
      * @param {object} context Export context.
-     * @param {object} element Zone-like element.
-     * @param {number} index Zone index.
-     * @returns {Array | null}
+     * @returns {Array[]}
      */
-    static zoneNode(context, element, index) {
-        const points = CircuitJsonKicadProjectPcbBuilder.points(element)
-        if (points.length < 3) return null
-        const netName = Context.netName(element)
-        const netId = netName ? context.netMap.get(netName) || 0 : 0
-        return [
-            'zone',
-            ['net', netId],
-            ['net_name', netName],
-            [
-                'layer',
-                CircuitJsonKicadProjectPcbBuilder.copperLayer(element.layer)
-            ],
-            [
-                'uuid',
-                Utils.uuid('zone:' + (element.pcb_copper_pour_id || index))
-            ],
-            ['hatch', 'edge', 0.5],
-            ['connect_pads', ['clearance', 0.2]],
-            ['min_thickness', 0.2],
-            ['fill', 'yes'],
-            [
-                'polygon',
-                ['pts', ...points.map((point) => ['xy', point.x, -point.y])]
-            ]
-        ]
+    static keepoutZones(context) {
+        return ZoneBuilder.keepoutNodes(context, {
+            copperLayer: CircuitJsonKicadProjectPcbBuilder.copperLayer
+        })
     }
 
     /**
@@ -426,27 +481,7 @@ export class CircuitJsonKicadProjectPcbBuilder {
      * @returns {Array[]}
      */
     static cutoutGraphics(context) {
-        return context.elements
-            .filter((element) => element?.type === 'pcb_cutout')
-            .map((element, index) => {
-                const points = CircuitJsonKicadProjectPcbBuilder.points(element)
-                if (points.length < 3) return null
-                return [
-                    'gr_poly',
-                    [
-                        'pts',
-                        ...points.map((point) => ['xy', point.x, -point.y])
-                    ],
-                    ['stroke', ['width', 0.1], ['type', 'solid']],
-                    ['fill', 'none'],
-                    ['layer', 'Edge.Cuts'],
-                    [
-                        'uuid',
-                        Utils.uuid('cutout:' + (element.pcb_cutout_id || index))
-                    ]
-                ]
-            })
-            .filter(Boolean)
+        return BoardGeometryBuilder.cutoutGraphics(context)
     }
 
     /**
@@ -458,7 +493,7 @@ export class CircuitJsonKicadProjectPcbBuilder {
         return [
             'pcb_silkscreen_line',
             'pcb_note_line',
-            'pcb_fabrication_note_path'
+            'pcb_fabrication_note_line'
         ].flatMap((type) =>
             context.elements
                 .filter((element) => element?.type === type)
@@ -539,13 +574,27 @@ export class CircuitJsonKicadProjectPcbBuilder {
         const point = Utils.point(element.anchor_position || element)
         if (!point) return null
         const size = Utils.number(element.font_size ?? element.height, 1)
+        const strokeWidth = Utils.number(element.stroke_width, 0.15)
         return [
             'gr_text',
             Utils.text(element.text),
             ['at', point.x, -point.y, Utils.number(element.ccw_rotation, 0)],
             ['layer', CircuitJsonKicadProjectPcbBuilder.graphicLayer(element)],
-            ['effects', ['font', ['size', size, size], ['thickness', 0.15]]],
-            ['uuid', Utils.uuid('text:' + (element.pcb_text_id || index))]
+            ...(element.is_hidden === true ? [['hide']] : []),
+            [
+                'effects',
+                ['font', ['size', size, size], ['thickness', strokeWidth]]
+            ],
+            [
+                'uuid',
+                Utils.uuid(
+                    'text:' +
+                        (element.pcb_text_id ||
+                            element.pcb_silkscreen_text_id ||
+                            element.pcb_fabrication_note_text_id ||
+                            index)
+                )
+            ]
         ]
     }
 
@@ -575,11 +624,14 @@ export class CircuitJsonKicadProjectPcbBuilder {
     /**
      * Resolves a footprint layer.
      * @param {object} component PCB component.
+     * @param {object} [row] Component row.
      * @returns {string}
      */
-    static footprintLayer(component) {
-        return CircuitJsonKicadProjectPcbBuilder.side(component.layer) ===
-            'bottom'
+    static footprintLayer(component, row = {}) {
+        const metadata = Metadata.footprintMetadata(row)
+        return CircuitJsonKicadProjectPcbBuilder.side(
+            metadata.layer || component.layer
+        ) === 'bottom'
             ? 'B.Cu'
             : 'F.Cu'
     }
@@ -708,6 +760,15 @@ export class CircuitJsonKicadProjectPcbBuilder {
      */
     static graphicLayer(element) {
         const text = Utils.text(element.layer).toLowerCase()
+        const type = Utils.text(element.type).toLowerCase()
+        if (
+            text.includes('dwgs') ||
+            text.includes('drawing') ||
+            text.includes('user') ||
+            (type.includes('note') && !type.includes('fabrication'))
+        ) {
+            return 'Dwgs.User'
+        }
         if (text.includes('bottom') || text.startsWith('b.')) {
             if (text.includes('silk')) return 'B.SilkS'
             if (text.includes('fab')) return 'B.Fab'
@@ -849,20 +910,5 @@ export class CircuitJsonKicadProjectPcbBuilder {
             'primitives',
             ['gr_poly', ['pts', ...points], ['width', 0], ['fill', 'yes']]
         ]
-    }
-
-    /**
-     * Builds a model path for footprint references.
-     * @param {string} prefix Model path prefix.
-     * @param {string} name Model file name.
-     * @returns {string}
-     */
-    static modelPath(prefix, name) {
-        const normalizedPrefix = String(prefix || '')
-        return (
-            normalizedPrefix +
-            (normalizedPrefix.endsWith('/') ? '' : '/') +
-            name
-        )
     }
 }

@@ -32,6 +32,33 @@ test('KicadProjectLoader loads a full KiCad project from named entries', async (
         }),
         'expected project nets to merge matching sheet pins and hierarchical labels'
     )
+    const schematicDocuments = result.documents.filter((document) => {
+        return document.kind === 'schematic'
+    })
+    const rootDocument = schematicDocuments.find((document) => {
+        return document.fileName === 'demo/demo.kicad_sch'
+    })
+    const childDocument = schematicDocuments.find((document) => {
+        return document.fileName === 'demo/child.kicad_sch'
+    })
+
+    assert.ok(rootDocument, 'expected root schematic Circuit JSON document')
+    assert.ok(childDocument, 'expected child schematic Circuit JSON document')
+    assert.ok(
+        rootDocument.some((element) => {
+            return element.type === 'source_project_metadata'
+        }),
+        'expected root schematic to produce Circuit JSON metadata output'
+    )
+    assert.ok(
+        childDocument.some((element) => {
+            return (
+                element.type === 'schematic_net_label' &&
+                element.text === 'ROOT_TO_CHILD'
+            )
+        }),
+        'expected child hierarchical label to produce Circuit JSON label output'
+    )
     assert.deepEqual(result.project.bom[0].designators, ['U1'])
     assert.equal(result.project.rootSchematic, 'demo/demo.kicad_sch')
     assert.deepEqual(

@@ -217,3 +217,46 @@ test('CircuitJsonConformanceChecker validates generated reference integrity', ()
         ['missing_pcb_port', 'missing_source_trace']
     )
 })
+
+test('CircuitJsonConformanceChecker indexes artwork variant ids', () => {
+    const artworkRows = [
+        ['pcb_silkscreen_line', 'pcb_silkscreen_line_id'],
+        ['pcb_silkscreen_path', 'pcb_silkscreen_path_id'],
+        ['pcb_fabrication_note_line', 'pcb_fabrication_note_line_id'],
+        ['pcb_fabrication_note_path', 'pcb_fabrication_note_path_id'],
+        ['pcb_courtyard', 'pcb_courtyard_id'],
+        ['pcb_courtyard_path', 'pcb_courtyard_path_id'],
+        ['pcb_courtyard_line', 'pcb_courtyard_line_id'],
+        ['pcb_courtyard_circle', 'pcb_courtyard_circle_id'],
+        ['pcb_courtyard_rect', 'pcb_courtyard_rect_id'],
+        ['pcb_courtyard_outline', 'pcb_courtyard_outline_id']
+    ].map(([type, field], index) => ({
+        type,
+        [field]: 'artwork_' + index,
+        start: { x: 0, y: index },
+        end: { x: 1, y: index },
+        layer: 'top'
+    }))
+    const report = CircuitJsonConformanceChecker.check(artworkRows)
+
+    assert.equal(report.valid, true)
+    for (const row of artworkRows) {
+        const field = Object.keys(row).find((key) => key.endsWith('_id'))
+        const duplicateReport = CircuitJsonConformanceChecker.check([
+            row,
+            { ...row }
+        ])
+
+        assert.equal(duplicateReport.valid, false)
+        assert.deepEqual(duplicateReport.diagnostics, [
+            {
+                severity: 'error',
+                code: 'duplicate_element_id',
+                element_type: row.type,
+                element_id: row[field],
+                field,
+                reference: row[field]
+            }
+        ])
+    }
+})

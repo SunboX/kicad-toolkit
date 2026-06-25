@@ -4,7 +4,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+    CircuitJsonKicadLibraryExporter,
     CircuitJsonKicadProjectExporter,
+    CircuitJsonKicadProjectModelResolver,
     KicadLibraryTableParser,
     KicadPcbParser,
     SExpressionParser,
@@ -287,6 +289,231 @@ test('CircuitJsonKicadProjectExporter supports external model entry paths', () =
 })
 
 /**
+ * Verifies model source paths can be loaded into exporter-ready model files.
+ */
+test('CircuitJsonKicadProjectModelResolver loads remote and local model files', async () => {
+    const errors = []
+    const fetched = []
+    const read = []
+    const result = await CircuitJsonKicadProjectModelResolver.resolve({
+        model3dSourcePaths: [
+            'https://models.example/Package.step?token=1#preview',
+            'local/Body.wrl',
+            'local/Body.wrl',
+            'missing/Skip.step'
+        ],
+        /**
+         * @param {string} url Model URL.
+         * @returns {Promise<object>}
+         */
+        async fetch(url) {
+            fetched.push(url)
+            return {
+                ok: true,
+                /**
+                 * @returns {Promise<ArrayBuffer>}
+                 */
+                async arrayBuffer() {
+                    return new Uint8Array([1, 2, 3]).buffer
+                }
+            }
+        },
+        /**
+         * @param {string} path Model path.
+         * @returns {Promise<Uint8Array>}
+         */
+        async readFile(path) {
+            read.push(path)
+            if (path.includes('Skip')) throw new Error('missing fixture model')
+            return new Uint8Array([4, 5, 6])
+        },
+        continueOnError: true,
+        /**
+         * @param {object} diagnostic Load diagnostic.
+         * @returns {void}
+         */
+        onError(diagnostic) {
+            errors.push(diagnostic)
+        }
+    })
+
+    assert.deepEqual(fetched, [
+        'https://models.example/Package.step?token=1#preview'
+    ])
+    assert.deepEqual(read, ['local/Body.wrl', 'missing/Skip.step'])
+    assert.deepEqual(
+        result.modelFiles.map((model) => ({
+            name: model.name,
+            sourcePath: model.sourcePath,
+            format: model.format,
+            bytes: [...model.bytes]
+        })),
+        [
+            {
+                name: 'Package.step',
+                sourcePath:
+                    'https://models.example/Package.step?token=1#preview',
+                format: 'step',
+                bytes: [1, 2, 3]
+            },
+            {
+                name: 'Body.wrl',
+                sourcePath: 'local/Body.wrl',
+                format: 'wrl',
+                bytes: [4, 5, 6]
+            }
+        ]
+    )
+    assert.equal(result.diagnostics.length, 1)
+    assert.equal(result.diagnostics[0].code, 'kicad_model_load_failed')
+    assert.equal(errors[0].sourcePath, 'missing/Skip.step')
+})
+
+/**
+ * Verifies cad_component rows attach 3D models to their owning footprint only.
+ */
+test('CircuitJsonKicadProjectExporter scopes CAD models to owning footprints', () => {
+    const result = CircuitJsonKicadProjectExporter.export(
+        [
+            {
+                type: 'source_component',
+                source_component_id: 'source_u1',
+                name: 'U1'
+            },
+            {
+                type: 'source_component',
+                source_component_id: 'source_u2',
+                name: 'U2'
+            },
+            {
+                type: 'pcb_component',
+                pcb_component_id: 'pcb_u1',
+                source_component_id: 'source_u1',
+                center: { x: 10, y: 20 },
+                layer: 'top',
+                rotation: 45
+            },
+            {
+                type: 'pcb_component',
+                pcb_component_id: 'pcb_u2',
+                source_component_id: 'source_u2',
+                center: { x: 30, y: 20 },
+                layer: 'top'
+            },
+            {
+                type: 'pcb_smtpad',
+                pcb_smtpad_id: 'pad_u1',
+                pcb_component_id: 'pcb_u1',
+                shape: 'rect',
+                x: 10,
+                y: 20,
+                width: 1,
+                height: 1
+            },
+            {
+                type: 'pcb_smtpad',
+                pcb_smtpad_id: 'pad_u2',
+                pcb_component_id: 'pcb_u2',
+                shape: 'rect',
+                x: 30,
+                y: 20,
+                width: 1,
+                height: 1
+            },
+            {
+                type: 'cad_component',
+                cad_component_id: 'cad_u1',
+                pcb_component_id: 'pcb_u1',
+                model_step_url: 'https://models.example/Sensor.step?token=1',
+                position: { x: 11, y: 18, z: 0.4 },
+                model_origin_position: { x: 0.25, y: -0.25, z: 0.1 },
+                rotation: { x: 10, y: 20, z: 60 },
+                model_unit_to_mm_scale_factor: 0.001
+            }
+        ],
+        {
+            projectName: 'Model Board',
+            modelFiles: [
+                {
+                    sourcePath: 'https://models.example/Sensor.step?token=1',
+                    bytes: new Uint8Array([9]),
+                    format: 'step'
+                }
+            ]
+        }
+    )
+    const u1Footprint = decodeEntry(
+        findEntry(result, 'kicad/Model_Board.pretty/U1.kicad_mod')
+    )
+    const u2Footprint = decodeEntry(
+        findEntry(result, 'kicad/Model_Board.pretty/U2.kicad_mod')
+    )
+
+    assert.match(u1Footprint, /\(model "\$\{KIPRJMOD\}\/models\/Sensor\.step"/)
+    assert.match(u1Footprint, /\(offset \(xyz 0\.75 -1\.75 0\.3\)\)/)
+    assert.match(u1Footprint, /\(scale \(xyz 0\.001 0\.001 0\.001\)\)/)
+    assert.match(u1Footprint, /\(rotate \(xyz 10 20 15\)\)/)
+    assert.doesNotMatch(u2Footprint, /Sensor\.step/)
+})
+
+/**
+ * Verifies library-only exports omit schematic, PCB, and project files.
+ */
+test('CircuitJsonKicadLibraryExporter exports standalone libraries', () => {
+    const result = CircuitJsonKicadLibraryExporter.export(
+        createCircuitJsonBoard(),
+        {
+            libraryName: 'Reusable Library',
+            basePath: 'library'
+        }
+    )
+
+    assert.deepEqual(
+        result.entries.map((entry) => entry.path).sort(),
+        [
+            'library/Reusable_Library.kicad_sym',
+            'library/Reusable_Library.pretty/U1.kicad_mod',
+            'library/fp-lib-table',
+            'library/sym-lib-table'
+        ].sort()
+    )
+    assert.equal(
+        result.entries.some((entry) =>
+            /\.kicad_(pcb|sch|pro)$/u.test(entry.path)
+        ),
+        false
+    )
+    assert.equal(
+        result.manifest.schema,
+        'kicad-toolkit.circuit-json-kicad-library-export.a1'
+    )
+    assert.equal(result.manifest.libraryName, 'Reusable_Library')
+    assert.equal(
+        SExpressionTree.nodeName(
+            SExpressionParser.parse(
+                decodeEntry(
+                    findEntry(result, 'library/Reusable_Library.kicad_sym')
+                )
+            )
+        ),
+        'kicad_symbol_lib'
+    )
+    assert.equal(
+        SExpressionTree.nodeName(
+            SExpressionParser.parse(
+                decodeEntry(
+                    findEntry(
+                        result,
+                        'library/Reusable_Library.pretty/U1.kicad_mod'
+                    )
+                )
+            )
+        ),
+        'footprint'
+    )
+})
+
+/**
  * Verifies multilayer boards preserve inner copper layers and route vias.
  */
 test('CircuitJsonKicadProjectExporter exports multilayer traces and route vias', () => {
@@ -415,9 +642,9 @@ test('CircuitJsonKicadProjectExporter exports PCB zones and drawing graphics', (
 })
 
 /**
- * Verifies schematic wires and labels are emitted alongside placed symbols.
+ * Verifies schematic wires and global labels are emitted alongside symbols.
  */
-test('CircuitJsonKicadProjectExporter exports schematic wires and labels', () => {
+test('CircuitJsonKicadProjectExporter exports schematic wires and global labels', () => {
     const result = CircuitJsonKicadProjectExporter.export(
         [
             {
@@ -454,7 +681,8 @@ test('CircuitJsonKicadProjectExporter exports schematic wires and labels', () =>
     )
 
     assert.match(schematicText, /\(wire\s+\(pts\s+\(xy 2 0\)\s+\(xy 8 0\)\)/)
-    assert.match(schematicText, /\(label "SIG"\s+\(at 8 0 0\)/)
+    assert.match(schematicText, /\(global_label "SIG"\s+\(shape input\)/)
+    assert.match(schematicText, /\(at 8 0 0\)/)
 })
 
 /**

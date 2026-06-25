@@ -500,6 +500,104 @@ export class CircuitJsonModelAdapterPrimitives {
     }
 
     /**
+     * Returns a normalized Circuit JSON layer reference for PCB text.
+     * @param {Record<string, unknown>} primitive PCB text primitive.
+     * @returns {string}
+     */
+    static pcbTextLayer(primitive) {
+        const layerName = String(primitive.layerName || primitive.layer || '')
+            .toLowerCase()
+            .trim()
+        const side =
+            CircuitJsonModelAdapterPrimitives.#graphicLayerSide(layerName)
+
+        if (layerName.includes('silk')) return `${side}_silkscreen`
+        if (layerName.includes('fab')) return `${side}_fabrication`
+        if (layerName.includes('mask')) return `${side}_solder_mask`
+        if (layerName.includes('paste')) return `${side}_solder_paste`
+        if (layerName.includes('adhes')) return `${side}_adhesive`
+        if (layerName.includes('edge')) return 'edge_cuts'
+        if (layerName === 'dwgs.user') return 'drawings_user'
+        if (layerName === 'cmts.user') return 'comments_user'
+        if (layerName === 'eco1.user') return 'eco1_user'
+        if (layerName === 'eco2.user') return 'eco2_user'
+        return CircuitJsonModelAdapterPrimitives.layerName(primitive)
+    }
+
+    /**
+     * Returns true when a PCB text primitive is on a silkscreen layer.
+     * @param {Record<string, unknown>} primitive PCB text primitive.
+     * @returns {boolean}
+     */
+    static isPcbSilkscreenText(primitive) {
+        return CircuitJsonModelAdapterPrimitives.pcbTextLayer(
+            primitive
+        ).includes('silkscreen')
+    }
+
+    /**
+     * Returns true when a PCB text primitive is on a fabrication layer.
+     * @param {Record<string, unknown>} primitive PCB text primitive.
+     * @returns {boolean}
+     */
+    static isPcbFabricationText(primitive) {
+        return CircuitJsonModelAdapterPrimitives.pcbTextLayer(
+            primitive
+        ).includes('fabrication')
+    }
+
+    /**
+     * Returns a PCB text font size in millimeters.
+     * @param {Record<string, unknown>} primitive PCB text primitive.
+     * @returns {number}
+     */
+    static pcbTextFontSize(primitive) {
+        return CircuitJsonModelAdapterPrimitives.round(
+            CircuitJsonModelAdapterPrimitives.number(
+                primitive.fontSize ??
+                    primitive.font?.size ??
+                    primitive.font?.height ??
+                    primitive.sizeY ??
+                    primitive.height,
+                1
+            ) || 1
+        )
+    }
+
+    /**
+     * Returns an optional PCB text stroke width.
+     * @param {Record<string, unknown>} primitive PCB text primitive.
+     * @returns {number | undefined}
+     */
+    static pcbTextStrokeWidth(primitive) {
+        const strokeWidth = CircuitJsonModelAdapterPrimitives.number(
+            primitive.strokeWidth ??
+                primitive.stroke_width ??
+                primitive.thickness ??
+                primitive.font?.thickness,
+            null
+        )
+
+        return strokeWidth === null
+            ? undefined
+            : CircuitJsonModelAdapterPrimitives.round(strokeWidth)
+    }
+
+    /**
+     * Returns true when a text primitive is explicitly hidden.
+     * @param {Record<string, unknown>} primitive Text primitive.
+     * @returns {boolean}
+     */
+    static isHiddenText(primitive) {
+        return (
+            primitive.visible === false ||
+            primitive.hidden === true ||
+            primitive.isHidden === true ||
+            primitive.is_hidden === true
+        )
+    }
+
+    /**
      * Returns normalized copper layers for one via-like primitive.
      * @param {Record<string, unknown>} primitive
      * @returns {string[]}
@@ -547,13 +645,26 @@ export class CircuitJsonModelAdapterPrimitives {
      * @returns {boolean}
      */
     static isNetLabel(text) {
-        const role = String(text.role || text.kind || text.recordType || '')
+        const labelKind = String(text.labelKind || '')
+            .toLowerCase()
+            .trim()
+        const propertyName = String(text.propertyName || '')
+            .toLowerCase()
+            .trim()
+        const symbolKind = String(text.symbolKind || '')
+            .toLowerCase()
+            .trim()
+        const role = [text.role, text.kind, text.labelKind, text.recordType]
+            .map((value) => String(value || '').toLowerCase())
+            .join(' ')
             .toLowerCase()
             .trim()
         return (
             role.includes('net') ||
             role.includes('label') ||
-            role.includes('power')
+            role.includes('power') ||
+            (symbolKind === 'power' && propertyName === 'value') ||
+            ['global', 'hierarchical', 'local'].includes(labelKind)
         )
     }
 
@@ -632,6 +743,17 @@ export class CircuitJsonModelAdapterPrimitives {
         if (layer.includes('top') || layer === 'f.cu') return ['top']
         if (innerMatch) return [`inner${innerMatch[1]}`]
         return []
+    }
+
+    /**
+     * Returns a normalized side for graphic-like PCB layers.
+     * @param {string} layerName Lowercase layer name.
+     * @returns {'top' | 'bottom'}
+     */
+    static #graphicLayerSide(layerName) {
+        return layerName.includes('bottom') || layerName.startsWith('b.')
+            ? 'bottom'
+            : 'top'
     }
 
     /**

@@ -76,13 +76,15 @@ export class CircuitJsonKicadProjectFiles {
      * @returns {Array}
      */
     static fpLibTableNode(context) {
+        const libraryPath =
+            context.footprintLibraryTablePath || context.libraryName + '.pretty'
         return [
             'fp_lib_table',
             [
                 'lib',
                 ['name', context.libraryName],
                 ['type', 'KiCad'],
-                ['uri', '${KIPRJMOD}/' + context.libraryName + '.pretty'],
+                ['uri', context.libraryTableRoot + '/' + libraryPath],
                 ['options', ''],
                 ['descr', '']
             ]
@@ -95,13 +97,15 @@ export class CircuitJsonKicadProjectFiles {
      * @returns {Array}
      */
     static symLibTableNode(context) {
+        const libraryPath =
+            context.symbolLibraryTablePath || context.libraryName + '.kicad_sym'
         return [
             'sym_lib_table',
             [
                 'lib',
                 ['name', context.libraryName],
                 ['type', 'KiCad'],
-                ['uri', '${KIPRJMOD}/' + context.libraryName + '.kicad_sym'],
+                ['uri', context.libraryTableRoot + '/' + libraryPath],
                 ['options', ''],
                 ['descr', '']
             ]
@@ -112,11 +116,12 @@ export class CircuitJsonKicadProjectFiles {
      * Builds project-local 3D model entries.
      * @param {object[]} modelFiles Normalized model files.
      * @param {string} basePath Archive base path.
+     * @param {string} [modelDirectory] Archive model directory.
      * @returns {{ path: string, bytes: Uint8Array, contentType: string }[]}
      */
-    static modelEntries(modelFiles, basePath) {
+    static modelEntries(modelFiles, basePath, modelDirectory = 'models') {
         return modelFiles.map((model) => ({
-            path: Utils.joinPath(basePath, 'models/' + model.name),
+            path: Utils.joinPath(basePath, modelDirectory + '/' + model.name),
             bytes: model.bytes,
             contentType: CircuitJsonKicadProjectFiles.modelContentType(model)
         }))
@@ -134,6 +139,7 @@ export class CircuitJsonKicadProjectFiles {
             projectName: context.projectName,
             libraryName: context.libraryName,
             files: entries.map((entry) => entry.path),
+            modelDirectory: context.modelDirectory,
             model3dSourcePaths: context.modelFiles
                 .map((model) => model.sourcePath)
                 .filter(Boolean)

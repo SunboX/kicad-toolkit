@@ -319,6 +319,7 @@ test('package exposes root parser renderer and style entrypoints', async () => {
 
     assert.equal(pkg.exports['.'], './src/index.mjs')
     assert.equal(pkg.exports['./parser'], './src/parser.mjs')
+    assert.equal(pkg.exports['./node'], './src/node.mjs')
     assert.equal(pkg.exports['./renderers'], './src/renderers.mjs')
     assert.equal(pkg.exports['./scene3d'], './src/scene3d.mjs')
     assert.equal(

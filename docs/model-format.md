@@ -16,10 +16,19 @@ the previous ECAD Forge parser model for renderers and migration code.
 Every parser result is an array of elements with a `type` field. The adapter
 emits Circuit JSON elements for source project metadata, source components,
 ports, nets, schematic symbols, schematic lines, schematic text, PCB boards,
-PCB components, PCB pads, PCB traces, PCB vias, copper pours, and board cutouts
-where those structures are available in the source document. PCB route
+PCB components, PCB pads, PCB text, PCB traces, PCB vias, copper pours, and
+board cutouts where those structures are available in the source document. PCB
+artwork on silkscreen, fabrication, and courtyard layers is serialized as
+dedicated path or courtyard elements when parsed graphic primitives are
+available. PCB text maps silkscreen and fabrication layers to dedicated text
+element types and preserves normalized layer, position, rotation, font size,
+stroke width, and hidden-state metadata. PCB route
 elements are built from connected track, arc, and via primitives so contiguous
 same-net copper is represented as a route instead of isolated segments.
+Generated PCB `source_trace.connected_source_port_ids` include every source
+port physically touched by a route point, including internal pads and branch
+nodes; `pcb_trace.route` endpoint annotations remain limited to start and end
+PCB port ids.
 Source components use supported Circuit JSON `ftype` values inferred from
 reference prefixes, footprints, values, properties, and attributes. Preserved
 metadata includes manufacturer part numbers and normalized
@@ -31,6 +40,9 @@ with punctuation-heavy or digit-leading labels preserved on `raw_name`.
 Schematic nets with parsed segment groups are emitted as one grouped
 `schematic_trace` connected to the matching source net and source ports, while
 ungrouped wire segments still fall back to individual trace elements.
+Segmentless named schematic labels, including power-symbol value labels, still
+emit linked `source_trace` and `schematic_trace` records so label-only
+connectivity remains visible to Circuit JSON consumers.
 `source_project_metadata` includes serialized `conversion_stats` with summary
 and element-count data, a conformance summary for generated references after
 conversion, and includes parser `diagnostics` when warnings or recovery notes
@@ -115,7 +127,8 @@ lower-level raw KiCad board model as `kicadBoard`. Summary fields expose
 component, layer, outline segment, BOM, net, polygon, track, arc, via, and
 board-size counts. Board outlines and cutouts can be recovered from closed
 line chains, polygons, rectangles, circles, arcs, and curves when those
-primitives are present in the parsed board data.
+primitives are present in the parsed board data, including outline primitives
+owned by placed footprints.
 
 Coordinates projected into the public `pcb` model use mils to match the
 Altium-style renderer contract. The nested `pcb.kicadBoard` model keeps raw
@@ -154,6 +167,9 @@ Circuit JSON SMT pad projections map `roundrect` pads to rectangular pad
 elements with `corner_radius`. Exact 90, 180, and 270 degree rotations are folded
 into width/height so simple right-angle pads stay unrotated in serialized
 output; arbitrary pad angles use rotated pad shape names with `ccw_rotation`.
+Project export converts component-owned pad centers into footprint-local
+coordinates with the same inverse component rotation used for footprint
+artwork.
 Custom polygon pad primitives are projected as `polygon` pads with deterministic
 board-space points when the primitive geometry is available.
 
@@ -163,6 +179,15 @@ PCB drawing and copper objects use `type` values such as `line`, `circle`,
 fill, geometry, owner, group, generated-item, and net metadata as needed by the
 primitive type. Polygon and curve point lists preserve source order and flatten
 inline arc segments into deterministic point sequences.
+Circuit JSON output projects non-copper silkscreen and fabrication graphics to
+`pcb_silkscreen_path` and `pcb_fabrication_note_path` elements. Courtyard
+graphics are projected to generic `pcb_courtyard` elements and remain
+compatible with shape-specific courtyard rows such as `pcb_courtyard_rect`,
+`pcb_courtyard_circle`, `pcb_courtyard_outline`, `pcb_courtyard_path`, and
+`pcb_courtyard_line`. Line, arc, circle, polygon, rectangle, and curve geometry
+preserves normalized millimeter coordinates, stroke width, source layer, source
+type, and owning PCB component ids when the graphic comes from a placed
+footprint.
 
 Filled zone objects preserve the first contour on `points` for compatibility
 and expose all recovered contours on `contours` when the source filled polygon
@@ -198,6 +223,11 @@ single-entry `footprints` array, flattened `pads`, footprint `drawings`,
 same lower-level footprint path as `.kicad_pcb` parsing, so pad geometry,
 text, drawings, attributes, properties, and 3D model transforms follow the
 board parser shapes.
+Circuit JSON output for standalone footprint libraries also emits a PCB-like
+projection at the footprint origin: one source component, one PCB component,
+source and PCB ports for pads, SMT pad or hole elements, silkscreen and
+fabrication text, and serialized silkscreen, fabrication, and courtyard
+artwork.
 
 Standalone symbol library files emit a `symbol-library` root with
 `fileType: "kicad_sym"`. The model exposes top-level `symbols` plus

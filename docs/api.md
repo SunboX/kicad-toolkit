@@ -15,6 +15,7 @@ Specialized entrypoints are also available:
 
 - `kicad-toolkit/parser`
 - `kicad-toolkit/netlist-query`
+- `kicad-toolkit/node`
 - `kicad-toolkit/renderers`
 - `kicad-toolkit/scene3d`
 - `kicad-toolkit/workers/kicad-parser.worker.mjs`
@@ -103,6 +104,83 @@ source nets, source ports, source traces, and PCB route endpoint ports.
 archive-ready KiCad project entries from a Circuit JSON element array,
 including project, schematic, board, symbol library, footprint library,
 library-table, and optional project-local 3D model files.
+CAD component rows attach 3D model nodes only to their owning footprint when
+the model source matches a supplied model file. Offsets, rotations, and model
+scale are preserved relative to the footprint origin, with board thickness and
+component side accounted for when CAD position data is available. PCB artwork
+rows owned by a component, such as silkscreen paths/text, fabrication notes,
+and courtyard outlines, are emitted as footprint primitives. Board-owned
+silkscreen, drawing-note, and fabrication artwork paths, circles, and
+rectangles are emitted as board graphics. Board outlines can come from
+`pcb_board.outline`, and board cutouts can be emitted as circle, rect, polygon,
+or path geometry on `Edge.Cuts`. Copper pour and ground-plane rows emit KiCad
+zone outlines plus prefilled polygons, including inner rings from B-Rep-style
+shapes, while `pcb_keepout` rows emit KiCad keepout zones with track, via, pad,
+copper-pour, and footprint restrictions. Routed traces preserve via and
+through-pad layer transitions without duplicating colocated vias, and pad net
+names can resolve through PCB ports, source ports, and source-net connectivity
+keys. Footprint pad coordinates are converted through the owning component
+rotation so rotated footprints keep pad and artwork geometry aligned.
+Custom schematic symbol rows, including rows referenced through
+component-linked graphics, can provide symbol names, graphic primitives, filled
+paths, arcs, display pin labels, and port-facing direction for generated KiCad
+symbol libraries. Component-scoped schematic artwork overlays generated symbol
+bodies without replacing generated pins. Standalone schematic page graphics and
+`schematic_section` rows are emitted as non-electrical graphical items, while
+wire rows and `schematic_trace.edges` remain electrical wires with exported
+trace junctions. Schematic trace endpoints connected through source traces are
+snapped to the exported KiCad pin anchors when they are close enough to avoid
+off-grid raw coordinates disconnecting wires from generated or custom symbols.
+Exported schematics include deterministic `symbol_instances` paths that point
+back to the placed symbol UUIDs and preserve reference, unit, value, and
+footprint information for round trips.
+KiCad-specific metadata on source, PCB, and label rows can override generated
+symbol and footprint names, pass properties, symbol placement flags, pin
+name/number display, embedded-font flags, and footprint attributes through,
+attach explicit model nodes, emit local, global, or hierarchical labels with
+explicit rotation, place power-symbol labels, and add symbol search metadata
+such as keywords and footprint filters. The
+`useGenericConnectorSymbols: true` option maps simple pin-header and connector
+source components with no custom symbol metadata to
+`Connector_Generic:Conn_01xNN` schematic library IDs while keeping local
+generated symbols as the default. The
+`modelPathMode: 'library-shapes'` option packages model files under
+`3dmodels/<library>.3dshapes` and updates footprint model references.
+
+`CircuitJsonKicadLibraryExporter.export(circuitJson, options)` emits the
+library subset of the same conversion: symbol library, footprint library,
+library tables, optional model files, and a library export manifest. Use it
+when an integration wants reusable KiCad libraries without a generated
+schematic, board, or project file. Library exports can classify metadata-marked
+builtin items, omit them with `includeBuiltins: false`, deduplicate repeated
+items with `dedupeLibraryItems: true`, and rewrite library-table URIs through
+`libraryTableRoot` or a `packageId`-derived third-party root. With
+`packageManagerLayout: true`, library exports use split `symbols/`,
+`footprints/`, and `3dmodels/` directories and include a package `metadata.json`
+entry populated from `packageId`, `packageName`, `packageVersion`, and
+`packageDescription`.
+
+`CircuitJsonKicadModExporter.export(circuitJson, options)` emits one
+standalone KiCad `.kicad_mod` entry from the same Circuit JSON footprint rows
+used by project and library exports. Select a footprint with `footprintName`,
+`sourceComponentId`, `pcbComponentId`, or `index`; otherwise the first footprint
+row is used. The result includes `entry`, `diagnostics`, and a small manifest.
+`exportText(circuitJson, options)` returns the serialized footprint text for
+hosts that do not need an archive entry wrapper.
+
+`CircuitJsonKicadProjectModelResolver.resolve(options)` loads remote or local
+3D model source paths into `modelFiles` entries accepted by the project and
+library exporters. The resolver is local-first: it performs no network or file
+I/O unless the host provides `fetch` or `readFile` callbacks, and callers can
+choose whether load failures throw or become diagnostics.
+
+`KicadCliVisualSnapshotHarness.render(options)` is exported from
+`kicad-toolkit/node` as an optional host-gated KiCad CLI snapshot helper. It is
+disabled unless `enabled: true` is supplied and only runs commands through an
+injected `execFile` callback, so default tests and browser consumers do not
+load or invoke external tools. Hosts can pass `assertNonBlank: true` plus
+`readFile` to verify generated visual artifacts are present and non-empty after
+the CLI commands complete.
 
 `KicadPcbParser.parse(source, options)` accepts KiCad `.kicad_pcb` source text
 and returns the lower-level board model that is wrapped by
@@ -223,7 +301,9 @@ unknown graphics. Parsed schematic documents attach this report at
 diagnostic contract for KiCad render hosts.
 
 Specialized parser helpers are exported for lower-level integrations, including
-`CircuitJsonKicadProjectExporter`, `Geometry`, `KicadArcGeometry`,
+`CircuitJsonKicadLibraryExporter`, `CircuitJsonKicadModExporter`,
+`CircuitJsonKicadProjectExporter`, `CircuitJsonKicadProjectModelResolver`,
+`Geometry`, `KicadArcGeometry`,
 `KicadCiArtifactBundleBuilder`, `KicadContractGateReportBuilder`,
 `KicadLayerResolver`, `KicadNetResolver`,
 `KicadDesignBlockLibraryParser`, `KicadDesignRulesParser`,

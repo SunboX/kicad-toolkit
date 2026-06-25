@@ -944,7 +944,16 @@ function normalizeBoardText(text) {
         rotation: text.rotation,
         layer: text.layer,
         side: text.side,
+        sizeX: text.sizeX,
+        sizeY: text.sizeY,
+        thickness: text.thickness,
+        visible: text.visible,
+        mirrored: text.mirrored,
+        hAlign: text.hAlign,
+        vAlign: text.vAlign,
         ownerIndex: text.ownerId || undefined,
+        sourceType: text.sourceType,
+        propertyName: text.propertyName,
         ...(text.fontFace ? { fontFace: text.fontFace } : {})
     }
 }

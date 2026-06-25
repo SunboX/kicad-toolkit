@@ -5,6 +5,7 @@ import { groupSchematicBomRows } from './KicadBomUtils.mjs'
 import { symbolPropertyTextRotation } from './KicadSchematicFieldRotation.mjs'
 import { KicadSchematicGraphicParser } from './KicadSchematicGraphicParser.mjs'
 import { KicadSchematicStyleParser } from './KicadSchematicStyleParser.mjs'
+import { KicadSchematicNetBuilder } from './KicadSchematicNetBuilder.mjs'
 import { KicadSchematicSymbolParser } from './KicadSchematicSymbolParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
 import { SchematicSidecarBuilder } from './SchematicSidecarBuilder.mjs'
@@ -85,13 +86,14 @@ export class KicadSchematicParser {
         ]
         const sheetSymbols = sheets.map((entry) => entry.symbol)
         const sheetEntries = sheets.flatMap((entry) => entry.entries)
-        const { nets, diagnostics: netDiagnostics } = buildSingleSheetNets({
-            lines,
-            texts,
-            pins,
-            junctions,
-            sheetEntries
-        })
+        const { nets, diagnostics: netDiagnostics } =
+            KicadSchematicNetBuilder.build({
+                lines,
+                texts,
+                pins,
+                junctions,
+                sheetEntries
+            })
         const bom = groupSchematicBomRows(components)
         const diagnostics = [
             {
@@ -461,6 +463,7 @@ function parseSchematicSymbol(node, index, librarySymbols) {
         mirror
     }
     const selection = { unit, convert }
+    const powerSymbol = isPowerSymbol(librarySymbol, libId)
     const primitives = KicadSchematicSymbolParser.parsePrimitives(
         librarySymbol,
         uuid,
@@ -475,13 +478,16 @@ function parseSchematicSymbol(node, index, librarySymbols) {
             endpointVisible: hasConnectorPinEndpointMarkers(libId)
         },
         selection
-    )
+    ).map((pin) => ({
+        ...pin,
+        symbolKind: powerSymbol ? 'power' : ''
+    }))
     const texts = parseSymbolPropertyTexts(properties, uuid, {
         x: at.x,
         y: at.y,
         mirror,
         rotation: at.rotation,
-        powerSymbol: isPowerSymbol(librarySymbol, libId)
+        powerSymbol
     })
     const component = {
         ownerIndex: uuid,
@@ -602,200 +608,6 @@ function mirrorTextVAlign(vAlign, mirror) {
     if (vAlign === 'top') return 'bottom'
     if (vAlign === 'bottom') return 'top'
     return vAlign
-}
-
-/**
- * Builds schematic nets for one sheet.
- * @param {object} schematic Schematic primitive collection.
- * @returns {{ nets: object[], diagnostics: object[] }}
- */
-function buildSingleSheetNets(schematic) {
-    const diagnostics = []
-    const wireLines = (schematic.lines || []).filter(
-        (line) => !line.ownerIndex && line.isBus !== true
-    )
-    const groups = groupConnectedSegments(wireLines, schematic.junctions || [])
-    const namedPointNets = (schematic.texts || [])
-        .filter((text) => text.recordType === '25' && text.text)
-        .map((text) => ({
-            name: text.text,
-            segments: [],
-            labels: [text],
-            pins: [],
-            junctions: [],
-            sheetEntries: []
-        }))
-
-    const wireNets = groups.map((group, index) => {
-        const labels = (schematic.texts || []).filter(
-            (text) =>
-                text.recordType === '25' &&
-                group.some((line) => lineContainsPoint(line, text))
-        )
-        const pins = (schematic.pins || []).filter((pin) =>
-            group.some((line) =>
-                lineContainsPoint(line, pinConnectionPoint(pin))
-            )
-        )
-        const junctions = (schematic.junctions || []).filter((junction) =>
-            group.some((line) => lineContainsPoint(line, junction))
-        )
-        const sheetEntries = (schematic.sheetEntries || []).filter((entry) =>
-            group.some((line) => lineContainsPoint(line, entry))
-        )
-        return {
-            name: labels[0]?.text || `UnknownNet${index}`,
-            segments: group,
-            labels,
-            powerPorts: [],
-            pins,
-            ports: [],
-            junctions,
-            busEntries: [],
-            sheetEntries
-        }
-    })
-
-    return {
-        nets: dedupeNetsByName([...wireNets, ...namedPointNets]),
-        diagnostics
-    }
-}
-
-/**
- * Deduplicates nets with the same explicit name.
- * @param {object[]} nets Nets.
- * @returns {object[]}
- */
-function dedupeNetsByName(nets) {
-    const byName = new Map()
-    for (const net of nets) {
-        if (!byName.has(net.name)) {
-            byName.set(net.name, net)
-            continue
-        }
-        const existing = byName.get(net.name)
-        existing.segments.push(...(net.segments || []))
-        existing.labels.push(...(net.labels || []))
-        existing.pins.push(...(net.pins || []))
-        existing.junctions.push(...(net.junctions || []))
-        existing.sheetEntries.push(...(net.sheetEntries || []))
-    }
-    return [...byName.values()]
-}
-
-/**
- * Groups connected wire segments.
- * @param {object[]} segments Wire segments.
- * @param {object[]} junctions Junctions.
- * @returns {object[][]}
- */
-function groupConnectedSegments(segments, junctions) {
-    const groups = []
-    for (const segment of segments) {
-        const connectedGroups = groups.filter((group) =>
-            group.some((other) => segmentsTouch(segment, other, junctions))
-        )
-        if (!connectedGroups.length) {
-            groups.push([segment])
-            continue
-        }
-        connectedGroups[0].push(segment)
-        for (const extra of connectedGroups.slice(1)) {
-            connectedGroups[0].push(...extra)
-            groups.splice(groups.indexOf(extra), 1)
-        }
-    }
-    return groups
-}
-
-/**
- * Checks if two wire segments are connected.
- * @param {object} left First segment.
- * @param {object} right Second segment.
- * @param {object[]} junctions Junctions.
- * @returns {boolean}
- */
-function segmentsTouch(left, right, junctions) {
-    const endpoints = [
-        { x: left.x1, y: left.y1 },
-        { x: left.x2, y: left.y2 }
-    ]
-    const rightEndpoints = [
-        { x: right.x1, y: right.y1 },
-        { x: right.x2, y: right.y2 }
-    ]
-    if (
-        endpoints.some((point) =>
-            rightEndpoints.some((other) => pointsEqual(point, other))
-        )
-    ) {
-        return true
-    }
-    return junctions.some(
-        (junction) =>
-            lineContainsPoint(left, junction) &&
-            lineContainsPoint(right, junction)
-    )
-}
-
-/**
- * Resolves a pin connection point.
- * @param {object} pin Pin.
- * @returns {{ x: number, y: number }}
- */
-function pinConnectionPoint(pin) {
-    if (pin.orientation === 'left') return { x: pin.x - pin.length, y: pin.y }
-    if (pin.orientation === 'right') return { x: pin.x + pin.length, y: pin.y }
-    if (pin.orientation === 'top') return { x: pin.x, y: pin.y - pin.length }
-    return { x: pin.x, y: pin.y + pin.length }
-}
-
-/**
- * Checks if a point lies on a segment.
- * @param {object} line Line segment.
- * @param {{ x: number, y: number }} point Point.
- * @returns {boolean}
- */
-function lineContainsPoint(line, point) {
-    const x1 = Number(line.x1) || 0
-    const y1 = Number(line.y1) || 0
-    const x2 = Number(line.x2) || 0
-    const y2 = Number(line.y2) || 0
-    const px = Number(point?.x) || 0
-    const py = Number(point?.y) || 0
-    const tolerance = 0.01
-
-    if (
-        px < Math.min(x1, x2) - tolerance ||
-        px > Math.max(x1, x2) + tolerance ||
-        py < Math.min(y1, y2) - tolerance ||
-        py > Math.max(y1, y2) + tolerance
-    ) {
-        return false
-    }
-
-    const dx = x2 - x1
-    const dy = y2 - y1
-    const lengthSquared = dx * dx + dy * dy
-    if (lengthSquared < tolerance * tolerance) {
-        return pointsEqual({ x: x1, y: y1 }, { x: px, y: py })
-    }
-
-    const cross = (px - x1) * dy - (py - y1) * dx
-    return Math.abs(cross) <= tolerance * Math.sqrt(lengthSquared)
-}
-
-/**
- * Checks point equality with KiCad coordinate tolerance.
- * @param {{ x: number, y: number }} left First point.
- * @param {{ x: number, y: number }} right Second point.
- * @returns {boolean}
- */
-function pointsEqual(left, right) {
-    return (
-        Math.abs(left.x - right.x) < 0.01 && Math.abs(left.y - right.y) < 0.01
-    )
 }
 
 /**

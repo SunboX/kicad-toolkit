@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
+import { CircuitJsonKicadProjectMetadata as Metadata } from './CircuitJsonKicadProjectMetadata.mjs'
+import { CircuitJsonKicadProjectSchematicSymbolBuilder as SchematicSymbolBuilder } from './CircuitJsonKicadProjectSchematicSymbolBuilder.mjs'
 
 /**
  * Builds indexed context for CircuitJSON project export.
@@ -10,7 +12,7 @@ export class CircuitJsonKicadProjectContext {
     /**
      * Builds the export context.
      * @param {object[] | { circuitJson?: object[], elements?: object[] }} circuitJson CircuitJSON source.
-     * @param {{ projectName?: string, libraryName?: string, modelFiles?: object[], modelPathPrefix?: string }} [options] Context options.
+     * @param {{ projectName?: string, libraryName?: string, modelFiles?: object[], modelPathPrefix?: string, modelPathMode?: string, modelDirectory?: string, libraryTableRoot?: string, packageId?: string, useGenericConnectorSymbols?: boolean }} [options] Context options.
      * @returns {object}
      */
     static build(circuitJson, options = {}) {
@@ -22,21 +24,34 @@ export class CircuitJsonKicadProjectContext {
         const libraryName = Utils.safeName(options.libraryName || projectName)
         const sourceComponents =
             CircuitJsonKicadProjectContext.sourceComponents(elements)
+        const sourceNets = CircuitJsonKicadProjectContext.sourceNets(elements)
+        const sourceTraces =
+            CircuitJsonKicadProjectContext.sourceTraces(elements)
+        const sourceTracesByPort =
+            CircuitJsonKicadProjectContext.sourceTracesByPort(sourceTraces)
         const sourcePorts = CircuitJsonKicadProjectContext.sourcePorts(elements)
         const pcbPorts = CircuitJsonKicadProjectContext.pcbPorts(elements)
         const pcbComponents = elements.filter(
             (element) => element?.type === 'pcb_component'
         )
+        const cadComponents =
+            CircuitJsonKicadProjectContext.cadComponents(elements)
         const schematicComponents = elements.filter(
             (element) => element?.type === 'schematic_component'
         )
         const componentRows = CircuitJsonKicadProjectContext.componentRows(
             sourceComponents,
             pcbComponents,
-            schematicComponents
+            schematicComponents,
+            elements
         )
         const standaloneFootprintRows =
             CircuitJsonKicadProjectContext.standaloneFootprintRows(elements)
+
+        const modelDirectory = CircuitJsonKicadProjectContext.modelDirectory(
+            options,
+            libraryName
+        )
 
         return {
             projectName,
@@ -47,9 +62,13 @@ export class CircuitJsonKicadProjectContext {
                 elements.find((element) => element?.type === 'pcb_board') ||
                 null,
             sourceComponents,
+            sourceNets,
+            sourceTraces,
+            sourceTracesByPort,
             sourcePorts,
             pcbPorts,
             pcbComponents,
+            cadComponents,
             schematicComponents,
             componentRows,
             footprintRows: [...componentRows, ...standaloneFootprintRows],
@@ -57,7 +76,15 @@ export class CircuitJsonKicadProjectContext {
             modelFiles: CircuitJsonKicadProjectContext.modelFiles(
                 options.modelFiles
             ),
-            modelPathPrefix: options.modelPathPrefix || '${KIPRJMOD}/models/'
+            modelDirectory,
+            modelPathPrefix:
+                options.modelPathPrefix ||
+                '${KIPRJMOD}/' + modelDirectory + '/',
+            libraryTableRoot:
+                options.libraryTableRoot ||
+                CircuitJsonKicadProjectContext.libraryTableRoot(options),
+            useGenericConnectorSymbols:
+                options.useGenericConnectorSymbols === true
         }
     }
 
@@ -100,6 +127,65 @@ export class CircuitJsonKicadProjectContext {
             if (id) map.set(id, element)
         }
         return map
+    }
+
+    /**
+     * Indexes source nets by id.
+     * @param {object[]} elements CircuitJSON elements.
+     * @returns {Map<string, object>}
+     */
+    static sourceNets(elements) {
+        const map = new Map()
+        for (const element of elements) {
+            if (element?.type !== 'source_net') continue
+            const id = Utils.text(element.source_net_id)
+            if (id) map.set(id, element)
+        }
+        return map
+    }
+
+    /**
+     * Indexes source traces by id.
+     * @param {object[]} elements CircuitJSON elements.
+     * @returns {Map<string, object>}
+     */
+    static sourceTraces(elements) {
+        const map = new Map()
+        for (const element of elements) {
+            if (element?.type !== 'source_trace') continue
+            const id = Utils.text(element.source_trace_id)
+            if (id) map.set(id, element)
+        }
+        return map
+    }
+
+    /**
+     * Indexes source traces by connected source port id.
+     * @param {Map<string, object>} sourceTraces Source traces by id.
+     * @returns {Map<string, object[]>}
+     */
+    static sourceTracesByPort(sourceTraces) {
+        const byPort = new Map()
+        for (const trace of sourceTraces.values()) {
+            const portIds = Array.isArray(trace.connected_source_port_ids)
+                ? trace.connected_source_port_ids
+                : []
+            for (const portId of portIds) {
+                const id = Utils.text(portId)
+                if (!id) continue
+                if (!byPort.has(id)) byPort.set(id, [])
+                byPort.get(id).push(trace)
+            }
+        }
+
+        for (const traces of byPort.values()) {
+            traces.sort((left, right) =>
+                Utils.text(left.source_trace_id).localeCompare(
+                    Utils.text(right.source_trace_id)
+                )
+            )
+        }
+        return byPort
     }
 
     /**
@@ -151,13 +237,40 @@ export class CircuitJsonKicadProjectContext {
     }
 
     /**
+     * Indexes CAD component rows by owning PCB component id.
+     * @param {object[]} elements CircuitJSON elements.
+     * @returns {{ byPcbComponentId: Map<string, object[]> }}
+     */
+    static cadComponents(elements) {
+        const byPcbComponentId = new Map()
+
+        for (const element of elements) {
+            if (element?.type !== 'cad_component') continue
+            const componentId = Utils.text(element.pcb_component_id)
+            if (!componentId) continue
+            if (!byPcbComponentId.has(componentId)) {
+                byPcbComponentId.set(componentId, [])
+            }
+            byPcbComponentId.get(componentId).push(element)
+        }
+
+        return { byPcbComponentId }
+    }
+
+    /**
      * Builds source component rows.
      * @param {Map<string, object>} sourceComponents Source components.
      * @param {object[]} pcbComponents PCB components.
      * @param {object[]} schematicComponents Schematic components.
+     * @param {object[]} elements CircuitJSON elements.
      * @returns {object[]}
      */
-    static componentRows(sourceComponents, pcbComponents, schematicComponents) {
+    static componentRows(
+        sourceComponents,
+        pcbComponents,
+        schematicComponents,
+        elements
+    ) {
         const sourceIds = new Set([
             ...sourceComponents.keys(),
             ...pcbComponents.map((component) =>
@@ -175,7 +288,8 @@ export class CircuitJsonKicadProjectContext {
                     sourceId,
                     sourceComponents,
                     pcbComponents,
-                    schematicComponents
+                    schematicComponents,
+                    elements
                 )
             )
             .sort((left, right) => left.sourceId.localeCompare(right.sourceId))
@@ -187,13 +301,15 @@ export class CircuitJsonKicadProjectContext {
      * @param {Map<string, object>} sourceComponents Source components.
      * @param {object[]} pcbComponents PCB components.
      * @param {object[]} schematicComponents Schematic components.
+     * @param {object[]} elements CircuitJSON elements.
      * @returns {object}
      */
     static componentRow(
         sourceId,
         sourceComponents,
         pcbComponents,
-        schematicComponents
+        schematicComponents,
+        elements
     ) {
         const sourceComponent = sourceComponents.get(sourceId) || {}
         const pcbComponent =
@@ -206,24 +322,40 @@ export class CircuitJsonKicadProjectContext {
                 (component) =>
                     Utils.text(component.source_component_id) === sourceId
             ) || null
+        const schematicSymbol = SchematicSymbolBuilder.symbolFor(
+            elements,
+            schematicComponent
+        )
         const name = Utils.safeName(
             sourceComponent.name ||
                 sourceComponent.reference ||
+                schematicSymbol?.name ||
                 pcbComponent?.name ||
                 pcbComponent?.pcb_component_id ||
                 sourceId
         )
+        const symbolName = Utils.safeName(schematicSymbol?.name || name)
 
         return {
             sourceId,
             sourceComponent,
             pcbComponent,
             schematicComponent,
+            schematicSymbol,
             reference:
                 CircuitJsonKicadProjectContext.reference(sourceComponent),
+            referenceDesignator:
+                CircuitJsonKicadProjectContext.referenceDesignator(
+                    sourceComponent,
+                    name
+                ),
             value: Utils.text(sourceComponent.manufacturer_part_number) || name,
-            symbolName: name,
-            footprintName: name
+            symbolName: Metadata.symbolName(sourceComponent, symbolName),
+            footprintName: Metadata.footprintName(
+                sourceComponent,
+                pcbComponent,
+                name
+            )
         }
     }
 
@@ -363,6 +495,36 @@ export class CircuitJsonKicadProjectContext {
     }
 
     /**
+     * Resolves the archive model directory.
+     * @param {object} options Export options.
+     * @param {string} libraryName Export library name.
+     * @returns {string}
+     */
+    static modelDirectory(options, libraryName) {
+        if (options.modelDirectory) {
+            return Utils.normalizeBasePath(options.modelDirectory)
+        }
+        if (options.modelPathMode === 'library-shapes') {
+            return '3dmodels/' + libraryName + '.3dshapes'
+        }
+        return 'models'
+    }
+
+    /**
+     * Resolves the library-table URI root.
+     * @param {object} options Export options.
+     * @returns {string}
+     */
+    static libraryTableRoot(options) {
+        if (options.packageId) {
+            return (
+                '${KICAD_USER_3RD_PARTY}/' + Utils.safeName(options.packageId)
+            )
+        }
+        return '${KIPRJMOD}'
+    }
+
+    /**
      * Resolves one source component reference prefix.
      * @param {object} sourceComponent Source component.
      * @returns {string}
@@ -373,6 +535,24 @@ export class CircuitJsonKicadProjectContext {
         )
         const match = /^[A-Z]+/u.exec(name)
         return match ? match[0] : 'U'
+    }
+
+    /**
+     * Resolves one placed component reference designator.
+     * @param {object} sourceComponent Source component.
+     * @param {string} fallbackName Fallback component name.
+     * @returns {string}
+     */
+    static referenceDesignator(sourceComponent, fallbackName) {
+        const explicit = Utils.text(sourceComponent.reference)
+        if (explicit) return Utils.safeName(explicit)
+
+        const name = Utils.text(sourceComponent.name || fallbackName)
+        if (/^[A-Za-z#]+[A-Za-z0-9_#?]*\d[A-Za-z0-9_#?]*$/u.test(name)) {
+            return Utils.safeName(name)
+        }
+
+        return CircuitJsonKicadProjectContext.reference(sourceComponent)
     }
 
     /**
@@ -399,7 +579,8 @@ export class CircuitJsonKicadProjectContext {
             element?.type !== 'pcb_ground_plane' &&
             element?.type !== 'pcb_ground_plane_region' &&
             element?.type !== 'pcb_trace' &&
-            element?.type !== 'pcb_via'
+            element?.type !== 'pcb_via' &&
+            element?.type !== 'source_trace'
         ) {
             return ''
         }
@@ -410,6 +591,8 @@ export class CircuitJsonKicadProjectContext {
                 element?.net_name ||
                 element?.source_net_id ||
                 element?.connection_name ||
+                element?.source_trace_id ||
+                element?.subcircuit_connectivity_map_key ||
                 ''
         )
     }

@@ -545,10 +545,36 @@ export class CircuitJsonPcbTraceRouteBuilder {
             firstWire.start_pcb_port_id = startPort.pcbPortId
         if (endPort && lastWire) lastWire.end_pcb_port_id = endPort.pcbPortId
 
-        return CircuitJsonRouteEndpointResolver.sourcePortIds([
-            startPort,
-            endPort
-        ])
+        return CircuitJsonPcbTraceRouteBuilder.#routeSourcePortIds(
+            route,
+            portPlacements,
+            sourceNetId
+        )
+    }
+
+    /**
+     * Returns source port ids for all route points that touch PCB ports.
+     * @param {object[]} route Circuit JSON route points.
+     * @param {object[]} portPlacements Known PCB port placements.
+     * @param {string | undefined} sourceNetId Source net id.
+     * @returns {string[]}
+     */
+    static #routeSourcePortIds(route, portPlacements, sourceNetId) {
+        const placements = []
+
+        for (const point of route) {
+            if (point.route_type !== 'wire') continue
+
+            const placement = CircuitJsonRouteEndpointResolver.findPort(
+                portPlacements,
+                point,
+                point.layer,
+                sourceNetId
+            )
+            if (placement) placements.push(placement)
+        }
+
+        return CircuitJsonRouteEndpointResolver.sourcePortIds(placements)
     }
 
     /**

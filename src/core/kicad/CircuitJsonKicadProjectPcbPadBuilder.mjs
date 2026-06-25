@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { CircuitJsonKicadProjectContext as Context } from './CircuitJsonKicadProjectContext.mjs'
+import { CircuitJsonKicadProjectPcbNetResolver as NetResolver } from './CircuitJsonKicadProjectPcbNetResolver.mjs'
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
 
 const PAD_TYPES = new Set(['pcb_smtpad', 'pcb_plated_hole', 'pcb_hole'])
@@ -160,7 +160,6 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
      * @returns {Array}
      */
     static padNode(context, component, pad, index) {
-        const center = Utils.point(component.center) || { x: 0, y: 0 }
         const padPoint = CircuitJsonKicadProjectPcbPadBuilder.padCenter(
             pad
         ) || {
@@ -169,8 +168,12 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
         }
         const padType = CircuitJsonKicadProjectPcbPadBuilder.padType(pad)
         const shape = CircuitJsonKicadProjectPcbPadBuilder.padShape(pad)
-        const netName = Context.netName(pad)
+        const netName = NetResolver.netName(context, pad)
         const netId = netName ? context.netMap.get(netName) || 0 : 0
+        const local = CircuitJsonKicadProjectPcbPadBuilder.localPoint(
+            component,
+            padPoint
+        )
 
         return [
             'pad',
@@ -179,8 +182,8 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
             shape,
             [
                 'at',
-                Utils.round(padPoint.x - center.x),
-                Utils.round(center.y - padPoint.y),
+                local.x,
+                local.y,
                 CircuitJsonKicadProjectPcbPadBuilder.padRotation(pad)
             ],
             [
@@ -198,6 +201,7 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
             ],
             ...CircuitJsonKicadProjectPcbPadBuilder.roundrectNodes(pad, shape),
             ...CircuitJsonKicadProjectPcbPadBuilder.customPadNodes(
+                component,
                 pad,
                 shape,
                 padPoint
@@ -266,6 +270,25 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
             y: Utils.round(
                 points.reduce((sum, entry) => sum + entry.y, 0) / points.length
             )
+        }
+    }
+
+    /**
+     * Converts a board point to footprint-local coordinates.
+     * @param {object} component PCB component row.
+     * @param {{ x: number, y: number }} point Board point.
+     * @returns {{ x: number, y: number }}
+     */
+    static localPoint(component, point) {
+        const center = Utils.point(component.center) || { x: 0, y: 0 }
+        const dx = point.x - center.x
+        const dy = point.y - center.y
+        const radians = (-Utils.number(component.rotation, 0) * Math.PI) / 180
+        const cos = Math.cos(radians)
+        const sin = Math.sin(radians)
+        return {
+            x: Utils.round(dx * cos - dy * sin),
+            y: Utils.round(-(dx * sin + dy * cos))
         }
     }
 
@@ -431,15 +454,20 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
 
     /**
      * Builds custom pad option and primitive nodes.
+     * @param {object} component PCB component row.
      * @param {object} pad Pad element.
      * @param {string} shape KiCad pad shape.
      * @param {{ x: number, y: number }} padPoint Pad center.
      * @returns {Array[]}
      */
-    static customPadNodes(pad, shape, padPoint) {
+    static customPadNodes(component, pad, shape, padPoint) {
         if (shape !== 'custom') return []
         const points = CircuitJsonKicadProjectPcbPadBuilder.points(pad)
         if (points.length < 3) return []
+        const padLocal = CircuitJsonKicadProjectPcbPadBuilder.localPoint(
+            component,
+            padPoint
+        )
         return [
             ['options', ['anchor', 'circle']],
             [
@@ -448,11 +476,18 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
                     'gr_poly',
                     [
                         'pts',
-                        ...points.map((point) => [
-                            'xy',
-                            Utils.round(point.x - padPoint.x),
-                            Utils.round(padPoint.y - point.y)
-                        ])
+                        ...points.map((point) => {
+                            const local =
+                                CircuitJsonKicadProjectPcbPadBuilder.localPoint(
+                                    component,
+                                    point
+                                )
+                            return [
+                                'xy',
+                                Utils.round(local.x - padLocal.x),
+                                Utils.round(local.y - padLocal.y)
+                            ]
+                        })
                     ],
                     ['width', 0],
                     ['fill', 'yes']

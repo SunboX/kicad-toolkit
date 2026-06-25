@@ -76,13 +76,13 @@ export class KicadPcbParser {
                 expandTextModel(text, boardTextContext)
             )
         ]
-        const outlines = boardDrawings.filter(
+        const graphicDrawings = [...boardDrawings, ...footprintDrawings]
+        const outlines = graphicDrawings.filter(
             (drawing) => drawing.layer === 'Edge.Cuts'
         )
-        const drawings = [
-            ...boardDrawings.filter((drawing) => drawing.layer !== 'Edge.Cuts'),
-            ...footprintDrawings
-        ]
+        const drawings = graphicDrawings.filter(
+            (drawing) => drawing.layer !== 'Edge.Cuts'
+        )
         const texts = [...boardTexts, ...footprintTexts]
         const bounds = computeBoardBounds(
             outlines,

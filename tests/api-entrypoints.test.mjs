@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import * as nodeApi from '../src/node.mjs'
 import * as rootApi from '../src/index.mjs'
 import * as parserApi from '../src/parser.mjs'
 import * as rendererApi from '../src/renderers.mjs'
@@ -25,6 +26,16 @@ test('root entrypoint exports parser and renderer classes', () => {
         typeof rootApi.CircuitJsonKicadProjectExporter.export,
         'function'
     )
+    assert.equal(
+        typeof rootApi.CircuitJsonKicadLibraryExporter.export,
+        'function'
+    )
+    assert.equal(typeof rootApi.CircuitJsonKicadModExporter.export, 'function')
+    assert.equal(
+        typeof rootApi.CircuitJsonKicadProjectModelResolver.resolve,
+        'function'
+    )
+    assert.equal(typeof rootApi.KicadCliVisualSnapshotHarness, 'undefined')
     assert.equal(typeof rootApi.CircuitJsonModelSchema.attach, 'function')
     assert.equal(typeof rootApi.KicadToolkitCapabilities.inventory, 'function')
     assert.equal(typeof rootApi.KicadFeatureParity.inventory, 'function')
@@ -258,6 +269,23 @@ test('specialized entrypoints expose their intended API groups', () => {
     )
     assert.equal(
         typeof parserApi.CircuitJsonKicadProjectExporter.export,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.CircuitJsonKicadLibraryExporter.export,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.CircuitJsonKicadModExporter.export,
+        'function'
+    )
+    assert.equal(
+        typeof parserApi.CircuitJsonKicadProjectModelResolver.resolve,
+        'function'
+    )
+    assert.equal(typeof parserApi.KicadCliVisualSnapshotHarness, 'undefined')
+    assert.equal(
+        typeof nodeApi.KicadCliVisualSnapshotHarness.render,
         'function'
     )
     assert.equal(typeof parserApi.CircuitJsonModelSchema.attach, 'function')

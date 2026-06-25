@@ -11,6 +11,18 @@ const PAPER_SIZES = [
     { name: 'A0', width: 1189, height: 841 }
 ]
 
+const PAGE_GRAPHIC_ROLES = new Set([
+    'annotation',
+    'decoration',
+    'divider',
+    'graphic',
+    'page_graphic',
+    'section'
+])
+
+const SECTION_TEXT_PADDING_X = 0.22
+const SECTION_TEXT_PADDING_Y = 0.18
+
 /**
  * Builds schematic page metadata and standalone annotation nodes.
  */
@@ -61,6 +73,7 @@ export class CircuitJsonKicadProjectSchematicPage {
         return context.elements
             .filter((element) => element?.type === 'schematic_text')
             .filter((element) => !Utils.text(element.schematic_component_id))
+            .filter((element) => !Utils.text(element.schematic_symbol_id))
             .map((element, index) =>
                 CircuitJsonKicadProjectSchematicPage.textNode(element, index)
             )
@@ -89,6 +102,306 @@ export class CircuitJsonKicadProjectSchematicPage {
                 )
             ]
         ]
+    }
+
+    /**
+     * Builds page graphic nodes from annotations and sections.
+     * @param {object} context Export context.
+     * @returns {Array[]}
+     */
+    static graphicNodes(context) {
+        return [
+            ...CircuitJsonKicadProjectSchematicPage.lineGraphicNodes(context),
+            ...CircuitJsonKicadProjectSchematicPage.sectionNodes(context)
+        ]
+    }
+
+    /**
+     * Builds page-owned line or path nodes.
+     * @param {object} context Export context.
+     * @returns {Array[]}
+     */
+    static lineGraphicNodes(context) {
+        return context.elements
+            .filter((element) =>
+                CircuitJsonKicadProjectSchematicPage.isPageGraphicLine(element)
+            )
+            .map((element, index) =>
+                CircuitJsonKicadProjectSchematicPage.lineGraphicNode(
+                    element,
+                    index
+                )
+            )
+            .filter(Boolean)
+    }
+
+    /**
+     * Returns true when a schematic line/path is a page graphic.
+     * @param {object} element Candidate element.
+     * @returns {boolean}
+     */
+    static isPageGraphicLine(element) {
+        if (!['schematic_line', 'schematic_path'].includes(element?.type)) {
+            return false
+        }
+        if (Utils.text(element.schematic_component_id)) return false
+        if (Utils.text(element.schematic_symbol_id)) return false
+        return CircuitJsonKicadProjectSchematicPage.hasPageGraphicIntent(
+            element
+        )
+    }
+
+    /**
+     * Returns true when metadata marks an element as non-electrical page art.
+     * @param {object} element Candidate element.
+     * @returns {boolean}
+     */
+    static hasPageGraphicIntent(element) {
+        if (
+            element.is_page_graphic === true ||
+            element.isPageGraphic === true ||
+            element.is_graphic === true ||
+            element.isGraphic === true ||
+            element.is_decoration === true ||
+            element.isDecoration === true ||
+            element.is_electrical === false ||
+            element.isElectrical === false
+        ) {
+            return true
+        }
+        if (
+            Utils.text(element.schematic_section_id) ||
+            Utils.text(element.section_id) ||
+            Utils.text(element.sectionId)
+        ) {
+            return true
+        }
+        return PAGE_GRAPHIC_ROLES.has(
+            Utils.text(
+                element.role ||
+                    element.purpose ||
+                    element.kind ||
+                    element.graphic_kind ||
+                    element.graphicKind
+            ).toLowerCase()
+        )
+    }
+
+    /**
+     * Builds one page-owned schematic line or path node.
+     * @param {object} element Line/path element.
+     * @param {number} index Graphic index.
+     * @returns {Array | null}
+     */
+    static lineGraphicNode(element, index) {
+        const points =
+            CircuitJsonKicadProjectSchematicPage.graphicLinePoints(element)
+        if (points.length < 2) return null
+        return [
+            'polyline',
+            ['pts', ...points.map((point) => ['xy', point.x, -point.y])],
+            [
+                'stroke',
+                [
+                    'width',
+                    Utils.number(element.stroke_width ?? element.width, 0)
+                ],
+                ['type', 'default']
+            ],
+            ['fill', ['type', 'none']],
+            [
+                'uuid',
+                Utils.uuid(
+                    'page-graphic:' +
+                        (element.schematic_line_id ||
+                            element.schematic_path_id ||
+                            index)
+                )
+            ]
+        ]
+    }
+
+    /**
+     * Resolves points for a page graphic line or path.
+     * @param {object} element Line/path element.
+     * @returns {{ x: number, y: number }[]}
+     */
+    static graphicLinePoints(element) {
+        if (Array.isArray(element.points)) {
+            return element.points
+                .map((point) => Utils.point(point))
+                .filter(Boolean)
+        }
+        if (Array.isArray(element.route)) {
+            return element.route
+                .map((point) => Utils.point(point))
+                .filter(Boolean)
+        }
+        return CircuitJsonKicadProjectSchematicPage.linePoints(element)
+    }
+
+    /**
+     * Builds section outline and label nodes.
+     * @param {object} context Export context.
+     * @returns {Array[]}
+     */
+    static sectionNodes(context) {
+        return context.elements
+            .filter((element) => element?.type === 'schematic_section')
+            .flatMap((element, index) =>
+                CircuitJsonKicadProjectSchematicPage.sectionNodePair(
+                    element,
+                    index
+                )
+            )
+            .filter(Boolean)
+    }
+
+    /**
+     * Builds one section's outline and heading.
+     * @param {object} element Section element.
+     * @param {number} index Section index.
+     * @returns {Array[]}
+     */
+    static sectionNodePair(element, index) {
+        const bounds =
+            CircuitJsonKicadProjectSchematicPage.sectionBounds(element)
+        if (!bounds) return []
+        return [
+            CircuitJsonKicadProjectSchematicPage.sectionRectangleNode(
+                element,
+                bounds,
+                index
+            ),
+            CircuitJsonKicadProjectSchematicPage.sectionTextNode(
+                element,
+                bounds,
+                index
+            )
+        ].filter(Boolean)
+    }
+
+    /**
+     * Builds one section rectangle node.
+     * @param {object} element Section element.
+     * @param {object} bounds Section bounds.
+     * @param {number} index Section index.
+     * @returns {Array}
+     */
+    static sectionRectangleNode(element, bounds, index) {
+        return [
+            'rectangle',
+            ['start', bounds.minX, -bounds.maxY],
+            ['end', bounds.maxX, -bounds.minY],
+            [
+                'stroke',
+                ['width', Utils.number(element.stroke_width, 0)],
+                ['type', 'default']
+            ],
+            ['fill', ['type', 'none']],
+            [
+                'uuid',
+                Utils.uuid('section:' + (element.schematic_section_id || index))
+            ]
+        ]
+    }
+
+    /**
+     * Builds one section heading node.
+     * @param {object} element Section element.
+     * @param {object} bounds Section bounds.
+     * @param {number} index Section index.
+     * @returns {Array | null}
+     */
+    static sectionTextNode(element, bounds, index) {
+        const label = Utils.text(
+            element.display_name ||
+                element.displayName ||
+                element.title ||
+                element.name ||
+                element.text
+        )
+        if (!label) return null
+        const size = Utils.number(element.font_size ?? element.size, 1.27)
+        return [
+            'text',
+            label,
+            [
+                'at',
+                Utils.round(bounds.minX + SECTION_TEXT_PADDING_X),
+                Utils.round(-(bounds.maxY - SECTION_TEXT_PADDING_Y)),
+                Utils.number(element.rotation, 0)
+            ],
+            ['effects', ['font', ['size', size, size], ['thickness', 0.15]]],
+            [
+                'uuid',
+                Utils.uuid(
+                    'section-text:' + (element.schematic_section_id || index)
+                )
+            ]
+        ]
+    }
+
+    /**
+     * Resolves schematic section bounds.
+     * @param {object} element Section element.
+     * @returns {{ minX: number, minY: number, maxX: number, maxY: number } | null}
+     */
+    static sectionBounds(element) {
+        const explicit =
+            CircuitJsonKicadProjectSchematicPage.explicitBounds(element)
+        if (explicit) return explicit
+        const center = Utils.point(
+            element.center || element.position || element
+        )
+        if (!center) return null
+        const width = Utils.number(element.width, 0)
+        const height = Utils.number(element.height, 0)
+        if (width <= 0 || height <= 0) return null
+        return {
+            minX: Utils.round(center.x - width / 2),
+            minY: Utils.round(center.y - height / 2),
+            maxX: Utils.round(center.x + width / 2),
+            maxY: Utils.round(center.y + height / 2)
+        }
+    }
+
+    /**
+     * Resolves explicit min/max bounds from an element.
+     * @param {object} element Candidate element.
+     * @returns {{ minX: number, minY: number, maxX: number, maxY: number } | null}
+     */
+    static explicitBounds(element) {
+        const minX = Utils.number(
+            element.x1 ?? element.min_x ?? element.minX,
+            NaN
+        )
+        const minY = Utils.number(
+            element.y1 ?? element.min_y ?? element.minY,
+            NaN
+        )
+        const maxX = Utils.number(
+            element.x2 ?? element.max_x ?? element.maxX,
+            NaN
+        )
+        const maxY = Utils.number(
+            element.y2 ?? element.max_y ?? element.maxY,
+            NaN
+        )
+        if (
+            !Number.isFinite(minX) ||
+            !Number.isFinite(minY) ||
+            !Number.isFinite(maxX) ||
+            !Number.isFinite(maxY)
+        ) {
+            return null
+        }
+        return {
+            minX: Math.min(minX, maxX),
+            minY: Math.min(minY, maxY),
+            maxX: Math.max(minX, maxX),
+            maxY: Math.max(minY, maxY)
+        }
     }
 
     /**
@@ -171,6 +484,16 @@ export class CircuitJsonKicadProjectSchematicPage {
                 { x: center.x - width / 2, y: center.y - height / 2 },
                 { x: center.x + width / 2, y: center.y + height / 2 }
             ]
+        }
+        if (element?.type === 'schematic_section') {
+            const bounds =
+                CircuitJsonKicadProjectSchematicPage.sectionBounds(element)
+            return bounds
+                ? [
+                      { x: bounds.minX, y: bounds.minY },
+                      { x: bounds.maxX, y: bounds.maxY }
+                  ]
+                : []
         }
         return []
     }
