@@ -1,6 +1,6 @@
 {
     "name": "kicad-toolkit",
-    "version": "1.0.26",
+    "version": "1.0.28",
     "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
     "keywords": [
         "kicad",
@@ -75,6 +75,9 @@
         "docs/schemas/kicad_toolkit/project_bom_pnp_reconciliation_a1.schema.json",
         "docs/schemas/kicad_toolkit/library_qa_a1.schema.json",
         "docs/schemas/kicad_toolkit/library_merge_plan_a1.schema.json",
+        "docs/schemas/kicad_toolkit/pcm_repository_index_a1.schema.json",
+        "docs/schemas/kicad_toolkit/pcm_package_qa_a1.schema.json",
+        "docs/schemas/kicad_toolkit/semantic_diff_a1.schema.json",
         "docs/schemas/kicad_toolkit/schematic_qa_a1.schema.json",
         "docs/testing.md",
         "examples",

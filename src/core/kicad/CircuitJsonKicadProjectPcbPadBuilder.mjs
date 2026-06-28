@@ -5,6 +5,7 @@ import { CircuitJsonKicadProjectPcbNetResolver as NetResolver } from './CircuitJ
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
 
 const PAD_TYPES = new Set(['pcb_smtpad', 'pcb_plated_hole', 'pcb_hole'])
+const PCB_MIL_TO_MM = 0.0254
 
 /**
  * Builds KiCad footprint pad nodes from CircuitJSON PCB pad and hole rows.
@@ -74,6 +75,7 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
      * @returns {object[]}
      */
     static standaloneRows(context) {
+        const usedNames = new Set()
         return context.elements
             .filter(
                 (element) =>
@@ -84,12 +86,14 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
                 const center = CircuitJsonKicadProjectPcbPadBuilder.padCenter(
                     element
                 ) || { x: index, y: 0 }
-                const name = Utils.safeName(
-                    CircuitJsonKicadProjectPcbPadBuilder.elementId(
-                        element,
-                        index
+                const name =
+                    CircuitJsonKicadProjectPcbPadBuilder.uniqueStandaloneFootprintName(
+                        CircuitJsonKicadProjectPcbPadBuilder.standaloneFootprintName(
+                            element,
+                            index
+                        ),
+                        usedNames
                     )
-                )
                 return { element, index, center, name }
             })
     }
@@ -191,7 +195,7 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
                 CircuitJsonKicadProjectPcbPadBuilder.padWidth(pad),
                 CircuitJsonKicadProjectPcbPadBuilder.padHeight(pad)
             ],
-            ...CircuitJsonKicadProjectPcbPadBuilder.drillNodes(pad),
+            ...CircuitJsonKicadProjectPcbPadBuilder.drillNodes(component, pad),
             [
                 'layers',
                 ...CircuitJsonKicadProjectPcbPadBuilder.padLayers(
@@ -206,7 +210,8 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
                 shape,
                 padPoint
             ),
-            ...(netName ? [['net', netId, netName]] : [])
+            ...(netName ? [['net', netId, netName]] : []),
+            ...CircuitJsonKicadProjectPcbPadBuilder.policyNodes(pad)
         ]
     }
 
@@ -422,13 +427,17 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
 
     /**
      * Builds drill nodes for plated and non-plated holes.
+     * @param {object} component PCB component row.
      * @param {object} pad Pad or hole element.
      * @returns {Array[]}
      */
-    static drillNodes(pad) {
+    static drillNodes(component, pad) {
         if (!CircuitJsonKicadProjectPcbPadBuilder.hasDrill(pad)) return []
         const drill = CircuitJsonKicadProjectPcbPadBuilder.drillSize(pad)
-        const offset = CircuitJsonKicadProjectPcbPadBuilder.drillOffset(pad)
+        const offset = CircuitJsonKicadProjectPcbPadBuilder.drillOffset(
+            component,
+            pad
+        )
         const offsetNode = offset ? [['offset', offset.x, offset.y]] : []
         if (drill.oval) {
             return [['drill', 'oval', drill.width, drill.height, ...offsetNode]]
@@ -494,6 +503,114 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
                 ]
             ]
         ]
+    }
+
+    /**
+     * Builds local pad policy override nodes.
+     * @param {object} pad Pad element.
+     * @returns {Array[]}
+     */
+    static policyNodes(pad) {
+        return [
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'solder_mask_margin',
+                pad,
+                [
+                    'solderMaskMargin',
+                    'solder_mask_margin',
+                    'soldermask_margin',
+                    {
+                        name: 'solderMaskExpansion',
+                        multiplier: PCB_MIL_TO_MM
+                    }
+                ]
+            ),
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'solder_paste_margin',
+                pad,
+                [
+                    'solderPasteMargin',
+                    'solder_paste_margin',
+                    {
+                        name: 'pasteMaskExpansion',
+                        multiplier: PCB_MIL_TO_MM
+                    }
+                ]
+            ),
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'solder_paste_margin_ratio',
+                pad,
+                ['solderPasteMarginRatio', 'solder_paste_margin_ratio']
+            ),
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'clearance',
+                pad,
+                [
+                    'clearance',
+                    {
+                        name: 'powerPlaneClearance',
+                        multiplier: PCB_MIL_TO_MM
+                    }
+                ]
+            ),
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'zone_connect',
+                pad,
+                ['zoneConnect', 'zone_connect', 'planeConnectionStyle']
+            ),
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'thermal_bridge_width',
+                pad,
+                [
+                    'thermalBridgeWidth',
+                    'thermal_bridge_width',
+                    {
+                        name: 'thermalReliefConductorWidth',
+                        multiplier: PCB_MIL_TO_MM
+                    }
+                ]
+            ),
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'thermal_bridge_angle',
+                pad,
+                ['thermalBridgeAngle', 'thermal_bridge_angle']
+            ),
+            CircuitJsonKicadProjectPcbPadBuilder.policyNumberNode(
+                'thermal_gap',
+                pad,
+                [
+                    'thermalGap',
+                    'thermal_gap',
+                    {
+                        name: 'thermalReliefAirGap',
+                        multiplier: PCB_MIL_TO_MM
+                    }
+                ]
+            )
+        ].filter(Boolean)
+    }
+
+    /**
+     * Builds one local pad policy node from the first finite source field.
+     * @param {string} nodeName KiCad node name.
+     * @param {object} pad Pad element.
+     * @param {(string | { name: string, multiplier?: number })[]} fields Candidate source fields.
+     * @returns {Array | null}
+     */
+    static policyNumberNode(nodeName, pad, fields) {
+        for (const field of fields) {
+            const fieldName =
+                typeof field === 'string' ? field : Utils.text(field.name)
+            const multiplier =
+                typeof field === 'string'
+                    ? 1
+                    : Utils.number(field.multiplier, 1)
+            const value = Utils.number(pad?.[fieldName], NaN)
+            if (Number.isFinite(value)) {
+                return [nodeName, Utils.round(value * multiplier)]
+            }
+        }
+        return null
     }
 
     /**
@@ -583,6 +700,158 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
     }
 
     /**
+     * Resolves a standalone footprint name from explicit identity or geometry.
+     * @param {object} element Pad or hole element.
+     * @param {number} index Element index.
+     * @returns {string}
+     */
+    static standaloneFootprintName(element, index) {
+        const explicit = Utils.text(
+            element.pcb_smtpad_id ||
+                element.pcb_plated_hole_id ||
+                element.pcb_hole_id ||
+                element.name
+        )
+        if (explicit) return Utils.safeName(explicit)
+        return Utils.safeName(
+            CircuitJsonKicadProjectPcbPadBuilder.#geometryFootprintName(
+                element,
+                index
+            )
+        )
+    }
+
+    /**
+     * Builds a unique standalone footprint name.
+     * @param {string} name Candidate footprint name.
+     * @param {Set<string>} usedNames Used names.
+     * @returns {string}
+     */
+    static uniqueStandaloneFootprintName(name, usedNames) {
+        const baseName = Utils.safeName(name)
+        let candidate = baseName
+        let index = 2
+        while (usedNames.has(candidate.toLowerCase())) {
+            candidate = baseName + '_' + index
+            index += 1
+        }
+        usedNames.add(candidate.toLowerCase())
+        return candidate
+    }
+
+    /**
+     * Builds a geometry-derived footprint name for an anonymous pad or hole.
+     * @param {object} element Pad or hole element.
+     * @param {number} index Fallback index.
+     * @returns {string}
+     */
+    static #geometryFootprintName(element, index) {
+        const padType = CircuitJsonKicadProjectPcbPadBuilder.padType(element)
+        const shape =
+            CircuitJsonKicadProjectPcbPadBuilder.#shapeNameForGeometry(element)
+        const rotation =
+            CircuitJsonKicadProjectPcbPadBuilder.padRotation(element)
+        const rotationToken = rotation
+            ? '_R' + CircuitJsonKicadProjectPcbPadBuilder.#numberToken(rotation)
+            : ''
+
+        if (padType === 'np_thru_hole') {
+            return (
+                'NPTH_' +
+                shape +
+                '_Drill_' +
+                CircuitJsonKicadProjectPcbPadBuilder.#drillToken(element) +
+                rotationToken
+            )
+        }
+        if (padType === 'thru_hole') {
+            return (
+                'PTH_' +
+                shape +
+                '_' +
+                CircuitJsonKicadProjectPcbPadBuilder.#dimensionToken(
+                    CircuitJsonKicadProjectPcbPadBuilder.padWidth(element),
+                    CircuitJsonKicadProjectPcbPadBuilder.padHeight(element)
+                ) +
+                '_Drill_' +
+                CircuitJsonKicadProjectPcbPadBuilder.#drillToken(element) +
+                rotationToken
+            )
+        }
+        if (padType === 'smd') {
+            return (
+                'SMD_' +
+                shape +
+                '_' +
+                CircuitJsonKicadProjectPcbPadBuilder.#dimensionToken(
+                    CircuitJsonKicadProjectPcbPadBuilder.padWidth(element),
+                    CircuitJsonKicadProjectPcbPadBuilder.padHeight(element)
+                ) +
+                rotationToken
+            )
+        }
+        return 'Board_Pad_' + (index + 1)
+    }
+
+    /**
+     * Resolves a human-readable pad shape token for generated names.
+     * @param {object} element Pad or hole element.
+     * @returns {string}
+     */
+    static #shapeNameForGeometry(element) {
+        const shape = CircuitJsonKicadProjectPcbPadBuilder.padShape(element)
+        return shape
+            .split('_')
+            .map(
+                (part) =>
+                    part.slice(0, 1).toUpperCase() + part.slice(1).toLowerCase()
+            )
+            .join('_')
+    }
+
+    /**
+     * Builds a drill-size token for generated names.
+     * @param {object} element Pad or hole element.
+     * @returns {string}
+     */
+    static #drillToken(element) {
+        const drill = CircuitJsonKicadProjectPcbPadBuilder.drillSize(element)
+        return drill.oval
+            ? CircuitJsonKicadProjectPcbPadBuilder.#dimensionToken(
+                  drill.width,
+                  drill.height
+              )
+            : CircuitJsonKicadProjectPcbPadBuilder.#numberToken(drill.diameter)
+    }
+
+    /**
+     * Builds a size token for generated names.
+     * @param {number} width Width value.
+     * @param {number} height Height value.
+     * @returns {string}
+     */
+    static #dimensionToken(width, height) {
+        const widthToken =
+            CircuitJsonKicadProjectPcbPadBuilder.#numberToken(width)
+        const heightToken =
+            CircuitJsonKicadProjectPcbPadBuilder.#numberToken(height)
+        return widthToken === heightToken
+            ? widthToken
+            : widthToken + 'x' + heightToken
+    }
+
+    /**
+     * Builds a KiCad-name-safe number token.
+     * @param {number} value Numeric value.
+     * @returns {string}
+     */
+    static #numberToken(value) {
+        return String(Utils.round(value))
+            .replace(/-/gu, 'm')
+            .replace(/\./gu, '_')
+    }
+
+    /**
      * Checks whether a pad has drill geometry.
      * @param {object} pad Pad or hole element.
      * @returns {boolean}
@@ -636,10 +905,11 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
 
     /**
      * Resolves KiCad drill offset.
+     * @param {object} component PCB component row.
      * @param {object} pad Pad or hole element.
      * @returns {{ x: number, y: number } | null}
      */
-    static drillOffset(pad) {
+    static drillOffset(component, pad) {
         if (
             pad.hole_offset_x === undefined &&
             pad.hole_offset_y === undefined
@@ -649,7 +919,26 @@ export class CircuitJsonKicadProjectPcbPadBuilder {
         const x = Utils.number(pad.hole_offset_x, 0)
         const y = Utils.number(pad.hole_offset_y, 0)
         if (x === 0 && y === 0) return null
-        return { x: Utils.round(-x), y: Utils.round(y) }
+        return CircuitJsonKicadProjectPcbPadBuilder.rotatedDrillOffset(
+            component,
+            { x: -x, y }
+        )
+    }
+
+    /**
+     * Rotates a KiCad drill-offset vector into footprint-local coordinates.
+     * @param {object} component PCB component row.
+     * @param {{ x: number, y: number }} offset KiCad-convention offset.
+     * @returns {{ x: number, y: number }}
+     */
+    static rotatedDrillOffset(component, offset) {
+        const radians = (Utils.number(component.rotation, 0) * Math.PI) / 180
+        const cos = Math.cos(radians)
+        const sin = Math.sin(radians)
+        return {
+            x: Utils.round(offset.x * cos - offset.y * sin),
+            y: Utils.round(offset.x * sin + offset.y * cos)
+        }
     }
 
     /**

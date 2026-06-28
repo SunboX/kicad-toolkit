@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
+import { CircuitJsonKicadProjectSchematicTransform as SchematicTransform } from './CircuitJsonKicadProjectSchematicTransform.mjs'
 
 /**
  * Builds KiCad schematic net-label nodes from CircuitJSON label rows.
@@ -17,6 +18,7 @@ export class CircuitJsonKicadProjectSchematicLabelBuilder {
             .filter((element) => element?.type === 'schematic_net_label')
             .map((element, index) =>
                 CircuitJsonKicadProjectSchematicLabelBuilder.labelNode(
+                    context,
                     element,
                     index
                 )
@@ -26,19 +28,23 @@ export class CircuitJsonKicadProjectSchematicLabelBuilder {
 
     /**
      * Builds one label node.
+     * @param {object} context Export context.
      * @param {object} element Label element.
      * @param {number} index Label index.
      * @returns {Array | null}
      */
-    static labelNode(element, index) {
+    static labelNode(context, element, index) {
+        const transform = SchematicTransform.forContext(context)
         const point = Utils.point(
             element.anchor_position || element.position || element
         )
         if (!point) return null
+        const output = transform.point(point)
         if (CircuitJsonKicadProjectSchematicLabelBuilder.#symbolName(element)) {
             return CircuitJsonKicadProjectSchematicLabelBuilder.#powerSymbol(
+                context,
                 element,
-                point,
+                output,
                 index
             )
         }
@@ -48,7 +54,7 @@ export class CircuitJsonKicadProjectSchematicLabelBuilder {
             return CircuitJsonKicadProjectSchematicLabelBuilder.#label(
                 'label',
                 element,
-                point,
+                output,
                 index
             )
         }
@@ -56,25 +62,27 @@ export class CircuitJsonKicadProjectSchematicLabelBuilder {
             return CircuitJsonKicadProjectSchematicLabelBuilder.#label(
                 'hierarchical_label',
                 element,
-                point,
+                output,
                 index
             )
         }
         return CircuitJsonKicadProjectSchematicLabelBuilder.#globalLabel(
+            context,
             element,
-            point,
+            output,
             index
         )
     }
 
     /**
      * Builds one KiCad global label node.
+     * @param {object} context Export context.
      * @param {object} element Label element.
      * @param {{ x: number, y: number }} point Label anchor.
      * @param {number} index Label index.
      * @returns {Array}
      */
-    static #globalLabel(element, point, index) {
+    static #globalLabel(context, element, point, index) {
         return CircuitJsonKicadProjectSchematicLabelBuilder.#label(
             'global_label',
             element,
@@ -125,12 +133,14 @@ export class CircuitJsonKicadProjectSchematicLabelBuilder {
 
     /**
      * Builds one power-symbol placement node.
+     * @param {object} context Export context.
      * @param {object} element Label element.
      * @param {{ x: number, y: number }} point Label anchor.
      * @param {number} index Label index.
      * @returns {Array}
      */
-    static #powerSymbol(element, point, index) {
+    static #powerSymbol(context, element, point, index) {
+        const transform = SchematicTransform.forContext(context)
         const symbolName =
             CircuitJsonKicadProjectSchematicLabelBuilder.#symbolName(element)
         const value = Utils.text(element.text || element.name || symbolName)
@@ -164,14 +174,14 @@ export class CircuitJsonKicadProjectSchematicLabelBuilder {
                 'property',
                 'Reference',
                 '#PWR' + String(index + 1),
-                ['at', point.x, -point.y - 2.54, 0],
+                ['at', point.x, -point.y - transform.length(2.54), 0],
                 ['effects', ['font', ['size', 1.27, 1.27]], ['hide']]
             ],
             [
                 'property',
                 'Value',
                 value,
-                ['at', point.x, -point.y + 2.54, 0],
+                ['at', point.x, -point.y + transform.length(2.54), 0],
                 ['effects', ['font', ['size', 1.27, 1.27]]]
             ]
         ]

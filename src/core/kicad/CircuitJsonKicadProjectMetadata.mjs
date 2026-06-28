@@ -139,7 +139,12 @@ export class CircuitJsonKicadProjectMetadata {
      */
     static footprintLibraryName(context, row) {
         const metadata = CircuitJsonKicadProjectMetadata.footprintMetadata(row)
-        return Utils.safeName(metadata.libraryName || context.libraryName)
+        const explicit = Utils.text(metadata.libraryName)
+        if (explicit) return Utils.safeName(explicit)
+        return Utils.safeName(
+            Utils.text(context.footprintReferenceLibraryPrefix) +
+                context.libraryName
+        )
     }
 
     /**
@@ -256,6 +261,27 @@ export class CircuitJsonKicadProjectMetadata {
             CircuitJsonKicadProjectMetadata.footprintMetadata(row).embeddedFonts
         if (value !== true && value !== false) return []
         return [['embedded_fonts', value ? 'yes' : 'no']]
+    }
+
+    /**
+     * Builds default supplier part-number footprint property rows.
+     * @param {object} sourceComponent Source component row.
+     * @returns {object[]}
+     */
+    static supplierPartNumberPropertyRows(sourceComponent) {
+        const value =
+            CircuitJsonKicadProjectMetadata.#supplierPartNumberText(
+                sourceComponent
+            )
+        if (!value) return []
+        return [
+            {
+                name: 'Supplier Part Number',
+                value,
+                layer: 'F.Fab',
+                hidden: true
+            }
+        ]
     }
 
     /**
@@ -378,14 +404,31 @@ export class CircuitJsonKicadProjectMetadata {
      */
     static #metadataFrom(element, kind) {
         if (!element || typeof element !== 'object') return {}
-        const snakeName = kind === 'symbol' ? 'kicad_symbol' : 'kicad_footprint'
-        const camelName = kind === 'symbol' ? 'kicadSymbol' : 'kicadFootprint'
-        return CircuitJsonKicadProjectMetadata.#object(
-            element.metadata?.[snakeName] ||
-                element.metadata?.[camelName] ||
-                element[snakeName] ||
-                element[camelName]
-        )
+        const names =
+            kind === 'symbol'
+                ? [
+                      'kicad_symbol',
+                      'kicadSymbol',
+                      'kicad_symbol_metadata',
+                      'kicadSymbolMetadata'
+                  ]
+                : [
+                      'kicad_footprint',
+                      'kicadFootprint',
+                      'kicad_footprint_metadata',
+                      'kicadFootprintMetadata'
+                  ]
+        for (const name of names) {
+            const nestedMetadata = CircuitJsonKicadProjectMetadata.#object(
+                element.metadata?.[name]
+            )
+            if (Object.keys(nestedMetadata).length) return nestedMetadata
+            const directMetadata = CircuitJsonKicadProjectMetadata.#object(
+                element[name]
+            )
+            if (Object.keys(directMetadata).length) return directMetadata
+        }
+        return {}
     }
 
     /**
@@ -644,14 +687,32 @@ export class CircuitJsonKicadProjectMetadata {
             rows.push(...properties.map((property) => ({ ...property })))
         } else if (properties && typeof properties === 'object') {
             rows.push(
-                ...Object.entries(properties).map(([name, value]) => ({
-                    name,
-                    value
-                }))
+                ...Object.entries(properties).map(([name, value]) =>
+                    CircuitJsonKicadProjectMetadata.#metadataProperty(
+                        name,
+                        value
+                    )
+                )
             )
         }
 
         return rows
+    }
+
+    /**
+     * Normalizes one metadata property entry.
+     * @param {string} name Property name.
+     * @param {unknown} value Property metadata value.
+     * @returns {object}
+     */
+    static #metadataProperty(name, value) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            return {
+                name,
+                ...value
+            }
+        }
+        return { name, value }
     }
 
     /**
@@ -672,6 +733,43 @@ export class CircuitJsonKicadProjectMetadata {
             .filter(([, enabled]) => enabled === true)
             .map(([entry]) => entry)
             .join(' ')
+    }
+
+    /**
+     * Resolves flattened supplier part-number text from a source component.
+     * @param {object} sourceComponent Source component row.
+     * @returns {string}
+     */
+    static #supplierPartNumberText(sourceComponent) {
+        const values = CircuitJsonKicadProjectMetadata.#supplierPartNumbers(
+            sourceComponent?.supplier_part_numbers ||
+                sourceComponent?.supplierPartNumbers
+        )
+        return Array.from(new Set(values)).join(', ')
+    }
+
+    /**
+     * Flattens supplier part-number containers into display strings.
+     * @param {unknown} value Candidate supplier part-number container.
+     * @returns {string[]}
+     */
+    static #supplierPartNumbers(value) {
+        if (Array.isArray(value)) {
+            return value.flatMap((entry) =>
+                CircuitJsonKicadProjectMetadata.#supplierPartNumbers(entry)
+            )
+        }
+        if (value && typeof value === 'object') {
+            return Object.keys(value)
+                .sort((left, right) => left.localeCompare(right))
+                .flatMap((key) =>
+                    CircuitJsonKicadProjectMetadata.#supplierPartNumbers(
+                        value[key]
+                    )
+                )
+        }
+        const text = Utils.text(value).trim()
+        return text ? [text] : []
     }
 
     /**

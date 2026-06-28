@@ -66,6 +66,8 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadNetlistParser',
         'KicadParser',
         'KicadParserCompatibilityFuzzer',
+        'KicadPcmPackageQaReportBuilder',
+        'KicadPcmRepositoryIndexBuilder',
         'KicadPcb3dModelReadinessReportBuilder',
         'KicadPcbDimensionReadModelBuilder',
         'KicadPcbDrawingParser',
@@ -101,6 +103,7 @@ test('package exposes Altium-style parser and renderer entrypoints', async () =>
         'KicadSchematicQaReportBuilder',
         'KicadSchematicSymbolParser',
         'KicadSelectedPartExporter',
+        'KicadSemanticDiffReportBuilder',
         'KicadSourceCoverageReportBuilder',
         'KicadSymbolLibraryParser',
         'KicadSvgModelCrossLinkValidator',
@@ -226,6 +229,12 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
         '../src/core/kicad/KicadParserCompatibilityFuzzer.mjs'
     )
     await assertFileExists(
+        '../src/core/kicad/KicadPcmPackageQaReportBuilder.mjs'
+    )
+    await assertFileExists(
+        '../src/core/kicad/KicadPcmRepositoryIndexBuilder.mjs'
+    )
+    await assertFileExists(
         '../src/core/kicad/KicadPcbDimensionReadModelBuilder.mjs'
     )
     await assertFileExists(
@@ -308,6 +317,9 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     )
     await assertFileExists('../src/core/kicad/KicadSchematicSymbolParser.mjs')
     await assertFileExists('../src/core/kicad/KicadSelectedPartExporter.mjs')
+    await assertFileExists(
+        '../src/core/kicad/KicadSemanticDiffReportBuilder.mjs'
+    )
     await assertFileExists(
         '../src/core/kicad/SelectedPartKicadExportAdapter.mjs'
     )

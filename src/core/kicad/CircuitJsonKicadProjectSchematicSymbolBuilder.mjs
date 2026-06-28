@@ -3,6 +3,7 @@
 
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
 import { CircuitJsonKicadProjectSchematicArcBuilder as ArcBuilder } from './CircuitJsonKicadProjectSchematicArcBuilder.mjs'
+import { CircuitJsonKicadProjectSchematicTransform as SchematicTransform } from './CircuitJsonKicadProjectSchematicTransform.mjs'
 
 const GRAPHIC_TYPES = new Set([
     'schematic_path',
@@ -45,16 +46,25 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
                 row,
                 symbol
             )
+        const stemNodes =
+            CircuitJsonKicadProjectSchematicSymbolBuilder.#portStemNodes(
+                context,
+                row,
+                symbol,
+                ports
+            )
 
         return [
             ...(graphics.length
                 ? graphics
                 : [
                       CircuitJsonKicadProjectSchematicSymbolBuilder.#fallbackBodyNode(
+                          context,
                           row,
                           symbol
                       )
                   ].filter(Boolean)),
+            ...stemNodes,
             ...ports.map((port, index) =>
                 CircuitJsonKicadProjectSchematicSymbolBuilder.#pinNode(
                     context,
@@ -93,6 +103,7 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
             )
             .map((element) =>
                 CircuitJsonKicadProjectSchematicSymbolBuilder.#graphicNode(
+                    context,
                     center,
                     element
                 )
@@ -208,6 +219,7 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
             )
             .map((element) =>
                 CircuitJsonKicadProjectSchematicSymbolBuilder.#graphicNode(
+                    context,
                     center,
                     element
                 )
@@ -252,19 +264,22 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
 
     /**
      * Builds one graphic node.
+     * @param {object} context Export context.
      * @param {{ x: number, y: number }} center Symbol center.
      * @param {object} element Graphic element.
      * @returns {Array | null}
      */
-    static #graphicNode(center, element) {
+    static #graphicNode(context, center, element) {
         if (element.type === 'schematic_circle') {
             return CircuitJsonKicadProjectSchematicSymbolBuilder.#circleNode(
+                context,
                 center,
                 element
             )
         }
         if (element.type === 'schematic_arc') {
             return CircuitJsonKicadProjectSchematicSymbolBuilder.#arcNode(
+                context,
                 center,
                 element
             )
@@ -274,17 +289,20 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
             element.type === 'schematic_box'
         ) {
             return CircuitJsonKicadProjectSchematicSymbolBuilder.#rectNode(
+                context,
                 center,
                 element
             )
         }
         if (element.type === 'schematic_text') {
             return CircuitJsonKicadProjectSchematicSymbolBuilder.#textNode(
+                context,
                 center,
                 element
             )
         }
         return CircuitJsonKicadProjectSchematicSymbolBuilder.#polylineNode(
+            context,
             center,
             element
         )
@@ -292,11 +310,13 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
 
     /**
      * Builds one symbol polyline node.
+     * @param {object} context Export context.
      * @param {{ x: number, y: number }} center Symbol center.
      * @param {object} element Line or path element.
      * @returns {Array | null}
      */
-    static #polylineNode(center, element) {
+    static #polylineNode(context, center, element) {
+        const transform = SchematicTransform.forContext(context)
         const points =
             CircuitJsonKicadProjectSchematicSymbolBuilder.#points(element)
         const linePoints = points.length
@@ -309,11 +329,7 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
             [
                 'pts',
                 ...linePoints.map((point) => {
-                    const local =
-                        CircuitJsonKicadProjectSchematicSymbolBuilder.#localPoint(
-                            center,
-                            point
-                        )
+                    const local = transform.localPoint(center, point)
                     return ['xy', local.x, local.y]
                 })
             ],
@@ -324,39 +340,36 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
 
     /**
      * Builds one symbol arc node.
+     * @param {object} context Export context.
      * @param {{ x: number, y: number }} center Symbol center.
      * @param {object} element Arc element.
      * @returns {Array | null}
      */
-    static #arcNode(center, element) {
+    static #arcNode(context, center, element) {
+        const transform = SchematicTransform.forContext(context)
         return ArcBuilder.node(element, {
-            transformPoint: (point) =>
-                CircuitJsonKicadProjectSchematicSymbolBuilder.#localPoint(
-                    center,
-                    point
-                )
+            transformPoint: (point) => transform.localPoint(center, point)
         })
     }
 
     /**
      * Builds one symbol circle node.
+     * @param {object} context Export context.
      * @param {{ x: number, y: number }} center Symbol center.
      * @param {object} element Circle element.
      * @returns {Array | null}
      */
-    static #circleNode(center, element) {
+    static #circleNode(context, center, element) {
+        const transform = SchematicTransform.forContext(context)
         const point = Utils.point(element.center || element)
         if (!point) return null
-        const local = CircuitJsonKicadProjectSchematicSymbolBuilder.#localPoint(
-            center,
-            point
-        )
+        const local = transform.localPoint(center, point)
         return [
             'circle',
             ['center', local.x, local.y],
             [
                 'radius',
-                Utils.number(
+                transform.length(
                     element.radius,
                     Utils.number(element.diameter, 1) / 2
                 )
@@ -368,19 +381,18 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
 
     /**
      * Builds one symbol rectangle node.
+     * @param {object} context Export context.
      * @param {{ x: number, y: number }} center Symbol center.
      * @param {object} element Rectangle element.
      * @returns {Array | null}
      */
-    static #rectNode(center, element) {
+    static #rectNode(context, center, element) {
+        const transform = SchematicTransform.forContext(context)
         const point = Utils.point(element.center || element)
         if (!point) return null
-        const local = CircuitJsonKicadProjectSchematicSymbolBuilder.#localPoint(
-            center,
-            point
-        )
-        const width = Utils.number(element.width, 4)
-        const height = Utils.number(element.height, 3)
+        const local = transform.localPoint(center, point)
+        const width = transform.length(element.width, 4)
+        const height = transform.length(element.height, 3)
 
         return [
             'rectangle',
@@ -401,21 +413,20 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
 
     /**
      * Builds one symbol text node.
+     * @param {object} context Export context.
      * @param {{ x: number, y: number }} center Symbol center.
      * @param {object} element Text element.
      * @returns {Array | null}
      */
-    static #textNode(center, element) {
+    static #textNode(context, center, element) {
+        const transform = SchematicTransform.forContext(context)
         const point = Utils.point(
             element.anchor_position || element.position || element
         )
         if (!point) return null
         const text = Utils.text(element.text || element.value)
         if (!text) return null
-        const local = CircuitJsonKicadProjectSchematicSymbolBuilder.#localPoint(
-            center,
-            point
-        )
+        const local = transform.localPoint(center, point)
         const size = Utils.number(element.font_size || element.size, 1.27)
 
         return [
@@ -441,14 +452,16 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
 
     /**
      * Builds a fallback rectangle for custom symbols without explicit art.
+     * @param {object} context Export context.
      * @param {object} row Component row.
      * @param {object | null} symbol Schematic symbol row.
      * @returns {Array}
      */
-    static #fallbackBodyNode(row, symbol) {
+    static #fallbackBodyNode(context, row, symbol) {
+        const transform = SchematicTransform.forContext(context)
         const ports = row.sourcePorts || []
-        const width = Utils.number(symbol?.width, 10.16)
-        const height = Utils.number(
+        const width = transform.length(symbol?.width, 10.16)
+        const height = transform.length(
             symbol?.height,
             Math.max(5.08, ports.length * 2.54)
         )
@@ -471,8 +484,10 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
      * @returns {Array}
      */
     static #pinNode(context, row, symbol, port, index) {
+        const transform = SchematicTransform.forContext(context)
         const local =
             CircuitJsonKicadProjectSchematicSymbolBuilder.#pinLocalPoint(
+                context,
                 row,
                 symbol,
                 port,
@@ -500,7 +515,7 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
                 local.y,
                 CircuitJsonKicadProjectSchematicSymbolBuilder.#pinAngle(port)
             ],
-            ['length', Utils.number(port.length || port.pin_length, 2.54)],
+            ['length', transform.length(port.length || port.pin_length, 2.54)],
             ['name', name],
             ['number', number]
         ]
@@ -530,12 +545,140 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
         return {
             sourcePortId,
             point: CircuitJsonKicadProjectSchematicSymbolBuilder.#pinLocalPoint(
+                context,
+                row,
+                symbol,
+                port,
+                index,
+                { scaled: false }
+            )
+        }
+    }
+
+    /**
+     * Builds custom symbol-local stem graphics requested by schematic ports.
+     * @param {object} context Export context.
+     * @param {object} row Component row.
+     * @param {object | null} symbol Schematic symbol row.
+     * @param {object[]} ports Schematic port rows.
+     * @returns {Array[]}
+     */
+    static #portStemNodes(context, row, symbol, ports) {
+        return ports
+            .map((port, index) =>
+                CircuitJsonKicadProjectSchematicSymbolBuilder.#portStemNode(
+                    context,
+                    row,
+                    symbol,
+                    port,
+                    index
+                )
+            )
+            .filter(Boolean)
+    }
+
+    /**
+     * Builds one custom symbol-local stem graphic for a schematic port.
+     * @param {object} context Export context.
+     * @param {object} row Component row.
+     * @param {object | null} symbol Schematic symbol row.
+     * @param {object} port Schematic port row.
+     * @param {number} index Port index.
+     * @returns {Array | null}
+     */
+    static #portStemNode(context, row, symbol, port, index) {
+        const transform = SchematicTransform.forContext(context)
+        const length =
+            CircuitJsonKicadProjectSchematicSymbolBuilder.#stemLength(port)
+        if (!length) return null
+        const start =
+            CircuitJsonKicadProjectSchematicSymbolBuilder.#pinLocalPoint(
+                context,
                 row,
                 symbol,
                 port,
                 index
             )
+        const vector =
+            CircuitJsonKicadProjectSchematicSymbolBuilder.#stemVector(port)
+        const scaledLength = transform.length(length)
+        const end = {
+            x: Utils.round(start.x + vector.x * scaledLength),
+            y: Utils.round(start.y + vector.y * scaledLength)
         }
+
+        return [
+            'polyline',
+            ['pts', ['xy', start.x, start.y], ['xy', end.x, end.y]],
+            [
+                'stroke',
+                [
+                    'width',
+                    CircuitJsonKicadProjectSchematicSymbolBuilder.#stemWidth(
+                        port
+                    )
+                ],
+                ['type', 'default']
+            ],
+            ['fill', ['type', 'none']]
+        ]
+    }
+
+    /**
+     * Resolves a schematic-port stem length.
+     * @param {object} port Schematic port row.
+     * @returns {number}
+     */
+    static #stemLength(port) {
+        const length = Utils.number(
+            port.sch_stem_length ?? port.schStemLength ?? port.stem_length,
+            0
+        )
+        return length > 0 ? length : 0
+    }
+
+    /**
+     * Resolves a schematic-port stem stroke width.
+     * @param {object} port Schematic port row.
+     * @returns {number}
+     */
+    static #stemWidth(port) {
+        return Utils.number(
+            port.sch_stem_width ??
+                port.schStemWidth ??
+                port.stem_width ??
+                port.stroke_width,
+            0.15
+        )
+    }
+
+    /**
+     * Resolves the symbol-local direction from a port toward the symbol body.
+     * @param {object} port Schematic port row.
+     * @returns {{ x: number, y: number }}
+     */
+    static #stemVector(port) {
+        const direction = Utils.text(
+            port.facing_direction || port.facingDirection || port.side
+        ).toLowerCase()
+        if (direction === 'right' || direction === 'east') {
+            return { x: -1, y: 0 }
+        }
+        if (
+            direction === 'top' ||
+            direction === 'north' ||
+            direction === 'up'
+        ) {
+            return { x: 0, y: -1 }
+        }
+        if (
+            direction === 'bottom' ||
+            direction === 'south' ||
+            direction === 'down'
+        ) {
+            return { x: 0, y: 1 }
+        }
+        return { x: 1, y: 0 }
     }
 
     /**
@@ -563,13 +706,15 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
 
     /**
      * Resolves one custom pin anchor in symbol-local coordinates.
+     * @param {object} context Export context.
      * @param {object} row Component row.
      * @param {object | null} symbol Schematic symbol row.
      * @param {object} port Schematic port row.
      * @param {number} index Port index.
+     * @param {{ scaled?: boolean }} [options] Pin-point options.
      * @returns {{ x: number, y: number }}
      */
-    static #pinLocalPoint(row, symbol, port, index) {
+    static #pinLocalPoint(context, row, symbol, port, index, options = {}) {
         const center =
             CircuitJsonKicadProjectSchematicSymbolBuilder.#symbolCenter(
                 row,
@@ -581,10 +726,13 @@ export class CircuitJsonKicadProjectSchematicSymbolBuilder {
                 symbol,
                 index
             )
-        return CircuitJsonKicadProjectSchematicSymbolBuilder.#localPoint(
-            center,
-            point
-        )
+        if (options.scaled === false) {
+            return CircuitJsonKicadProjectSchematicSymbolBuilder.#localPoint(
+                center,
+                point
+            )
+        }
+        return SchematicTransform.forContext(context).localPoint(center, point)
     }
 
     /**

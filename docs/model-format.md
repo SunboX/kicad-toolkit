@@ -94,13 +94,14 @@ Focused machine-readable schemas are available under
 JSON, schematic SVG semantic metadata, schematic SVG render-operation
 metadata, schematic geometry readiness, PCB SVG semantic metadata, CI artifact
 bundle, contract gate, project document graph, expected-artifact manifest,
-project output digest, source coverage, SVG/model cross-link report, parser
-compatibility fuzz report, PCB route analysis, PCB statistics, PCB layer stack,
-PCB layer usage, PCB fidelity diagnostics, PCB 3D model readiness, PCB geometry
-readiness, PCB dimensions, PCB region semantics, PCB rule read model, PCB
-rigid-flex topology, PCB ownership graph, schematic ownership graph, schematic
-hierarchy graph, project BOM/PnP reconciliation, library QA, library
-merge-plan, and schematic QA contracts.
+project output digest, source coverage, semantic diff, SVG/model cross-link
+report, parser compatibility fuzz report, PCB route analysis, PCB statistics,
+PCB layer stack, PCB layer usage, PCB fidelity diagnostics, PCB 3D model
+readiness, PCB geometry readiness, PCB dimensions, PCB region semantics, PCB
+rule read model, PCB rigid-flex topology, PCB ownership graph, schematic
+ownership graph, schematic hierarchy graph, project BOM/PnP reconciliation,
+library QA, library merge-plan, package repository index, package QA, and
+schematic QA contracts.
 
 ## Schematic Fields
 
@@ -341,6 +342,16 @@ not write output files.
 `board.designSettings` rows. Board design settings normalize keyed KiCad rules
 into sorted `{ name, value }` rows while preserving track width, via dimension,
 diff-pair, DRC-exclusion, and default-setting collections.
+Circuit JSON project export builds the default net class from `pcb_board`
+minimum track, clearance, and via fields, then adds source-net classes when
+`source_net` rows carry generic rule fields such as `trace_width`,
+`track_width`, `clearance`, `via_diameter`, or `via_drill`. Exported footprint
+properties also preserve flattened `source_component.supplier_part_numbers`
+when no explicit KiCad metadata property overrides the supplier value.
+Schematic project export writes source coordinates unchanged by default.
+When `schematicScaleFactor` is set, page coordinates and symbol-local generated
+or custom geometry are scaled together; when `schematicCenterOnPage` is also
+set, scaled page content is translated to the selected KiCad sheet center.
 
 `ProjectDesignBundleBuilder` emits a normalized `design-bundle` root for
 multi-document consumers. Bundle rows include `project`, `variants`, `sheets`,
@@ -534,6 +545,12 @@ artifact row per KiCad jobset job and linked destination.
 `kicad-toolkit.source.coverage.a1` reports with recursive KiCad S-expression
 node coverage, supported versus preserved-only node counts, node name indexes,
 and diagnostics for preserved-only node families.
+
+`KicadSemanticDiffReportBuilder.build({ leftEntries, rightEntries })` returns
+`kicad-toolkit.semantic-diff.a1` reports that compare KiCad source entries after
+normalizing volatile S-expression metadata and project JSON fields. Use
+`KicadSemanticDiffReportBuilder.compareText({ path, leftText, rightText })` for
+single-file comparisons.
 
 `KicadSvgModelCrossLinkValidator.validate()` returns
 `kicad-toolkit.svg-model-cross-link.a1` reports with expected semantic element

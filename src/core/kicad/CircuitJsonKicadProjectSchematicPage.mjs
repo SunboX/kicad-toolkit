@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
+import { CircuitJsonKicadProjectSchematicTransform as SchematicTransform } from './CircuitJsonKicadProjectSchematicTransform.mjs'
 
 const PAPER_SIZES = [
     { name: 'A4', width: 297, height: 210 },
@@ -36,8 +37,10 @@ export class CircuitJsonKicadProjectSchematicPage {
         const bounds =
             CircuitJsonKicadProjectSchematicPage.contentBounds(context)
         if (!bounds) return 'A4'
-        const width = bounds.maxX - bounds.minX
-        const height = bounds.maxY - bounds.minY
+        const scale = SchematicTransform.scaleFromContext(context)
+        const scaledBounds = SchematicTransform.scaledBounds(bounds, scale)
+        const width = scaledBounds.maxX - scaledBounds.minX
+        const height = scaledBounds.maxY - scaledBounds.minY
         const padding = 20
         const requiredWidth = width + padding * 2
         const requiredHeight = height + padding * 2
@@ -75,25 +78,32 @@ export class CircuitJsonKicadProjectSchematicPage {
             .filter((element) => !Utils.text(element.schematic_component_id))
             .filter((element) => !Utils.text(element.schematic_symbol_id))
             .map((element, index) =>
-                CircuitJsonKicadProjectSchematicPage.textNode(element, index)
+                CircuitJsonKicadProjectSchematicPage.textNode(
+                    context,
+                    element,
+                    index
+                )
             )
             .filter(Boolean)
     }
 
     /**
      * Builds one schematic text node.
+     * @param {object} context Export context.
      * @param {object} element Schematic text element.
      * @param {number} index Text index.
      * @returns {Array | null}
      */
-    static textNode(element, index) {
+    static textNode(context, element, index) {
+        const transform = SchematicTransform.forContext(context)
         const point = Utils.point(element.position || element)
         if (!point) return null
+        const output = transform.pagePoint(point)
         const size = Utils.number(element.font_size ?? element.size, 1.27)
         return [
             'text',
             Utils.text(element.text),
-            ['at', point.x, -point.y, Utils.number(element.rotation, 0)],
+            ['at', output.x, output.y, Utils.number(element.rotation, 0)],
             ['effects', ['font', ['size', size, size], ['thickness', 0.15]]],
             [
                 'uuid',
@@ -128,6 +138,7 @@ export class CircuitJsonKicadProjectSchematicPage {
             )
             .map((element, index) =>
                 CircuitJsonKicadProjectSchematicPage.lineGraphicNode(
+                    context,
                     element,
                     index
                 )
@@ -189,17 +200,25 @@ export class CircuitJsonKicadProjectSchematicPage {
 
     /**
      * Builds one page-owned schematic line or path node.
+     * @param {object} context Export context.
      * @param {object} element Line/path element.
      * @param {number} index Graphic index.
      * @returns {Array | null}
      */
-    static lineGraphicNode(element, index) {
+    static lineGraphicNode(context, element, index) {
+        const transform = SchematicTransform.forContext(context)
         const points =
             CircuitJsonKicadProjectSchematicPage.graphicLinePoints(element)
         if (points.length < 2) return null
         return [
             'polyline',
-            ['pts', ...points.map((point) => ['xy', point.x, -point.y])],
+            [
+                'pts',
+                ...points.map((point) => {
+                    const output = transform.pagePoint(point)
+                    return ['xy', output.x, output.y]
+                })
+            ],
             [
                 'stroke',
                 [
@@ -250,6 +269,7 @@ export class CircuitJsonKicadProjectSchematicPage {
             .filter((element) => element?.type === 'schematic_section')
             .flatMap((element, index) =>
                 CircuitJsonKicadProjectSchematicPage.sectionNodePair(
+                    context,
                     element,
                     index
                 )
@@ -259,21 +279,24 @@ export class CircuitJsonKicadProjectSchematicPage {
 
     /**
      * Builds one section's outline and heading.
+     * @param {object} context Export context.
      * @param {object} element Section element.
      * @param {number} index Section index.
      * @returns {Array[]}
      */
-    static sectionNodePair(element, index) {
+    static sectionNodePair(context, element, index) {
         const bounds =
             CircuitJsonKicadProjectSchematicPage.sectionBounds(element)
         if (!bounds) return []
         return [
             CircuitJsonKicadProjectSchematicPage.sectionRectangleNode(
+                context,
                 element,
                 bounds,
                 index
             ),
             CircuitJsonKicadProjectSchematicPage.sectionTextNode(
+                context,
                 element,
                 bounds,
                 index
@@ -283,16 +306,19 @@ export class CircuitJsonKicadProjectSchematicPage {
 
     /**
      * Builds one section rectangle node.
+     * @param {object} context Export context.
      * @param {object} element Section element.
      * @param {object} bounds Section bounds.
      * @param {number} index Section index.
      * @returns {Array}
      */
-    static sectionRectangleNode(element, bounds, index) {
+    static sectionRectangleNode(context, element, bounds, index) {
+        const outputBounds =
+            SchematicTransform.forContext(context).bounds(bounds)
         return [
             'rectangle',
-            ['start', bounds.minX, -bounds.maxY],
-            ['end', bounds.maxX, -bounds.minY],
+            ['start', outputBounds.minX, -outputBounds.maxY],
+            ['end', outputBounds.maxX, -outputBounds.minY],
             [
                 'stroke',
                 ['width', Utils.number(element.stroke_width, 0)],
@@ -308,12 +334,13 @@ export class CircuitJsonKicadProjectSchematicPage {
 
     /**
      * Builds one section heading node.
+     * @param {object} context Export context.
      * @param {object} element Section element.
      * @param {object} bounds Section bounds.
      * @param {number} index Section index.
      * @returns {Array | null}
      */
-    static sectionTextNode(element, bounds, index) {
+    static sectionTextNode(context, element, bounds, index) {
         const label = Utils.text(
             element.display_name ||
                 element.displayName ||
@@ -322,16 +349,16 @@ export class CircuitJsonKicadProjectSchematicPage {
                 element.text
         )
         if (!label) return null
+        const transform = SchematicTransform.forContext(context)
+        const output = transform.pagePoint({
+            x: bounds.minX + SECTION_TEXT_PADDING_X,
+            y: bounds.maxY - SECTION_TEXT_PADDING_Y
+        })
         const size = Utils.number(element.font_size ?? element.size, 1.27)
         return [
             'text',
             label,
-            [
-                'at',
-                Utils.round(bounds.minX + SECTION_TEXT_PADDING_X),
-                Utils.round(-(bounds.maxY - SECTION_TEXT_PADDING_Y)),
-                Utils.number(element.rotation, 0)
-            ],
+            ['at', output.x, output.y, Utils.number(element.rotation, 0)],
             ['effects', ['font', ['size', size, size], ['thickness', 0.15]]],
             [
                 'uuid',

@@ -1,0 +1,81 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.semantic-diff.a1",
+    "title": "KiCad Toolkit Semantic Diff A1",
+    "type": "object",
+    "required": ["schema", "pass", "summary", "entries", "diagnostics"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.semantic-diff.a1"
+        },
+        "pass": { "type": "boolean" },
+        "summary": {
+            "type": "object",
+            "properties": {
+                "entryCount": { "type": "number" },
+                "identicalCount": { "type": "number" },
+                "differentCount": { "type": "number" },
+                "onlyInLeftCount": { "type": "number" },
+                "onlyInRightCount": { "type": "number" },
+                "diagnosticCount": { "type": "number" },
+                "differenceCount": { "type": "number" }
+            },
+            "additionalProperties": true
+        },
+        "entries": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "path",
+                    "status",
+                    "normalizationKind",
+                    "differences"
+                ],
+                "properties": {
+                    "path": { "type": "string" },
+                    "status": {
+                        "enum": [
+                            "identical",
+                            "different",
+                            "only-in-left",
+                            "only-in-right"
+                        ]
+                    },
+                    "normalizationKind": { "type": "string" },
+                    "leftLabel": { "type": "string" },
+                    "rightLabel": { "type": "string" },
+                    "differences": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "line": { "type": "number" },
+                                "left": { "type": ["string", "null"] },
+                                "right": { "type": ["string", "null"] }
+                            },
+                            "additionalProperties": true
+                        }
+                    }
+                },
+                "additionalProperties": true
+            }
+        },
+        "diagnostics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "severity": { "type": "string" },
+                    "code": { "type": "string" },
+                    "message": { "type": "string" },
+                    "path": { "type": "string" },
+                    "label": { "type": "string" },
+                    "error": { "type": "string" }
+                },
+                "additionalProperties": true
+            }
+        }
+    },
+    "additionalProperties": true
+}

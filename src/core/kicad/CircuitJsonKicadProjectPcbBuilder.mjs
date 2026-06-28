@@ -158,7 +158,10 @@ export class CircuitJsonKicadProjectPcbBuilder {
                         value: row.value,
                         at: [0, 1.5, 0],
                         layer: 'F.Fab'
-                    }
+                    },
+                    ...Metadata.supplierPartNumberPropertyRows(
+                        row.sourceComponent
+                    )
                 ],
                 Metadata.footprintMetadata(row)
             ),

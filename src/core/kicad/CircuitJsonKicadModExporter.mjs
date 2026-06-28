@@ -12,7 +12,7 @@ export class CircuitJsonKicadModExporter {
     /**
      * Builds a standalone `.kicad_mod` export entry from a Circuit JSON source.
      * @param {object[] | { circuitJson?: object[], elements?: object[] }} circuitJson Circuit JSON source.
-     * @param {{ projectName?: string, libraryName?: string, basePath?: string, fileName?: string, footprintName?: string, sourceComponentId?: string, pcbComponentId?: string, index?: number, modelFiles?: object[], modelPathPrefix?: string, modelPathMode?: string, modelDirectory?: string, libraryTableRoot?: string, packageId?: string }} [options] Export options.
+     * @param {{ projectName?: string, libraryName?: string, basePath?: string, fileName?: string, footprintName?: string, sourceComponentId?: string, pcbComponentId?: string, index?: number, modelFiles?: object[], modelSourceRules?: object[], modelPathPrefix?: string, modelPathMode?: string, modelDirectory?: string, libraryTableRoot?: string, packageId?: string }} [options] Export options.
      * @returns {{ entry: { path: string, bytes: Uint8Array, contentType: string } | null, diagnostics: object[], manifest: object }}
      */
     static export(circuitJson, options = {}) {
@@ -20,6 +20,7 @@ export class CircuitJsonKicadModExporter {
             projectName: options.projectName,
             libraryName: options.libraryName,
             modelFiles: options.modelFiles,
+            modelSourceRules: options.modelSourceRules,
             modelPathPrefix: options.modelPathPrefix,
             modelPathMode: options.modelPathMode,
             modelDirectory: options.modelDirectory,

@@ -225,6 +225,69 @@ test('CircuitJsonKicadProjectExporter exports KiCad project entries', () => {
     )
 })
 
+test('CircuitJsonKicadProjectExporter derives project net classes from source net rules', () => {
+    const result = CircuitJsonKicadProjectExporter.export(
+        [
+            {
+                type: 'pcb_board',
+                pcb_board_id: 'board_rules',
+                width: 12,
+                height: 8,
+                min_trace_width: 0.18,
+                min_via_pad_diameter: 0.6,
+                min_via_hole_diameter: 0.3,
+                min_trace_to_pad_edge_clearance: 0.11
+            },
+            {
+                type: 'source_net',
+                source_net_id: 'source_net_sig',
+                name: 'SIG',
+                trace_width: 0.245,
+                clearance: 0.12,
+                via_diameter: 0.7,
+                via_drill: 0.35
+            },
+            {
+                type: 'source_net',
+                source_net_id: 'source_net_power',
+                name: 'PWR',
+                net_class: 'Wide Power',
+                track_width: 0.5,
+                min_clearance: 0.2
+            }
+        ],
+        { projectName: 'Net Class Rules' }
+    )
+    const project = JSON.parse(
+        decodeEntry(findEntry(result, 'kicad/Net_Class_Rules.kicad_pro'))
+    )
+    const classesByName = new Map(
+        project.net_settings.classes.map((entry) => [entry.name, entry])
+    )
+
+    assert.deepEqual(classesByName.get('Default'), {
+        name: 'Default',
+        track_width: 0.18,
+        via_diameter: 0.6,
+        via_drill: 0.3,
+        clearance: 0.11
+    })
+    assert.deepEqual(classesByName.get('SIG'), {
+        name: 'SIG',
+        track_width: 0.245,
+        via_diameter: 0.7,
+        via_drill: 0.35,
+        clearance: 0.12,
+        nets: ['SIG']
+    })
+    assert.deepEqual(classesByName.get('Wide Power'), {
+        name: 'Wide Power',
+        track_width: 0.5,
+        clearance: 0.2,
+        nets: ['PWR']
+    })
+})
+
 /**
  * Verifies project-local 3D model entries and footprint references.
  */
@@ -302,6 +365,7 @@ test('CircuitJsonKicadProjectModelResolver loads remote and local model files', 
             'local/Body.wrl',
             'missing/Skip.step'
         ],
+        modelDirectory: '3dmodels/Demo.3dshapes',
         /**
          * @param {string} url Model URL.
          * @returns {Promise<object>}
@@ -345,6 +409,7 @@ test('CircuitJsonKicadProjectModelResolver loads remote and local model files', 
         result.modelFiles.map((model) => ({
             name: model.name,
             sourcePath: model.sourcePath,
+            outputPath: model.outputPath,
             format: model.format,
             bytes: [...model.bytes]
         })),
@@ -353,20 +418,74 @@ test('CircuitJsonKicadProjectModelResolver loads remote and local model files', 
                 name: 'Package.step',
                 sourcePath:
                     'https://models.example/Package.step?token=1#preview',
+                outputPath: '3dmodels/Demo.3dshapes/Package.step',
                 format: 'step',
                 bytes: [1, 2, 3]
             },
             {
                 name: 'Body.wrl',
                 sourcePath: 'local/Body.wrl',
+                outputPath: '3dmodels/Demo.3dshapes/Body.wrl',
                 format: 'wrl',
                 bytes: [4, 5, 6]
             }
         ]
     )
+    assert.deepEqual(result.summary, {
+        sourcePathCount: 3,
+        loadedCount: 2,
+        failedCount: 1,
+        diagnosticCount: 1
+    })
+    assert.deepEqual(
+        result.loadDiagnostics.map((diagnostic) => ({
+            severity: diagnostic.severity,
+            code: diagnostic.code,
+            sourcePath: diagnostic.sourcePath,
+            outputPath: diagnostic.outputPath,
+            name: diagnostic.name,
+            format: diagnostic.format,
+            byteLength: diagnostic.byteLength
+        })),
+        [
+            {
+                severity: 'info',
+                code: 'kicad_model_load_succeeded',
+                sourcePath:
+                    'https://models.example/Package.step?token=1#preview',
+                outputPath: '3dmodels/Demo.3dshapes/Package.step',
+                name: 'Package.step',
+                format: 'step',
+                byteLength: 3
+            },
+            {
+                severity: 'info',
+                code: 'kicad_model_load_succeeded',
+                sourcePath: 'local/Body.wrl',
+                outputPath: '3dmodels/Demo.3dshapes/Body.wrl',
+                name: 'Body.wrl',
+                format: 'wrl',
+                byteLength: 3
+            },
+            {
+                severity: 'warning',
+                code: 'kicad_model_load_failed',
+                sourcePath: 'missing/Skip.step',
+                outputPath: '3dmodels/Demo.3dshapes/Skip.step',
+                name: 'Skip.step',
+                format: 'step',
+                byteLength: 0
+            }
+        ]
+    )
     assert.equal(result.diagnostics.length, 1)
     assert.equal(result.diagnostics[0].code, 'kicad_model_load_failed')
+    assert.equal(
+        result.diagnostics[0].outputPath,
+        '3dmodels/Demo.3dshapes/Skip.step'
+    )
     assert.equal(errors[0].sourcePath, 'missing/Skip.step')
+    assert.equal(errors[0].outputPath, '3dmodels/Demo.3dshapes/Skip.step')
 })
 
 /**

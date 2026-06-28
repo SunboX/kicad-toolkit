@@ -367,6 +367,32 @@ const capabilities = Object.freeze([
             'Publishes split JSON Schema contracts for KiCad helper reports and bundles.'
     }),
     capability({
+        id: 'pcm_repository_index_builder',
+        label: 'Package repository index builder',
+        category: 'reporting',
+        requires: ['fflate'],
+        outputs: ['repository.json', 'packages.json'],
+        summary:
+            'Builds deterministic KiCad package feed metadata, archive checksums, and local preview responses.'
+    }),
+    capability({
+        id: 'pcm_package_qa_report',
+        label: 'Package QA report',
+        category: 'reporting',
+        requires: ['fflate'],
+        outputs: ['package QA report'],
+        summary:
+            'Validates installable KiCad package archives, metadata, library entries, and packaged model references.'
+    }),
+    capability({
+        id: 'kicad_semantic_diff_report',
+        label: 'Semantic diff report',
+        category: 'reporting',
+        outputs: ['semantic diff report'],
+        summary:
+            'Compares KiCad source entries after normalizing volatile metadata and formatting.'
+    }),
+    capability({
         id: 'source_coverage_report',
         label: 'Source coverage report',
         category: 'reporting',

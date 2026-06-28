@@ -152,6 +152,125 @@ test('CircuitJsonKicadProjectExporter preserves KiCad metadata on generated libr
     assert.match(footprintText, /\(rotate \(xyz 0 0 90\)\)/)
 })
 
+test('CircuitJsonKicadProjectExporter accepts alternate KiCad metadata field names', () => {
+    const result = CircuitJsonKicadProjectExporter.export(
+        [
+            {
+                type: 'source_component',
+                source_component_id: 'source_alias',
+                name: 'U9',
+                ftype: 'simple_chip',
+                kicadSymbolMetadata: {
+                    name: 'Alias_Symbol',
+                    pinNames: {
+                        offset: 1.27,
+                        hide: true
+                    }
+                },
+                kicadFootprintMetadata: {
+                    name: 'Alias_Footprint',
+                    layer: 'bottom',
+                    embeddedFonts: true
+                }
+            },
+            {
+                type: 'source_port',
+                source_port_id: 'source_alias_pin_1',
+                source_component_id: 'source_alias',
+                name: 'IN',
+                pin_number: 1
+            },
+            {
+                type: 'schematic_component',
+                schematic_component_id: 'schematic_alias',
+                source_component_id: 'source_alias',
+                center: { x: 0, y: 0 }
+            },
+            {
+                type: 'pcb_component',
+                pcb_component_id: 'pcb_alias',
+                source_component_id: 'source_alias',
+                center: { x: 0, y: 0 },
+                layer: 'top'
+            },
+            {
+                type: 'pcb_smtpad',
+                pcb_smtpad_id: 'pad_alias_1',
+                pcb_component_id: 'pcb_alias',
+                shape: 'rect',
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 0.6
+            }
+        ],
+        { projectName: 'Alias Metadata' }
+    )
+    const symbolText = decodeEntry(
+        findEntry(result, 'kicad/Alias_Metadata.kicad_sym')
+    )
+    const schematicText = decodeEntry(
+        findEntry(result, 'kicad/Alias_Metadata.kicad_sch')
+    )
+    const footprintText = decodeEntry(
+        findEntry(
+            result,
+            'kicad/Alias_Metadata.pretty/Alias_Footprint.kicad_mod'
+        )
+    )
+
+    assert.match(symbolText, /\(symbol "Alias_Symbol"/)
+    assert.match(symbolText, /\(pin_names\s+\(offset 1\.27\)\s+hide\)/)
+    assert.match(schematicText, /\(lib_id "Alias_Metadata:Alias_Symbol"\)/)
+    assert.match(footprintText, /\(footprint "Alias_Footprint"/)
+    assert.match(footprintText, /\(layer "B\.Cu"\)/)
+    assert.match(footprintText, /\(embedded_fonts yes\)/)
+})
+
+test('CircuitJsonKicadProjectExporter preserves source supplier part numbers on footprints', () => {
+    const result = CircuitJsonKicadProjectExporter.export(
+        [
+            {
+                type: 'source_component',
+                source_component_id: 'source_supplier',
+                name: 'R9',
+                ftype: 'simple_resistor',
+                resistance: 1000,
+                supplier_part_numbers: {
+                    alpha: ['A-100', 'A-200'],
+                    beta: ['B-300']
+                }
+            },
+            {
+                type: 'pcb_component',
+                pcb_component_id: 'pcb_supplier',
+                source_component_id: 'source_supplier',
+                center: { x: 0, y: 0 },
+                layer: 'top'
+            },
+            {
+                type: 'pcb_smtpad',
+                pcb_smtpad_id: 'pad_supplier_1',
+                pcb_component_id: 'pcb_supplier',
+                shape: 'rect',
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 0.6
+            }
+        ],
+        { projectName: 'Supplier Property' }
+    )
+    const footprintText = decodeEntry(
+        findEntry(result, 'kicad/Supplier_Property.pretty/R9.kicad_mod')
+    )
+
+    assert.match(
+        footprintText,
+        /\(property "Supplier Part Number" "A-100, A-200, B-300"/
+    )
+})
+
 test('CircuitJsonKicadProjectExporter emits global labels and power symbols from schematic label metadata', () => {
     const result = CircuitJsonKicadProjectExporter.export(
         [

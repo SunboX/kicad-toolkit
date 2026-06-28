@@ -4,6 +4,20 @@
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
 import { CircuitJsonKicadProjectMetadata as Metadata } from './CircuitJsonKicadProjectMetadata.mjs'
 import { CircuitJsonKicadProjectSchematicSymbolBuilder as SchematicSymbolBuilder } from './CircuitJsonKicadProjectSchematicSymbolBuilder.mjs'
+import { CircuitJsonKicadProjectPcbPadBuilder as PadBuilder } from './CircuitJsonKicadProjectPcbPadBuilder.mjs'
+import { CircuitJsonKicadProjectModelRouting as ModelRouting } from './CircuitJsonKicadProjectModelRouting.mjs'
+import { CircuitJsonSourceComponentFtype } from '../circuit-json/CircuitJsonSourceComponentFtype.mjs'
+
+const REFERENCE_PREFIX_BY_FTYPE = new Map([
+    ['simple_resistor', 'R'],
+    ['simple_capacitor', 'C'],
+    ['simple_inductor', 'L'],
+    ['simple_diode', 'D'],
+    ['simple_led', 'D'],
+    ['simple_switch', 'SW'],
+    ['simple_push_button', 'SW'],
+    ['simple_potentiometer', 'RV']
+])
 
 /**
  * Builds indexed context for CircuitJSON project export.
@@ -12,7 +26,7 @@ export class CircuitJsonKicadProjectContext {
     /**
      * Builds the export context.
      * @param {object[] | { circuitJson?: object[], elements?: object[] }} circuitJson CircuitJSON source.
-     * @param {{ projectName?: string, libraryName?: string, modelFiles?: object[], modelPathPrefix?: string, modelPathMode?: string, modelDirectory?: string, libraryTableRoot?: string, packageId?: string, useGenericConnectorSymbols?: boolean }} [options] Context options.
+     * @param {{ projectName?: string, libraryName?: string, modelFiles?: object[], modelSourceRules?: object[], modelPathPrefix?: string, modelPathMode?: string, modelDirectory?: string, libraryTableRoot?: string, packageId?: string, useGenericConnectorSymbols?: boolean, schematicScaleFactor?: number, schematicCenterOnPage?: boolean }} [options] Context options.
      * @returns {object}
      */
     static build(circuitJson, options = {}) {
@@ -52,6 +66,17 @@ export class CircuitJsonKicadProjectContext {
             options,
             libraryName
         )
+        const modelFiles = CircuitJsonKicadProjectContext.modelFiles(
+            options.modelFiles,
+            {
+                ...options,
+                modelDirectory
+            }
+        )
+        const modelDirectories = ModelRouting.modelDirectories(
+            modelFiles,
+            modelDirectory
+        )
 
         return {
             projectName,
@@ -73,10 +98,9 @@ export class CircuitJsonKicadProjectContext {
             componentRows,
             footprintRows: [...componentRows, ...standaloneFootprintRows],
             netMap: CircuitJsonKicadProjectContext.netMap(elements),
-            modelFiles: CircuitJsonKicadProjectContext.modelFiles(
-                options.modelFiles
-            ),
+            modelFiles,
             modelDirectory,
+            modelDirectories,
             modelPathPrefix:
                 options.modelPathPrefix ||
                 '${KIPRJMOD}/' + modelDirectory + '/',
@@ -84,8 +108,40 @@ export class CircuitJsonKicadProjectContext {
                 options.libraryTableRoot ||
                 CircuitJsonKicadProjectContext.libraryTableRoot(options),
             useGenericConnectorSymbols:
-                options.useGenericConnectorSymbols === true
+                options.useGenericConnectorSymbols === true,
+            schematicScaleFactor:
+                CircuitJsonKicadProjectContext.schematicScaleFactor(options),
+            schematicCenterOnPage:
+                CircuitJsonKicadProjectContext.schematicCenterOnPage(options)
         }
+    }
+
+    /**
+     * Resolves the schematic coordinate scale factor.
+     * @param {object} options Context options.
+     * @returns {number}
+     */
+    static schematicScaleFactor(options) {
+        const scale = Utils.number(
+            options.schematicScaleFactor ??
+                options.schematicCoordinateScale ??
+                options.schematic_scale_factor ??
+                options.schematic_coordinate_scale,
+            1
+        )
+        return scale > 0 ? scale : 1
+    }
+
+    /**
+     * Resolves whether schematic content should be centered on the page.
+     * @param {object} options Context options.
+     * @returns {boolean}
+     */
+    static schematicCenterOnPage(options) {
+        return (
+            options.schematicCenterOnPage === true ||
+            options.schematic_center_on_page === true
+        )
     }
 
     /**
@@ -349,7 +405,10 @@ export class CircuitJsonKicadProjectContext {
                     sourceComponent,
                     name
                 ),
-            value: Utils.text(sourceComponent.manufacturer_part_number) || name,
+            value: CircuitJsonKicadProjectContext.componentValue(
+                sourceComponent,
+                name
+            ),
             symbolName: Metadata.symbolName(sourceComponent, symbolName),
             footprintName: Metadata.footprintName(
                 sourceComponent,
@@ -365,6 +424,7 @@ export class CircuitJsonKicadProjectContext {
      * @returns {object[]}
      */
     static standaloneFootprintRows(elements) {
+        const usedNames = new Set()
         return elements
             .filter((element) =>
                 ['pcb_smtpad', 'pcb_plated_hole', 'pcb_hole'].includes(
@@ -372,28 +432,29 @@ export class CircuitJsonKicadProjectContext {
                 )
             )
             .filter((element) => !Utils.text(element.pcb_component_id))
-            .map((element, index) =>
-                CircuitJsonKicadProjectContext.standaloneFootprintRow(
-                    element,
-                    index
+            .map((element, index) => {
+                const name = PadBuilder.uniqueStandaloneFootprintName(
+                    PadBuilder.standaloneFootprintName(element, index),
+                    usedNames
                 )
-            )
+                return CircuitJsonKicadProjectContext.standaloneFootprintRow(
+                    element,
+                    index,
+                    name
+                )
+            })
     }
 
     /**
      * Builds one synthetic footprint row for a board-owned pad or hole.
      * @param {object} element Pad or hole element.
      * @param {number} index Fallback index.
+     * @param {string} footprintName Resolved footprint name.
      * @returns {object}
      */
-    static standaloneFootprintRow(element, index) {
-        const id = Utils.text(
-            element.pcb_smtpad_id ||
-                element.pcb_plated_hole_id ||
-                element.pcb_hole_id,
-            'board_pad_' + (index + 1)
-        )
-        const name = Utils.safeName(id)
+    static standaloneFootprintRow(element, index, footprintName) {
+        const id = Utils.text(footprintName, 'board_pad_' + (index + 1))
+        const name = Utils.safeName(footprintName || id)
         const center = CircuitJsonKicadProjectContext.elementPoint(element) || {
             x: 0,
             y: 0
@@ -470,27 +531,19 @@ export class CircuitJsonKicadProjectContext {
     /**
      * Normalizes caller-provided model files.
      * @param {unknown} modelFiles Candidate model files.
-     * @returns {{ name: string, sourcePath: string, bytes: Uint8Array, format: string }[]}
+     * @param {{ modelDirectory?: string, modelSourceRules?: object[] }} [options] Routing options.
+     * @returns {{ name: string, sourcePath: string, bytes: Uint8Array, format: string, outputPath: string, modelPath: string }[]}
      */
-    static modelFiles(modelFiles) {
+    static modelFiles(modelFiles, options = {}) {
+        const usedOutputPaths = new Set()
         return (Array.isArray(modelFiles) ? modelFiles : []).map(
-            (model, index) => {
-                const sourcePath = Utils.text(
-                    model.sourcePath || model.path || model.relativePath || ''
+            (model, index) =>
+                ModelRouting.normalizeModelFile(
+                    model,
+                    index,
+                    options,
+                    usedOutputPaths
                 )
-                const name = Utils.safeFileName(
-                    model.name ||
-                        Utils.baseName(sourcePath) ||
-                        'model-' + (index + 1) + '.step'
-                )
-
-                return {
-                    name,
-                    sourcePath,
-                    bytes: Utils.bytes(model.bytes),
-                    format: Utils.text(model.format) || Utils.extension(name)
-                }
-            }
         )
     }
 
@@ -530,11 +583,23 @@ export class CircuitJsonKicadProjectContext {
      * @returns {string}
      */
     static reference(sourceComponent) {
-        const name = Utils.text(
-            sourceComponent.name || sourceComponent.reference || ''
+        const explicitPrefix =
+            CircuitJsonKicadProjectContext.referencePrefixFromText(
+                sourceComponent.reference
+            )
+        if (explicitPrefix) return explicitPrefix
+
+        const ftypePrefix =
+            CircuitJsonKicadProjectContext.referencePrefixFromFtype(
+                sourceComponent
+            )
+        if (ftypePrefix) return ftypePrefix
+
+        return (
+            CircuitJsonKicadProjectContext.referencePrefixFromText(
+                sourceComponent.name
+            ) || 'U'
         )
-        const match = /^[A-Z]+/u.exec(name)
-        return match ? match[0] : 'U'
     }
 
     /**
@@ -553,6 +618,116 @@ export class CircuitJsonKicadProjectContext {
         }
 
         return CircuitJsonKicadProjectContext.reference(sourceComponent)
+    }
+
+    /**
+     * Resolves one source component value.
+     * @param {object} sourceComponent Source component.
+     * @param {string} fallbackName Fallback component name.
+     * @returns {string}
+     */
+    static componentValue(sourceComponent, fallbackName) {
+        const explicit = CircuitJsonKicadProjectContext.firstText(
+            sourceComponent.value,
+            sourceComponent.display_value,
+            sourceComponent.component_value
+        )
+        if (explicit) return explicit
+
+        const manufacturerPartNumber = Utils.text(
+            sourceComponent.manufacturer_part_number
+        )
+        const ftype =
+            CircuitJsonKicadProjectContext.componentFtype(sourceComponent)
+
+        switch (ftype) {
+            case 'simple_resistor':
+                return CircuitJsonKicadProjectContext.firstText(
+                    sourceComponent.display_resistance,
+                    sourceComponent.resistance,
+                    manufacturerPartNumber,
+                    'R'
+                )
+            case 'simple_capacitor':
+                return CircuitJsonKicadProjectContext.firstText(
+                    sourceComponent.display_capacitance,
+                    sourceComponent.capacitance,
+                    manufacturerPartNumber,
+                    'C'
+                )
+            case 'simple_inductor':
+                return CircuitJsonKicadProjectContext.firstText(
+                    sourceComponent.display_inductance,
+                    sourceComponent.inductance,
+                    manufacturerPartNumber,
+                    'L'
+                )
+            case 'simple_diode':
+                return manufacturerPartNumber || 'D'
+            case 'simple_led':
+                return manufacturerPartNumber || 'LED'
+            case 'simple_switch':
+            case 'simple_push_button':
+                return manufacturerPartNumber || 'SW'
+            case 'simple_potentiometer':
+                return CircuitJsonKicadProjectContext.firstText(
+                    sourceComponent.display_max_resistance,
+                    sourceComponent.max_resistance,
+                    manufacturerPartNumber,
+                    'POT'
+                )
+            default:
+                return manufacturerPartNumber || fallbackName
+        }
+    }
+
+    /**
+     * Resolves one source component function type.
+     * @param {object} sourceComponent Source component.
+     * @returns {string}
+     */
+    static componentFtype(sourceComponent) {
+        const explicit = Utils.text(sourceComponent.ftype).toLowerCase()
+        if (explicit) return explicit
+        return sourceComponent.type === 'source_component'
+            ? CircuitJsonSourceComponentFtype.infer(sourceComponent)
+            : ''
+    }
+
+    /**
+     * Resolves a reference prefix from source component function type.
+     * @param {object} sourceComponent Source component.
+     * @returns {string}
+     */
+    static referencePrefixFromFtype(sourceComponent) {
+        return (
+            REFERENCE_PREFIX_BY_FTYPE.get(
+                CircuitJsonKicadProjectContext.componentFtype(sourceComponent)
+            ) || ''
+        )
+    }
+
+    /**
+     * Resolves a reference prefix from text.
+     * @param {unknown} value Candidate reference text.
+     * @returns {string}
+     */
+    static referencePrefixFromText(value) {
+        const match = /^[A-Z]+/u.exec(Utils.text(value))
+        return match ? match[0] : ''
+    }
+
+    /**
+     * Returns the first non-empty text value.
+     * @param {...unknown} values Candidate values.
+     * @returns {string}
+     */
+    static firstText(...values) {
+        for (const value of values) {
+            const text = Utils.text(value).trim()
+            if (text) return text
+        }
+        return ''
     }
 
     /**

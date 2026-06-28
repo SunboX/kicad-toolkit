@@ -84,9 +84,9 @@ export class CircuitJsonKicadProjectPcbModelBuilder {
                 sourcePath
             )
         const path = modelFile
-            ? CircuitJsonKicadProjectPcbModelBuilder.modelPath(
-                  context.modelPathPrefix,
-                  modelFile.name
+            ? CircuitJsonKicadProjectPcbModelBuilder.#resolvedModelPath(
+                  context,
+                  modelFile
               )
             : sourcePath
 
@@ -112,9 +112,9 @@ export class CircuitJsonKicadProjectPcbModelBuilder {
     static #fallbackModelNodes(context) {
         return (context.modelFiles || []).map((model) =>
             CircuitJsonKicadProjectPcbModelBuilder.#modelNode({
-                path: CircuitJsonKicadProjectPcbModelBuilder.modelPath(
-                    context.modelPathPrefix,
-                    model.name
+                path: CircuitJsonKicadProjectPcbModelBuilder.#resolvedModelPath(
+                    context,
+                    model
                 )
             })
         )
@@ -139,9 +139,9 @@ export class CircuitJsonKicadProjectPcbModelBuilder {
                 sourcePath
             )
         const modelPath = modelFile
-            ? CircuitJsonKicadProjectPcbModelBuilder.modelPath(
-                  context.modelPathPrefix,
-                  modelFile.name
+            ? CircuitJsonKicadProjectPcbModelBuilder.#resolvedModelPath(
+                  context,
+                  modelFile
               )
             : sourcePath
 
@@ -214,6 +214,41 @@ export class CircuitJsonKicadProjectPcbModelBuilder {
             (normalizedPrefix.endsWith('/') ? '' : '/') +
             name
         )
+    }
+
+    /**
+     * Resolves a footprint model reference path for a normalized model file.
+     * @param {object} context Export context.
+     * @param {object} modelFile Normalized model file.
+     * @returns {string}
+     */
+    static #resolvedModelPath(context, modelFile) {
+        const explicit = Utils.text(modelFile.modelPath || modelFile.model_path)
+        if (explicit) return explicit
+        const outputPath = Utils.normalizeBasePath(modelFile.outputPath)
+        const outputDirectory =
+            CircuitJsonKicadProjectPcbModelBuilder.#outputDirectory(outputPath)
+        if (
+            outputPath &&
+            outputDirectory &&
+            outputDirectory !== Utils.normalizeBasePath(context.modelDirectory)
+        ) {
+            return '${KIPRJMOD}/' + outputPath
+        }
+        return CircuitJsonKicadProjectPcbModelBuilder.modelPath(
+            context.modelPathPrefix,
+            modelFile.name
+        )
+    }
+
+    /**
+     * Resolves the directory portion of an output path.
+     * @param {string} outputPath Archive-relative model output path.
+     * @returns {string}
+     */
+    static #outputDirectory(outputPath) {
+        if (!outputPath.includes('/')) return ''
+        return outputPath.split('/').slice(0, -1).join('/')
     }
 
     /**

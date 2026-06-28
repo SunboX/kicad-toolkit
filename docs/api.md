@@ -121,31 +121,48 @@ through-pad layer transitions without duplicating colocated vias, and pad net
 names can resolve through PCB ports, source ports, and source-net connectivity
 keys. Footprint pad coordinates are converted through the owning component
 rotation so rotated footprints keep pad and artwork geometry aligned.
+Project exports derive `.kicad_pro` net classes from board defaults plus
+generic `source_net` rule fields such as trace width, clearance, and via
+dimensions. Source component supplier part numbers are emitted as default
+footprint properties unless explicit KiCad metadata overrides them.
 Custom schematic symbol rows, including rows referenced through
 component-linked graphics, can provide symbol names, graphic primitives, filled
 paths, arcs, display pin labels, and port-facing direction for generated KiCad
-symbol libraries. Component-scoped schematic artwork overlays generated symbol
-bodies without replacing generated pins. Standalone schematic page graphics and
+symbol libraries. Ports can also provide `sch_stem_length`, `schStemLength`, or
+`stem_length` to add symbol-local stem graphics from the pin anchor toward the
+symbol body. Component-scoped schematic artwork overlays generated symbol bodies
+without replacing generated pins. Standalone schematic page graphics and
 `schematic_section` rows are emitted as non-electrical graphical items, while
-wire rows and `schematic_trace.edges` remain electrical wires with exported
-trace junctions. Schematic trace endpoints connected through source traces are
-snapped to the exported KiCad pin anchors when they are close enough to avoid
-off-grid raw coordinates disconnecting wires from generated or custom symbols.
-Exported schematics include deterministic `symbol_instances` paths that point
-back to the placed symbol UUIDs and preserve reference, unit, value, and
-footprint information for round trips.
+wire rows and `schematic_trace.edges` remain electrical wires with exported trace
+junctions. Schematic trace endpoints connected through source traces are snapped
+to the exported KiCad pin anchors when they are close enough to avoid off-grid
+raw coordinates disconnecting wires from generated or custom symbols. Exported
+schematics include deterministic `symbol_instances` paths that point back to the
+placed symbol UUIDs and preserve reference, unit, value, and footprint
+information for round trips.
 KiCad-specific metadata on source, PCB, and label rows can override generated
 symbol and footprint names, pass properties, symbol placement flags, pin
 name/number display, embedded-font flags, and footprint attributes through,
 attach explicit model nodes, emit local, global, or hierarchical labels with
 explicit rotation, place power-symbol labels, and add symbol search metadata
 such as keywords and footprint filters. The
+snake-case and camel-case metadata names are both accepted, including
+`kicad_symbol`, `kicadSymbol`, `kicad_symbol_metadata`,
+`kicadSymbolMetadata`, `kicad_footprint`, `kicadFootprint`,
+`kicad_footprint_metadata`, and `kicadFootprintMetadata`. The
 `useGenericConnectorSymbols: true` option maps simple pin-header and connector
 source components with no custom symbol metadata to
 `Connector_Generic:Conn_01xNN` schematic library IDs while keeping local
 generated symbols as the default. The
 `modelPathMode: 'library-shapes'` option packages model files under
-`3dmodels/<library>.3dshapes` and updates footprint model references.
+`3dmodels/<library>.3dshapes` and updates footprint model references. Anonymous
+board-owned pads and holes use geometry-derived standalone footprint names based
+on pad type, shape, dimensions, drill, and rotation while explicit ids and names
+remain stable. `modelSourceRules` can route matching model sources into alternate
+archive directories with string, regular-expression, or predicate matchers; a
+rule may also provide `modelPathPrefix` for the footprint reference path.
+`modelFiles` may carry `outputPath` or `modelPath` directly. Export manifests
+include `modelDirectories` alongside the legacy `modelDirectory` field.
 
 `CircuitJsonKicadLibraryExporter.export(circuitJson, options)` emits the
 library subset of the same conversion: symbol library, footprint library,
@@ -160,6 +177,33 @@ items with `dedupeLibraryItems: true`, and rewrite library-table URIs through
 entry populated from `packageId`, `packageName`, `packageVersion`, and
 `packageDescription`.
 
+Project exports can opt into schematic coordinate normalization with
+`schematicScaleFactor`. The scale applies to schematic symbol placements,
+electrical wires, labels, page graphics, junctions, and symbol-local generated
+or custom geometry. Defaults remain passthrough with a factor of `1`.
+`schematicCenterOnPage: true` additionally translates scaled schematic content
+to the center of the selected KiCad paper size. Paper selection uses scaled
+content bounds, while library-only exports can use `schematicScaleFactor` to
+scale reusable symbol geometry without page centering.
+
+`KicadPcmRepositoryIndexBuilder.build({ baseUrl, packages })` composes
+`repository.json` and `packages.json` entries for KiCad package feeds from
+installable package ZIP bytes. It adds repository-side download URLs, archive
+SHA-256 values, download sizes, and install sizes while leaving package archive
+metadata free of repository download fields. `previewResponse(result, path)`
+returns a small response object for local tests or preview servers.
+`KicadPcmPackageQaReportBuilder.build({ entries, strictPackage: true })`
+validates installable package entries before publishing, parses packaged symbol
+and footprint libraries, reports missing root metadata, unwanted library tables,
+parse failures, and footprint model references that are not backed by packaged
+`3dmodels/` entries.
+
+`KicadSemanticDiffReportBuilder.build({ leftEntries, rightEntries })` compares
+two KiCad source entry sets after normalizing volatile S-expression metadata and
+project JSON fields. Use
+`KicadSemanticDiffReportBuilder.compareText({ path, leftText, rightText })` for
+single-file comparisons.
+
 `CircuitJsonKicadModExporter.export(circuitJson, options)` emits one
 standalone KiCad `.kicad_mod` entry from the same Circuit JSON footprint rows
 used by project and library exports. Select a footprint with `footprintName`,
@@ -172,7 +216,11 @@ hosts that do not need an archive entry wrapper.
 3D model source paths into `modelFiles` entries accepted by the project and
 library exporters. The resolver is local-first: it performs no network or file
 I/O unless the host provides `fetch` or `readFile` callbacks, and callers can
-choose whether load failures throw or become diagnostics.
+choose whether load failures throw or become diagnostics. Resolved model rows
+include `outputPath`, and the result includes `loadDiagnostics` plus a summary
+of loaded and failed source paths. `modelSourceRules` use the same generic
+matching contract as the exporters, allowing a resolver result to be passed
+directly into project or library export while preserving routed output paths.
 
 `KicadCliVisualSnapshotHarness.render(options)` is exported from
 `kicad-toolkit/node` as an optional host-gated KiCad CLI snapshot helper. It is
@@ -290,6 +338,10 @@ PCB BOM, PnP, DNP, exclude-from-BOM, and exclude-from-position-file rows.
 `KicadLibraryQaReportBuilder.build()` reports duplicate library items,
 symbol-library merge-plan conflicts, unresolved footprint references, missing
 model assets, and symbol unit mismatches.
+`KicadPcmPackageQaReportBuilder.build()` reports publish-blocking package
+archive issues, including missing metadata, strict-layout library table files,
+unparseable library entries, repository-only metadata fields, and unresolved
+packaged model references.
 `KicadSchematicQaReportBuilder.build()` reports unresolved
 schematic text variables, title-block gaps, and document style summaries.
 `KicadSchematicGeometryReadinessReportBuilder.build()` reports
@@ -317,6 +369,7 @@ Specialized parser helpers are exported for lower-level integrations, including
 `KicadLibraryRenderManifestBuilder`, `KicadLibrarySearchIndex`,
 `KicadLibraryQaReportBuilder`, `KicadLibraryTableParser`, `KicadNetlistParser`,
 `KicadParserCompatibilityFuzzer`, `KicadPcbDrawingParser`,
+`KicadPcmPackageQaReportBuilder`, `KicadPcmRepositoryIndexBuilder`,
 `KicadPcbComponentParticipationPolicy`,
 `KicadPcb3dModelReadinessReportBuilder`,
 `KicadPcbDimensionReadModelBuilder`, `KicadPcbFidelityDiagnosticsBuilder`,
@@ -337,7 +390,8 @@ Specialized parser helpers are exported for lower-level integrations, including
 `KicadSchematicHierarchyGraphBuilder`,
 `KicadSchematicOwnershipGraphBuilder`, `KicadSchematicQaReportBuilder`,
 `KicadSchematicSymbolParser`,
-`KicadSourceCoverageReportBuilder`, `KicadSvgModelCrossLinkValidator`,
+`KicadSemanticDiffReportBuilder`, `KicadSourceCoverageReportBuilder`,
+`KicadSvgModelCrossLinkValidator`,
 `KicadSymbolLibraryParser`,
 `KicadToolkitCapabilities`,
 `KicadWorksheetParser`, `ProjectDesignBundleBuilder`,

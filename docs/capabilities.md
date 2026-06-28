@@ -26,7 +26,9 @@ ownership graph indexing, schematic hierarchy graph indexing, KiCad PnP
 coordinate views, CI artifact bundle composition, deterministic parser
 compatibility smoke cases, schematic connectivity QA, schematic document QA,
 library QA, library merge-plan diagnostics, BOM/PnP reconciliation, and
-deterministic project netlist/wirelist export.
+deterministic project netlist/wirelist export. Circuit JSON export can also
+scale schematic coordinates and optionally center scaled schematic pages while
+keeping passthrough coordinates as the default.
 
 ## Capability Inventory
 
@@ -207,6 +209,12 @@ BOM, PnP, DNP, exclude-from-BOM, and exclude-from-position-file designators.
 `KicadLibraryQaReportBuilder.build()` checks library collections for duplicate
 items, symbol-library merge-plan conflicts, unresolved footprint references,
 missing model assets, and unit mismatches.
+`KicadPcmRepositoryIndexBuilder.build()` creates package feed indexes from
+installable archive bytes, and `KicadPcmPackageQaReportBuilder.build()` checks
+package metadata, library entries, and packaged model references before
+publishing. `KicadSemanticDiffReportBuilder.build()` compares KiCad source
+entries after normalizing volatile S-expression metadata and project JSON
+fields.
 `KicadSchematicQaReportBuilder.build()` reports unresolved
 schematic text variables, title-block gaps, font families, and authored line
 widths.

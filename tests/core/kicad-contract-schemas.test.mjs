@@ -200,6 +200,21 @@ test('machine-readable KiCad helper schemas are split for downstream consumers',
             'kicad-toolkit.library.merge-plan.a1'
         ],
         [
+            '../../docs/schemas/kicad_toolkit/pcm_repository_index_a1.schema.json',
+            'kicad-toolkit.pcm-repository-index.a1',
+            'kicad-toolkit.pcm-repository-index.a1'
+        ],
+        [
+            '../../docs/schemas/kicad_toolkit/pcm_package_qa_a1.schema.json',
+            'kicad-toolkit.pcm-package-qa.a1',
+            'kicad-toolkit.pcm-package-qa.a1'
+        ],
+        [
+            '../../docs/schemas/kicad_toolkit/semantic_diff_a1.schema.json',
+            'kicad-toolkit.semantic-diff.a1',
+            'kicad-toolkit.semantic-diff.a1'
+        ],
+        [
             '../../docs/schemas/kicad_toolkit/schematic_qa_a1.schema.json',
             'kicad-toolkit.schematic.qa.a1',
             'kicad-toolkit.schematic.qa.a1'

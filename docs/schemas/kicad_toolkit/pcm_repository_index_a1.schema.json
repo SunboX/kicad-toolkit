@@ -1,0 +1,51 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "kicad-toolkit.pcm-repository-index.a1",
+    "title": "KiCad Toolkit Package Repository Index A1",
+    "type": "object",
+    "required": ["schema", "entries", "archives", "repository", "packages"],
+    "properties": {
+        "schema": {
+            "const": "kicad-toolkit.pcm-repository-index.a1"
+        },
+        "entries": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/archiveEntry" }
+        },
+        "archives": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/archiveEntry" }
+        },
+        "repository": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "packages": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "diagnostics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": true
+            }
+        }
+    },
+    "$defs": {
+        "archiveEntry": {
+            "type": "object",
+            "required": ["path", "bytes"],
+            "properties": {
+                "path": { "type": "string" },
+                "contentType": { "type": "string" },
+                "bytes": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": true
+        }
+    },
+    "additionalProperties": true
+}

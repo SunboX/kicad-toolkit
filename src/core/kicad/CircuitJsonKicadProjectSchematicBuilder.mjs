@@ -7,6 +7,7 @@ import { CircuitJsonKicadProjectSchematicArcBuilder as ArcBuilder } from './Circ
 import { CircuitJsonKicadProjectSchematicLabelBuilder as LabelBuilder } from './CircuitJsonKicadProjectSchematicLabelBuilder.mjs'
 import { CircuitJsonKicadProjectSchematicPage } from './CircuitJsonKicadProjectSchematicPage.mjs'
 import { CircuitJsonKicadProjectSchematicSymbolBuilder as SymbolBuilder } from './CircuitJsonKicadProjectSchematicSymbolBuilder.mjs'
+import { CircuitJsonKicadProjectSchematicTransform as SchematicTransform } from './CircuitJsonKicadProjectSchematicTransform.mjs'
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
 
 const DEFAULT_PIN_SNAP_TOLERANCE_MM = 10.16
@@ -21,7 +22,15 @@ export class CircuitJsonKicadProjectSchematicBuilder {
      * @returns {Array}
      */
     static buildSchematic(context) {
+        const sourceBounds =
+            CircuitJsonKicadProjectSchematicPage.contentBounds(context)
         const paper = CircuitJsonKicadProjectSchematicPage.paperName(context)
+        const schematicContext =
+            CircuitJsonKicadProjectSchematicBuilder.schematicContext(
+                context,
+                paper,
+                { sourceBounds }
+            )
 
         return [
             'kicad_sch',
@@ -30,18 +39,29 @@ export class CircuitJsonKicadProjectSchematicBuilder {
             ['paper', paper],
             [
                 'lib_symbols',
-                ...CircuitJsonKicadProjectSchematicBuilder.symbols(context, {
-                    embedded: true
-                })
+                ...CircuitJsonKicadProjectSchematicBuilder.symbols(
+                    schematicContext,
+                    {
+                        embedded: true
+                    }
+                )
             ],
-            ...CircuitJsonKicadProjectSchematicBuilder.placedSymbols(context),
-            ...CircuitJsonKicadProjectSchematicBuilder.wires(context),
-            ...CircuitJsonKicadProjectSchematicBuilder.labels(context),
-            ...CircuitJsonKicadProjectSchematicBuilder.junctions(context),
-            ...CircuitJsonKicadProjectSchematicBuilder.texts(context),
-            ...CircuitJsonKicadProjectSchematicBuilder.graphics(context),
+            ...CircuitJsonKicadProjectSchematicBuilder.placedSymbols(
+                schematicContext
+            ),
+            ...CircuitJsonKicadProjectSchematicBuilder.wires(schematicContext),
+            ...CircuitJsonKicadProjectSchematicBuilder.labels(schematicContext),
+            ...CircuitJsonKicadProjectSchematicBuilder.junctions(
+                schematicContext
+            ),
+            ...CircuitJsonKicadProjectSchematicBuilder.texts(schematicContext),
+            ...CircuitJsonKicadProjectSchematicBuilder.graphics(
+                schematicContext
+            ),
             ['sheet_instances', ['path', '/', ['page', '1']]],
-            ...CircuitJsonKicadProjectSchematicBuilder.symbolInstances(context),
+            ...CircuitJsonKicadProjectSchematicBuilder.symbolInstances(
+                schematicContext
+            ),
             ['embedded_fonts', 'no']
         ]
     }
@@ -52,12 +72,47 @@ export class CircuitJsonKicadProjectSchematicBuilder {
      * @returns {Array}
      */
     static buildSymbolLibrary(context) {
+        const symbolContext =
+            CircuitJsonKicadProjectSchematicBuilder.symbolContext(context)
         return [
             'kicad_symbol_lib',
             ['version', 20240108],
             ['generator', 'ecad_forge'],
-            ...CircuitJsonKicadProjectSchematicBuilder.symbols(context)
+            ...CircuitJsonKicadProjectSchematicBuilder.symbols(symbolContext)
         ]
+    }
+
+    /**
+     * Adds the selected schematic transform to a context.
+     * @param {object} context Export context.
+     * @param {string} paperName Selected paper name.
+     * @param {{ sourceBounds?: object | null }} [options] Transform options.
+     * @returns {object}
+     */
+    static schematicContext(context, paperName, options = {}) {
+        if (context.schematicTransform) return context
+        return {
+            ...context,
+            schematicTransform: SchematicTransform.fromContext(context, {
+                paperName,
+                sourceBounds: options.sourceBounds || null
+            })
+        }
+    }
+
+    /**
+     * Adds a scale-only transform to a symbol-library context.
+     * @param {object} context Export context.
+     * @returns {object}
+     */
+    static symbolContext(context) {
+        if (context.schematicTransform) return context
+        return {
+            ...context,
+            schematicTransform: SchematicTransform.fromContext(context, {
+                centerOnPage: false
+            })
+        }
     }
 
     /**
@@ -84,7 +139,8 @@ export class CircuitJsonKicadProjectSchematicBuilder {
      */
     static symbolNode(context, row, options = {}) {
         const ports = context.sourcePorts.byComponentId.get(row.sourceId) || []
-        const halfHeight = Math.max(2.54, ports.length * 1.27)
+        const transform = SchematicTransform.forContext(context)
+        const halfHeight = transform.length(Math.max(2.54, ports.length * 1.27))
         const metadata = Metadata.symbolMetadata(row)
         const customNodes = SymbolBuilder.nodes(context, row)
         const generatedNodes =
@@ -106,17 +162,17 @@ export class CircuitJsonKicadProjectSchematicBuilder {
                     {
                         name: 'Reference',
                         value: row.reference,
-                        at: [0, -halfHeight - 2.54, 0]
+                        at: [0, -halfHeight - transform.length(2.54), 0]
                     },
                     {
                         name: 'Value',
                         value: row.value,
-                        at: [0, halfHeight + 2.54, 0]
+                        at: [0, halfHeight + transform.length(2.54), 0]
                     },
                     {
                         name: 'Footprint',
                         value: Metadata.footprintLibId(context, row),
-                        at: [0, halfHeight + 5.08, 0],
+                        at: [0, halfHeight + transform.length(5.08), 0],
                         hidden: true
                     }
                 ],
@@ -135,18 +191,21 @@ export class CircuitJsonKicadProjectSchematicBuilder {
      */
     static generatedSymbolBodyNodes(context, row) {
         const ports = context.sourcePorts.byComponentId.get(row.sourceId) || []
-        const halfHeight = Math.max(2.54, ports.length * 1.27)
+        const transform = SchematicTransform.forContext(context)
+        const halfWidth = transform.length(5.08)
+        const halfHeight = transform.length(Math.max(2.54, ports.length * 1.27))
 
         return [
             [
                 'rectangle',
-                ['start', -5.08, -halfHeight],
-                ['end', 5.08, halfHeight],
+                ['start', -halfWidth, -halfHeight],
+                ['end', halfWidth, halfHeight],
                 ['stroke', ['width', 0.15], ['type', 'default']],
                 ['fill', ['type', 'background']]
             ],
             ...ports.map((port, index) =>
                 CircuitJsonKicadProjectSchematicBuilder.symbolPinNode(
+                    context,
                     port,
                     index,
                     ports.length
@@ -157,20 +216,24 @@ export class CircuitJsonKicadProjectSchematicBuilder {
 
     /**
      * Builds one symbol pin.
+     * @param {object} context Export context.
      * @param {object} port Source port.
      * @param {number} index Port index.
      * @param {number} portCount Total port count.
      * @returns {Array}
      */
-    static symbolPinNode(port, index, portCount) {
-        const y = (index - Math.max(portCount - 1, 0) / 2) * 2.54
+    static symbolPinNode(context, port, index, portCount) {
+        const transform = SchematicTransform.forContext(context)
+        const y = transform.length(
+            (index - Math.max(portCount - 1, 0) / 2) * 2.54
+        )
 
         return [
             'pin',
             'passive',
             'line',
-            ['at', -7.62, y, 0],
-            ['length', 2.54],
+            ['at', -transform.length(7.62), y, 0],
+            ['length', transform.length(2.54)],
             ['name', Utils.text(port.name, index + 1)],
             ['number', String(Context.pinNumber(port, index + 1))]
         ]
@@ -182,12 +245,16 @@ export class CircuitJsonKicadProjectSchematicBuilder {
      * @returns {Array[]}
      */
     static placedSymbols(context) {
+        const transform = SchematicTransform.forContext(context)
         return context.componentRows.map((row, index) => {
             const component = row.schematicComponent || {}
-            const center = Utils.point(component.center) || {
+            const sourceCenter = Utils.point(component.center) || {
                 x: index * 20,
                 y: 0
             }
+            const center = transform.point(sourceCenter)
+            const referenceOffset = transform.length(5.08)
+            const footprintOffset = transform.length(7.62)
 
             return [
                 'symbol',
@@ -205,19 +272,19 @@ export class CircuitJsonKicadProjectSchematicBuilder {
                     'property',
                     'Reference',
                     row.referenceDesignator || row.reference,
-                    ['at', center.x, -center.y - 5.08, 0]
+                    ['at', center.x, -center.y - referenceOffset, 0]
                 ],
                 [
                     'property',
                     'Value',
                     row.value,
-                    ['at', center.x, -center.y + 5.08, 0]
+                    ['at', center.x, -center.y + referenceOffset, 0]
                 ],
                 [
                     'property',
                     'Footprint',
                     Metadata.footprintLibId(context, row),
-                    ['at', center.x, -center.y + 7.62, 0],
+                    ['at', center.x, -center.y + footprintOffset, 0],
                     ['effects', ['hide']]
                 ]
             ]
@@ -307,6 +374,7 @@ export class CircuitJsonKicadProjectSchematicBuilder {
             return element.edges
                 .map((edge, edgeIndex) =>
                     CircuitJsonKicadProjectSchematicBuilder.wireNode(
+                        context,
                         element,
                         index,
                         {
@@ -338,37 +406,44 @@ export class CircuitJsonKicadProjectSchematicBuilder {
                 .filter(Boolean)
         }
         return [
-            CircuitJsonKicadProjectSchematicBuilder.wireNode(element, index, {
-                start: CircuitJsonKicadProjectSchematicBuilder.snappedWirePoint(
-                    context,
-                    element,
-                    {
-                        x: element.x1 ?? element.start?.x,
-                        y: element.y1 ?? element.start?.y
-                    },
-                    pinAnchors
-                ),
-                end: CircuitJsonKicadProjectSchematicBuilder.snappedWirePoint(
-                    context,
-                    element,
-                    {
-                        x: element.x2 ?? element.end?.x,
-                        y: element.y2 ?? element.end?.y
-                    },
-                    pinAnchors
-                )
-            })
+            CircuitJsonKicadProjectSchematicBuilder.wireNode(
+                context,
+                element,
+                index,
+                {
+                    start: CircuitJsonKicadProjectSchematicBuilder.snappedWirePoint(
+                        context,
+                        element,
+                        {
+                            x: element.x1 ?? element.start?.x,
+                            y: element.y1 ?? element.start?.y
+                        },
+                        pinAnchors
+                    ),
+                    end: CircuitJsonKicadProjectSchematicBuilder.snappedWirePoint(
+                        context,
+                        element,
+                        {
+                            x: element.x2 ?? element.end?.x,
+                            y: element.y2 ?? element.end?.y
+                        },
+                        pinAnchors
+                    )
+                }
+            )
         ].filter(Boolean)
     }
 
     /**
      * Builds one schematic wire node.
+     * @param {object} context Export context.
      * @param {object} element Wire element.
      * @param {number} index Wire index.
      * @param {{ id?: string, start?: object, end?: object, width?: unknown }} [options] Wire options.
      * @returns {Array | null}
      */
-    static wireNode(element, index, options = {}) {
+    static wireNode(context, element, index, options = {}) {
+        const transform = SchematicTransform.forContext(context)
         const start = Utils.point(
             options.start || {
                 x: element.x1 ?? element.start?.x,
@@ -382,9 +457,15 @@ export class CircuitJsonKicadProjectSchematicBuilder {
             }
         )
         if (!start || !end) return null
+        const transformedStart = transform.pagePoint(start)
+        const transformedEnd = transform.pagePoint(end)
         return [
             'wire',
-            ['pts', ['xy', start.x, -start.y], ['xy', end.x, -end.y]],
+            [
+                'pts',
+                ['xy', transformedStart.x, transformedStart.y],
+                ['xy', transformedEnd.x, transformedEnd.y]
+            ],
             [
                 'stroke',
                 ['width', Utils.number(options.width ?? element.width, 0)],
@@ -583,6 +664,7 @@ export class CircuitJsonKicadProjectSchematicBuilder {
                 .filter((element) => element?.type === 'schematic_junction')
                 .map((element, index) =>
                     CircuitJsonKicadProjectSchematicBuilder.junctionNode(
+                        context,
                         element.center || element,
                         element.schematic_junction_id || index,
                         element.diameter
@@ -596,6 +678,7 @@ export class CircuitJsonKicadProjectSchematicBuilder {
                         : []
                     ).map((junction, junctionIndex) =>
                         CircuitJsonKicadProjectSchematicBuilder.junctionNode(
+                            context,
                             junction,
                             (element.schematic_trace_id ||
                                 'schematic_trace_' + traceIndex) +
@@ -610,17 +693,20 @@ export class CircuitJsonKicadProjectSchematicBuilder {
 
     /**
      * Builds one schematic junction node.
+     * @param {object} context Export context.
      * @param {object} candidate Junction point candidate.
      * @param {string | number} id Junction id seed.
      * @param {unknown} diameter Junction diameter.
      * @returns {Array | null}
      */
-    static junctionNode(candidate, id, diameter) {
+    static junctionNode(context, candidate, id, diameter) {
+        const transform = SchematicTransform.forContext(context)
         const point = Utils.point(candidate)
         if (!point) return null
+        const output = transform.pagePoint(point)
         return [
             'junction',
-            ['at', point.x, -point.y],
+            ['at', output.x, output.y],
             ['diameter', Utils.number(diameter, 0)],
             ['color', 0, 0, 0, 0],
             ['uuid', Utils.uuid('junction:' + id)]
@@ -652,6 +738,7 @@ export class CircuitJsonKicadProjectSchematicBuilder {
                 )
                 .map((element, index) =>
                     CircuitJsonKicadProjectSchematicBuilder.#graphicNode(
+                        context,
                         element,
                         index
                     )
@@ -681,19 +768,22 @@ export class CircuitJsonKicadProjectSchematicBuilder {
 
     /**
      * Builds one page graphic node.
+     * @param {object} context Export context.
      * @param {object} element Graphic element.
      * @param {number} index Graphic index.
      * @returns {Array | null}
      */
-    static #graphicNode(element, index) {
+    static #graphicNode(context, element, index) {
+        const transform = SchematicTransform.forContext(context)
         if (element.type === 'schematic_arc') {
             return ArcBuilder.node(element, {
-                transformPoint: (point) => ({ x: point.x, y: -point.y }),
+                transformPoint: (point) => transform.pagePoint(point),
                 uuidSeed:
                     'graphic:' + (element.schematic_arc_id || 'arc:' + index)
             })
         }
         return CircuitJsonKicadProjectSchematicBuilder.#rectangleNode(
+            context,
             element,
             index
         )
@@ -701,19 +791,30 @@ export class CircuitJsonKicadProjectSchematicBuilder {
 
     /**
      * Builds one page rectangle node.
+     * @param {object} context Export context.
      * @param {object} element Rectangle element.
      * @param {number} index Rectangle index.
      * @returns {Array | null}
      */
-    static #rectangleNode(element, index) {
+    static #rectangleNode(context, element, index) {
+        const transform = SchematicTransform.forContext(context)
         const center = Utils.point(element.center || element)
         if (!center) return null
-        const width = Utils.number(element.width, 4)
-        const height = Utils.number(element.height, 3)
+        const output = transform.point(center)
+        const width = transform.length(element.width, 4)
+        const height = transform.length(element.height, 3)
         return [
             'rectangle',
-            ['start', center.x - width / 2, -center.y - height / 2],
-            ['end', center.x + width / 2, -center.y + height / 2],
+            [
+                'start',
+                Utils.round(output.x - width / 2),
+                Utils.round(-output.y - height / 2)
+            ],
+            [
+                'end',
+                Utils.round(output.x + width / 2),
+                Utils.round(-output.y + height / 2)
+            ],
             ['stroke', ['width', 0.15], ['type', 'default']],
             ['fill', ['type', 'none']],
             [

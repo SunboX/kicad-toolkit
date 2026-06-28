@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProjectUtils.mjs'
+import { CircuitJsonKicadProjectModelRouting as ModelRouting } from './CircuitJsonKicadProjectModelRouting.mjs'
 
 /**
  * Loads CircuitJSON 3D model source paths into project-export model files.
@@ -9,38 +10,65 @@ import { CircuitJsonKicadProjectUtils as Utils } from './CircuitJsonKicadProject
 export class CircuitJsonKicadProjectModelResolver {
     /**
      * Resolves model source paths into exporter-ready model files.
-     * @param {{ model3dSourcePaths?: string[], fetch?: (sourcePath: string) => Promise<{ ok?: boolean, arrayBuffer?: () => Promise<ArrayBuffer | Uint8Array | string> }>, readFile?: (sourcePath: string) => Promise<ArrayBuffer | Uint8Array | string>, continueOnError?: boolean, onError?: (diagnostic: object) => void | Promise<void> }} [options] Resolve options.
-     * @returns {Promise<{ modelFiles: object[], diagnostics: object[] }>}
+     * @param {{ model3dSourcePaths?: string[], modelDirectory?: string, modelSourceRules?: object[], modelPathMode?: string, libraryName?: string, projectName?: string, fetch?: (sourcePath: string) => Promise<{ ok?: boolean, arrayBuffer?: () => Promise<ArrayBuffer | Uint8Array | string> }>, readFile?: (sourcePath: string) => Promise<ArrayBuffer | Uint8Array | string>, continueOnError?: boolean, onError?: (diagnostic: object) => void | Promise<void> }} [options] Resolve options.
+     * @returns {Promise<{ modelFiles: object[], diagnostics: object[], loadDiagnostics: object[], summary: object }>}
      */
     static async resolve(options = {}) {
         const diagnostics = []
+        const loadDiagnostics = []
         const modelFiles = []
-        const usedNames = new Set()
-
-        for (const sourcePath of CircuitJsonKicadProjectModelResolver.#paths(
+        const sourcePaths = CircuitJsonKicadProjectModelResolver.#paths(
             options.model3dSourcePaths
-        )) {
+        )
+        const outputDirectory =
+            CircuitJsonKicadProjectModelResolver.#outputDirectory(options)
+        const usedOutputPaths = new Set()
+
+        for (const sourcePath of sourcePaths) {
+            const descriptor = ModelRouting.descriptorForSource(
+                sourcePath,
+                {
+                    ...options,
+                    modelDirectory: outputDirectory
+                },
+                usedOutputPaths
+            )
             try {
-                modelFiles.push(
+                const modelFile =
                     await CircuitJsonKicadProjectModelResolver.#modelFile(
-                        sourcePath,
-                        options,
-                        usedNames
+                        descriptor,
+                        options
+                    )
+                modelFiles.push(modelFile)
+                loadDiagnostics.push(
+                    CircuitJsonKicadProjectModelResolver.#successDiagnostic(
+                        modelFile
                     )
                 )
             } catch (error) {
                 const diagnostic =
                     CircuitJsonKicadProjectModelResolver.#diagnostic(
-                        sourcePath,
+                        descriptor,
                         error
                     )
                 diagnostics.push(diagnostic)
+                loadDiagnostics.push(diagnostic)
                 await options.onError?.(diagnostic)
                 if (!options.continueOnError) throw error
             }
         }
 
-        return { modelFiles, diagnostics }
+        return {
+            modelFiles,
+            diagnostics,
+            loadDiagnostics,
+            summary: {
+                sourcePathCount: sourcePaths.length,
+                loadedCount: modelFiles.length,
+                failedCount: diagnostics.length,
+                diagnosticCount: diagnostics.length
+            }
+        }
     }
 
     /**
@@ -66,27 +94,42 @@ export class CircuitJsonKicadProjectModelResolver {
     }
 
     /**
-     * Loads one source path as a normalized model file.
-     * @param {string} sourcePath Model source path.
+     * Builds the archive output directory for resolved model files.
      * @param {object} options Resolve options.
-     * @param {Set<string>} usedNames Already used output file names.
+     * @returns {string}
+     */
+    static #outputDirectory(options) {
+        if (options.modelDirectory) {
+            return Utils.normalizeBasePath(options.modelDirectory)
+        }
+        if (options.modelPathMode === 'library-shapes') {
+            const libraryName = Utils.safeName(
+                options.libraryName || options.projectName || ''
+            )
+            return '3dmodels/' + libraryName + '.3dshapes'
+        }
+        return 'models'
+    }
+
+    /**
+     * Loads one source path as a normalized model file.
+     * @param {object} descriptor Model path descriptor.
+     * @param {object} options Resolve options.
      * @returns {Promise<object>}
      */
-    static async #modelFile(sourcePath, options, usedNames) {
-        const name = CircuitJsonKicadProjectModelResolver.#uniqueName(
-            Utils.safeFileName(sourcePath),
-            usedNames
-        )
+    static async #modelFile(descriptor, options) {
         const bytes = await CircuitJsonKicadProjectModelResolver.#bytes(
-            sourcePath,
+            descriptor.sourcePath,
             options
         )
 
         return {
-            name,
-            sourcePath,
+            name: descriptor.name,
+            sourcePath: descriptor.sourcePath,
+            outputPath: descriptor.outputPath,
+            modelPath: descriptor.modelPath,
             bytes,
-            format: Utils.extension(name)
+            format: descriptor.format
         }
     }
 
@@ -124,44 +167,42 @@ export class CircuitJsonKicadProjectModelResolver {
     }
 
     /**
-     * Builds a unique archive file name while preserving the extension.
-     * @param {string} name Candidate file name.
-     * @param {Set<string>} usedNames Already used output file names.
-     * @returns {string}
+     * Builds one successful model-load diagnostic.
+     * @param {object} modelFile Resolved model file.
+     * @returns {object}
      */
-    static #uniqueName(name, usedNames) {
-        const baseName = Utils.baseName(name) || 'model.step'
-        const extension = Utils.extension(baseName)
-        const stem = extension
-            ? baseName.slice(0, -(extension.length + 1))
-            : baseName
-        let candidate = baseName
-        let index = 2
-
-        while (usedNames.has(candidate.toLowerCase())) {
-            candidate = extension
-                ? stem + '-' + index + '.' + extension
-                : stem + '-' + index
-            index += 1
+    static #successDiagnostic(modelFile) {
+        return {
+            severity: 'info',
+            code: 'kicad_model_load_succeeded',
+            sourcePath: modelFile.sourcePath,
+            outputPath: modelFile.outputPath,
+            name: modelFile.name,
+            format: modelFile.format,
+            byteLength: modelFile.bytes.byteLength,
+            message:
+                'Loaded 3D model source ' + Utils.baseName(modelFile.sourcePath)
         }
-
-        usedNames.add(candidate.toLowerCase())
-        return candidate
     }
 
     /**
      * Builds one model-load diagnostic.
-     * @param {string} sourcePath Failed source path.
+     * @param {object} descriptor Model path descriptor.
      * @param {unknown} error Load error.
      * @returns {object}
      */
-    static #diagnostic(sourcePath, error) {
+    static #diagnostic(descriptor, error) {
         return {
             severity: 'warning',
             code: 'kicad_model_load_failed',
-            sourcePath,
+            sourcePath: descriptor.sourcePath,
+            outputPath: descriptor.outputPath,
+            name: descriptor.name,
+            format: descriptor.format,
+            byteLength: 0,
             message:
-                'Could not load 3D model source ' + Utils.baseName(sourcePath),
+                'Could not load 3D model source ' +
+                Utils.baseName(descriptor.sourcePath),
             error: error instanceof Error ? error.message : String(error)
         }
     }

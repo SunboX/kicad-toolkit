@@ -112,6 +112,51 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         summary:
             'Builds deterministic CI pass/fail gates for normalized models, netlists, SVG model links, and diagnostics.'
     })
+    assert.deepEqual(byId.get('pcm_repository_index_builder'), {
+        id: 'pcm_repository_index_builder',
+        label: 'Package repository index builder',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: ['fflate'],
+        outputs: ['repository.json', 'packages.json'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Builds deterministic KiCad package feed metadata, archive checksums, and local preview responses.'
+    })
+    assert.deepEqual(byId.get('pcm_package_qa_report'), {
+        id: 'pcm_package_qa_report',
+        label: 'Package QA report',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: ['fflate'],
+        outputs: ['package QA report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Validates installable KiCad package archives, metadata, library entries, and packaged model references.'
+    })
+    assert.deepEqual(byId.get('kicad_semantic_diff_report'), {
+        id: 'kicad_semantic_diff_report',
+        label: 'Semantic diff report',
+        category: 'reporting',
+        safety: 'read_only',
+        requires: [],
+        outputs: ['semantic diff report'],
+        supportsBrowser: true,
+        supportsNode: true,
+        supportsDryRun: false,
+        createsBackup: false,
+        mutatesInput: false,
+        summary:
+            'Compares KiCad source entries after normalizing volatile metadata and formatting.'
+    })
     assert.deepEqual(byId.get('pcb_route_analysis'), {
         id: 'pcb_route_analysis',
         label: 'PCB route analysis',
@@ -431,7 +476,7 @@ test('KicadToolkitCapabilities inventories parser renderer and reporting capabil
         category: 'reporting'
     })
 
-    assert.equal(reporting.total, 29)
+    assert.equal(reporting.total, 32)
     assert.deepEqual(Object.keys(reporting.categories), ['reporting'])
 })
 

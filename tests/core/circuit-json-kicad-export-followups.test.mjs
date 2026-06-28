@@ -107,6 +107,96 @@ test('CircuitJsonKicadLibraryExporter can emit package-manager layout metadata',
     ])
 })
 
+test('CircuitJsonKicadLibraryExporter can emit PCM-compatible package archives', () => {
+    const result = CircuitJsonKicadLibraryExporter.export(
+        [
+            ...packagedComponent('source_pcm', 'pcb_pcm', {
+                symbolName: 'Widget',
+                footprintName: 'Widget_SMD'
+            })
+        ],
+        {
+            libraryName: 'Bundle Parts',
+            packageId: 'org.fake.bundle',
+            packageName: 'Fake Bundle',
+            packageVersion: '1.2.3',
+            packageDescription: 'Reusable fake parts',
+            packageDescriptionFull:
+                'Reusable fake parts for package-manager installs.',
+            packageAuthor: {
+                name: 'Fake Author',
+                contact: { web: 'https://example.invalid' }
+            },
+            packageMaintainer: { name: 'Fake Maintainer' },
+            packageLicense: 'MIT',
+            packageTags: ['fake', 'library'],
+            pcmPackage: true,
+            modelFiles: [
+                {
+                    name: 'widget.step',
+                    sourcePath: 'models/widget.step',
+                    bytes: new Uint8Array([4, 5, 6])
+                }
+            ]
+        }
+    )
+    const paths = result.entries.map((entry) => entry.path)
+    const metadata = JSON.parse(decodeEntry(findEntry(result, 'metadata.json')))
+    const footprintText = decodeEntry(
+        findEntry(result, 'footprints/Bundle_Parts.pretty/Widget_SMD.kicad_mod')
+    )
+    const symbolText = decodeEntry(
+        findEntry(result, 'symbols/Bundle_Parts.kicad_sym')
+    )
+    const modelEntry = findEntry(
+        result,
+        '3dmodels/Bundle_Parts.3dshapes/widget.step'
+    )
+
+    assert.deepEqual(paths, [
+        '3dmodels/Bundle_Parts.3dshapes/widget.step',
+        'footprints/Bundle_Parts.pretty/Widget_SMD.kicad_mod',
+        'metadata.json',
+        'symbols/Bundle_Parts.kicad_sym'
+    ])
+    assert.equal(metadata.$schema, 'https://go.kicad.org/pcm/schemas/v2')
+    assert.equal(metadata.type, 'library')
+    assert.equal(metadata.identifier, 'org.fake.bundle')
+    assert.equal(metadata.name, 'Fake Bundle')
+    assert.equal(metadata.description, 'Reusable fake parts')
+    assert.equal(
+        metadata.description_full,
+        'Reusable fake parts for package-manager installs.'
+    )
+    assert.deepEqual(metadata.author, {
+        name: 'Fake Author',
+        contact: { web: 'https://example.invalid' }
+    })
+    assert.deepEqual(metadata.maintainer, {
+        name: 'Fake Maintainer',
+        contact: {}
+    })
+    assert.equal(metadata.license, 'MIT')
+    assert.deepEqual(metadata.tags, ['fake', 'library'])
+    assert.deepEqual(metadata.versions, [
+        {
+            version: '1.2.3',
+            status: 'stable',
+            kicad_version: '10.0'
+        }
+    ])
+    assert.match(
+        footprintText,
+        /\(model "\$\{KICAD10_3RD_PARTY\}\/3dmodels\/org_fake_bundle\/Bundle_Parts\.3dshapes\/widget\.step"/
+    )
+    assert.match(
+        symbolText,
+        /\(property "Footprint" "PCM_Bundle_Parts:Widget_SMD"/
+    )
+    assert.deepEqual([...modelEntry.bytes], [4, 5, 6])
+    assert.equal(result.manifest.package.pcmPackage, true)
+})
+
 test('KicadCliVisualSnapshotHarness can require nonblank visual artifacts', async () => {
     const result = await nodeApi.KicadCliVisualSnapshotHarness.render({
         enabled: true,

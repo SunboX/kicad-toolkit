@@ -14,7 +14,7 @@ export class CircuitJsonKicadProjectExporter {
     /**
      * Builds archive-ready KiCad project entries from a CircuitJSON source.
      * @param {object[] | { circuitJson?: object[], elements?: object[] }} circuitJson CircuitJSON source.
-     * @param {{ projectName?: string, libraryName?: string, basePath?: string, modelFiles?: object[], includeModelEntries?: boolean, modelPathPrefix?: string, modelPathMode?: string, modelDirectory?: string, libraryTableRoot?: string, packageId?: string, useGenericConnectorSymbols?: boolean }} [options] Export options.
+     * @param {{ projectName?: string, libraryName?: string, basePath?: string, modelFiles?: object[], modelSourceRules?: object[], includeModelEntries?: boolean, modelPathPrefix?: string, modelPathMode?: string, modelDirectory?: string, libraryTableRoot?: string, packageId?: string, useGenericConnectorSymbols?: boolean, schematicScaleFactor?: number, schematicCenterOnPage?: boolean }} [options] Export options.
      * @returns {{ entries: { path: string, bytes: Uint8Array, contentType: string }[], diagnostics: object[], manifest: object, model3dSourcePaths: string[] }}
      */
     static export(circuitJson, options = {}) {
@@ -22,12 +22,15 @@ export class CircuitJsonKicadProjectExporter {
             projectName: options.projectName,
             libraryName: options.libraryName,
             modelFiles: options.modelFiles,
+            modelSourceRules: options.modelSourceRules,
             modelPathPrefix: options.modelPathPrefix,
             modelPathMode: options.modelPathMode,
             modelDirectory: options.modelDirectory,
             libraryTableRoot: options.libraryTableRoot,
             packageId: options.packageId,
-            useGenericConnectorSymbols: options.useGenericConnectorSymbols
+            useGenericConnectorSymbols: options.useGenericConnectorSymbols,
+            schematicScaleFactor: options.schematicScaleFactor,
+            schematicCenterOnPage: options.schematicCenterOnPage
         })
         const basePath = Utils.normalizeBasePath(options.basePath ?? 'kicad')
         const entries = CircuitJsonKicadProjectExporter.#entries(
