@@ -202,7 +202,6 @@ function parseGeneral(node) {
         legacyTeardrops: hasChild(node, 'legacy_teardrops')
     }
 }
-
 /**
  * Parses declared board layer records.
  * @param {Array | undefined} node Layers node.
@@ -218,7 +217,6 @@ function parseLayers(node) {
  */
 function parseLayer(node) {
     const scalarValues = node.filter((value) => !Array.isArray(value))
-
     return {
         ordinal: numberValue(scalarValues[0], 0),
         name: String(scalarValues[1] || ''),
@@ -234,7 +232,6 @@ function parseLayer(node) {
  */
 function parseSetup(node) {
     if (!node) return {}
-
     return removeUndefinedValues({
         padToMaskClearance: optionalNumber(
             child(node, 'pad_to_mask_clearance')
@@ -264,7 +261,6 @@ function parseSetup(node) {
  */
 function parseStackup(node) {
     if (!node) return undefined
-
     return removeUndefinedValues({
         layers: children(node, 'layer').map(parseStackupLayer),
         copperFinish: optionalText(child(node, 'copper_finish')),
@@ -501,7 +497,6 @@ function parseFootprint(node, index, netResolver, boardTextContext) {
 function parseFootprintModels(modelNodes) {
     return modelNodes.map((modelNode) => {
         const path = String(modelNode?.[1] || '')
-
         return {
             path,
             name: basename(path),
@@ -522,7 +517,6 @@ function parseFootprintModels(modelNodes) {
  */
 function parseNestedXyz(node, name, fallback) {
     const xyz = child(child(node, name), 'xyz')
-
     return {
         x: numberValue(xyz?.[1], fallback),
         y: numberValue(xyz?.[2], fallback),
@@ -558,7 +552,9 @@ function parseFootprintPropertyText(
         transform,
         fallbackSide,
         keepUpright: hasKeepUprightTextRotation(node),
-        visible: !hasChild(node, 'hide'),
+        visible:
+            !hasChild(node, 'hide') &&
+            !hasChild(child(node, 'effects'), 'hide'),
         excludeFromPositionFiles,
         textContext: footprintTextContext
     })
@@ -592,7 +588,9 @@ function parseFootprintText(
         transform,
         fallbackSide,
         keepUpright: hasKeepUprightTextRotation(node),
-        visible: !hasChild(node, 'hide'),
+        visible:
+            !hasChild(node, 'hide') &&
+            !hasChild(child(node, 'effects'), 'hide'),
         excludeFromPositionFiles,
         textContext: footprintTextContext
     })
@@ -614,7 +612,9 @@ function parseBoardText(node, index, boardTextContext) {
         transform: { x: 0, y: 0, rotation: 0 },
         fallbackSide: 'both',
         keepUpright: false,
-        visible: !hasChild(node, 'hide'),
+        visible:
+            !hasChild(node, 'hide') &&
+            !hasChild(child(node, 'effects'), 'hide'),
         excludeFromPositionFiles: false,
         textContext: boardTextContext
     })
@@ -716,7 +716,6 @@ function parseFootprintProperties(nodes) {
  */
 function propertyText(properties, name) {
     if (properties[name] !== undefined) return properties[name]
-
     const normalized = name.toLowerCase()
     const matchedKey = Object.keys(properties).find((key) => {
         return key.toLowerCase() === normalized
@@ -732,7 +731,6 @@ function propertyText(properties, name) {
 function parseFootprintAttributeFlags(attributes) {
     const tokens = new Set(attributes || [])
     const isVirtual = tokens.has('virtual')
-
     return {
         isThroughHole: tokens.has('through_hole'),
         isSmd: tokens.has('smd'),
@@ -876,7 +874,9 @@ function child(node, name) {
  * @returns {boolean}
  */
 function hasChild(node, name) {
-    return SExpressionTree.hasChild(node, name)
+    const hasHideFlag =
+        name === 'hide' && Array.isArray(node) && node.includes('hide')
+    return hasHideFlag || SExpressionTree.hasChild(node, name)
 }
 
 /**

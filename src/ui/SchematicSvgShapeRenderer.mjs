@@ -219,7 +219,7 @@ function renderShapePrimitive(primitive, paint) {
         return `<ellipse class="schematic-ellipse schematic-shape-${paint.classSuffix}" cx="${formatNumber(primitive.x)}" cy="${formatNumber(primitive.y)}" rx="${formatNumber(primitive.radiusX || 0)}" ry="${formatNumber(primitive.radiusY || primitive.radiusX || 0)}" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}"${paint.strokeAttributes || ''}/>`
     }
     if (primitive.shapeType === 'arc') {
-        return `<path class="schematic-arc schematic-shape-${paint.classSuffix}" d="${arcPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"${paint.strokeAttributes || ''}/>`
+        return `<path class="schematic-arc schematic-shape-${paint.classSuffix}" d="${arcPaintPath(primitive, paint)}" fill="${paint.fill}" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"${paint.strokeAttributes || ''}/>`
     }
     if (primitive.shapeType === 'bezier') {
         return `<path class="schematic-bezier schematic-shape-${paint.classSuffix}" d="${bezierPath(primitive)}" fill="none" stroke="${paint.stroke}" stroke-width="${formatNumber(paint.strokeWidth)}" stroke-linecap="round"${paint.strokeAttributes || ''}/>`
@@ -291,7 +291,9 @@ function strokePattern(style, strokeWidth) {
  * @returns {boolean}
  */
 function canFillPrimitive(primitive) {
-    return ['rectangle', 'polygon', 'ellipse'].includes(primitive?.shapeType)
+    return ['rectangle', 'polygon', 'ellipse', 'arc'].includes(
+        primitive?.shapeType
+    )
 }
 
 /**
@@ -383,6 +385,17 @@ function arcPath(arc) {
         formatNumber(end.x),
         formatNumber(end.y)
     ].join(' ')
+}
+
+/**
+ * Builds a paint-specific KiCad arc path.
+ * @param {object} arc Arc primitive.
+ * @param {{ fill: string }} paint Paint attributes.
+ * @returns {string}
+ */
+function arcPaintPath(arc, paint) {
+    const path = arcPath(arc)
+    return paint.fill === 'none' ? path : `${path} Z`
 }
 
 /**

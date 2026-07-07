@@ -53,6 +53,15 @@ export class SchematicSvgTextMetrics {
     }
 
     /**
+     * Splits KiCad schematic text into visible render lines.
+     * @param {unknown} value Text value.
+     * @returns {string[]}
+     */
+    static textLines(value) {
+        return textLines(value)
+    }
+
+    /**
      * Resolves KiCad's vertical stroke size for font and baseline metrics.
      * @param {object} text Text item.
      * @returns {number}
@@ -155,6 +164,23 @@ export function resolveRenderedTextRotation(text) {
  */
 export function textLineSpacing(text) {
     return textHeight(text) * kicadTextLineSpacingRatio
+}
+
+/**
+ * Splits KiCad schematic text into visible render lines.
+ * @param {unknown} value Text value.
+ * @returns {string[]}
+ */
+export function textLines(value) {
+    const lines = String(value ?? '')
+        .replace(/\r\n?/gu, '\n')
+        .split('\n')
+
+    while (lines.length > 1 && lines.at(-1) === '') {
+        lines.pop()
+    }
+
+    return lines
 }
 
 /**
@@ -264,7 +290,7 @@ function symbolFieldDrawCenter(sourceText, renderedText) {
  * @returns {{ origin: { x: number, y: number }, end: { x: number, y: number } }}
  */
 function symbolFieldTextBox(sourceText, renderedText, textPosition) {
-    const lines = String(renderedText.value || '').split('\n')
+    const lines = textLines(renderedText.value)
     const width = Math.max(
         ...lines.map((line) =>
             KicadStrokeFont.measureLine(line, textWidth(renderedText))

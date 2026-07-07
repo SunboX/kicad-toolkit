@@ -318,6 +318,19 @@ test('KicadPcbParser applies KiCad bottom-footprint transforms and text alignmen
     })
 })
 
+test('KicadPcbParser marks scalar-hidden footprint text as not visible', () => {
+    const board = KicadPcbParser.parse(hiddenFootprintTextFixture(), {
+        fileName: 'hidden-footprint-text.kicad_pcb'
+    })
+    const byValue = new Map(board.texts.map((text) => [text.value, text]))
+
+    assert.equal(byValue.get('VISIBLE_REF')?.visible, true)
+    assert.equal(byValue.get('HIDDEN_REF')?.visible, false)
+    assert.equal(byValue.get('HIDDEN_VALUE')?.visible, false)
+    assert.equal(byValue.get('HIDDEN_USER')?.visible, false)
+    assert.equal(board.texts.filter((text) => text.visible !== false).length, 1)
+})
+
 test('KicadPcbParser resolves declared and named PCB nets onto primitives', () => {
     const board = KicadPcbParser.parse(netFixture(), {
         fileName: 'net-fixture.kicad_pcb'
@@ -673,6 +686,44 @@ function multiFootprintFixture() {
                 (size 0.85 0.85)
                 (drill 0.5)
                 (layers "*.Cu" "*.Mask")
+            )
+        )
+    )`
+}
+
+/**
+ * Builds a fake board with footprint text hidden by KiCad's scalar `hide`
+ * token syntax.
+ * @returns {string}
+ */
+function hiddenFootprintTextFixture() {
+    return `(kicad_pcb
+        (version 20241229)
+        (footprint "Package:HiddenText"
+            (layer "F.Cu")
+            (at 10 10 0)
+            (fp_text reference "VISIBLE_REF"
+                (at 0 -2 0)
+                (layer "F.SilkS")
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (fp_text reference "HIDDEN_REF"
+                (at 0 -3 0)
+                (layer "F.SilkS")
+                hide
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (fp_text value "HIDDEN_VALUE"
+                (at 0 2 0)
+                (layer "F.SilkS")
+                hide
+                (effects (font (size 1 1) (thickness 0.15)))
+            )
+            (fp_text user "HIDDEN_USER"
+                (at 0 3 0)
+                (layer "F.SilkS")
+                hide
+                (effects (font (size 1 1) (thickness 0.15)))
             )
         )
     )`

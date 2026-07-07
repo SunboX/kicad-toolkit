@@ -34,6 +34,7 @@ function renderVisiblePin(pin, options) {
     return [
         `<line class="schematic-pin-line"${semanticAttributes} x1="${options.formatNumber(pin.x)}" y1="${options.formatNumber(pin.y)}" x2="${options.formatNumber(end.x)}" y2="${options.formatNumber(end.y)}" stroke="${options.symbolColor}" stroke-width="0.08"/>`,
         renderPinEndpoint(pin, options),
+        renderDanglingPinEndpoint(pin, end, options),
         renderPinStyle(pin, options),
         renderPinName(pin, options),
         renderPinNumber(pin, options)
@@ -49,6 +50,18 @@ function renderVisiblePin(pin, options) {
 function renderPinEndpoint(pin, options) {
     if (!pin.endpointVisible) return ''
     return `<circle class="schematic-pin-endpoint" cx="${options.formatNumber(pin.x)}" cy="${options.formatNumber(pin.y)}" r="0.42" fill="${options.pinMarkerFillColor}" stroke="${options.symbolColor}" stroke-width="0.12"/>`
+}
+
+/**
+ * Renders KiCad's open endpoint marker for one dangling visible pin.
+ * @param {object} pin Pin.
+ * @param {{ x: number, y: number }} end External connection endpoint.
+ * @param {object} options Rendering callbacks and colors.
+ * @returns {string}
+ */
+function renderDanglingPinEndpoint(pin, end, options) {
+    if (!pin.danglingEndpointVisible) return ''
+    return `<circle class="schematic-pin-dangling-endpoint" cx="${options.formatNumber(end.x)}" cy="${options.formatNumber(end.y)}" r="0.42" fill="var(--schematic-fill-color)" stroke="${options.symbolColor}" stroke-width="0.12"/>`
 }
 
 /**

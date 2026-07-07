@@ -388,7 +388,9 @@ function parseSymbolArc(node, index, ownerIndex, transform) {
         end: transformPoint(localPoint(child(node, 'end')), transform),
         color: defaultInkColor,
         width: strokeWidth(node),
+        fill: fillType(node),
         ...KicadSchematicStyleParser.strokeFields(node),
+        ...KicadSchematicStyleParser.fillFields(node),
         ownerIndex,
         renderOrder: index
     }
@@ -455,7 +457,7 @@ function orientationFromBodyAndConnection(body, connection) {
 function transformPoint(point, transform) {
     const mirrored = mirrorPoint(point, transform.mirror)
     const local = { x: mirrored.x, y: -mirrored.y }
-    const radians = -(Number(transform.rotation) || 0) * (Math.PI / 180)
+    const radians = transformRotationRadians(transform)
     const cos = Math.cos(radians)
     const sin = Math.sin(radians)
     const x = local.x * cos - local.y * sin
@@ -464,6 +466,17 @@ function transformPoint(point, transform) {
         x: transform.x + x,
         y: transform.y + y
     }
+}
+
+/**
+ * Resolves symbol rotation in screen-space after KiCad mirroring.
+ * @param {object} transform Symbol placement transform.
+ * @returns {number}
+ */
+function transformRotationRadians(transform) {
+    const rotation = Number(transform.rotation) || 0
+    const direction = transform.mirror ? 1 : -1
+    return direction * rotation * (Math.PI / 180)
 }
 
 /**

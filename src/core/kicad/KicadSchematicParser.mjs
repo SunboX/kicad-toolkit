@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { groupSchematicBomRows } from './KicadBomUtils.mjs'
+import { KicadSchematicDanglingEndpointMarker } from './KicadSchematicDanglingEndpointMarker.mjs'
 import { symbolPropertyTextRotation } from './KicadSchematicFieldRotation.mjs'
 import { KicadSchematicGraphicParser } from './KicadSchematicGraphicParser.mjs'
 import { KicadSchematicStyleParser } from './KicadSchematicStyleParser.mjs'
@@ -42,7 +43,7 @@ export class KicadSchematicParser {
             ...parseLabels(root, 'hierarchical_label', 'hierarchical')
         ]
         const junctions = children(root, 'junction').map(parseJunction)
-        const crosses = children(root, 'no_connect').map(parseNoConnect)
+        const explicitCrosses = children(root, 'no_connect').map(parseNoConnect)
         const sheets = children(root, 'sheet').map((node, index) =>
             parseHierarchicalSheet(node, index)
         )
@@ -52,6 +53,10 @@ export class KicadSchematicParser {
         const symbolPrimitives = symbols.map((symbol) => symbol.primitives)
         const components = symbols.flatMap((symbol) => symbol.component)
         const pins = symbols.flatMap((symbol) => symbol.pins)
+        const crosses = mergeNoConnectCrosses(
+            explicitCrosses,
+            noConnectCrossesFromPins(pins)
+        )
         const propertyTexts = symbols.flatMap((symbol) => symbol.texts)
         const lines = [
             ...wires,
@@ -94,6 +99,11 @@ export class KicadSchematicParser {
                 junctions,
                 sheetEntries
             })
+        KicadSchematicDanglingEndpointMarker.markPins(pins, {
+            nets,
+            crosses,
+            texts
+        })
         const bom = groupSchematicBomRows(components)
         const diagnostics = [
             {
@@ -360,6 +370,82 @@ function parseNoConnect(node) {
 }
 
 /**
+ * Combines explicit schematic no-connect markers with library pin markers.
+ * @param {object[]} explicitCrosses Markers declared as schematic no_connect nodes.
+ * @param {object[]} pinCrosses Markers synthesized from no-connect pins.
+ * @returns {object[]}
+ */
+function mergeNoConnectCrosses(explicitCrosses, pinCrosses) {
+    const seen = new Set()
+    const merged = []
+    for (const cross of [...explicitCrosses, ...pinCrosses]) {
+        const key = noConnectCrossKey(cross)
+        if (seen.has(key)) continue
+        seen.add(key)
+        merged.push(cross)
+    }
+    return merged
+}
+
+/**
+ * Builds no-connect markers for visible library pins declared as no_connect.
+ * @param {object[]} pins Parsed symbol pins.
+ * @returns {object[]}
+ */
+function noConnectCrossesFromPins(pins) {
+    return pins
+        .filter((pin) => {
+            return (
+                pin.visible !== false &&
+                String(pin.electricalType || '') === 'no_connect'
+            )
+        })
+        .map(noConnectCrossFromPin)
+}
+
+/**
+ * Builds a no-connect marker at one pin's external connection point.
+ * @param {object} pin Parsed symbol pin.
+ * @returns {object}
+ */
+function noConnectCrossFromPin(pin) {
+    const point = pinConnectionPoint(pin)
+    return {
+        x: point.x,
+        y: point.y,
+        size: 1.5,
+        color: defaultAccentColor,
+        ownerIndex: pin.ownerIndex,
+        sourceType: 'pin_no_connect',
+        pinDesignator: pin.designator || ''
+    }
+}
+
+/**
+ * Resolves the external connection point for a parsed schematic pin.
+ * @param {object} pin Parsed pin.
+ * @returns {{ x: number, y: number }}
+ */
+function pinConnectionPoint(pin) {
+    const x = numberValue(pin.x, 0)
+    const y = numberValue(pin.y, 0)
+    const length = numberValue(pin.length, 0)
+    if (pin.orientation === 'left') return { x: x - length, y }
+    if (pin.orientation === 'right') return { x: x + length, y }
+    if (pin.orientation === 'top') return { x, y: y - length }
+    return { x, y: y + length }
+}
+
+/**
+ * Builds a coordinate key for no-connect marker de-duplication.
+ * @param {object} cross No-connect marker.
+ * @returns {string}
+ */
+function noConnectCrossKey(cross) {
+    return `${numberValue(cross.x, 0).toFixed(4)}:${numberValue(cross.y, 0).toFixed(4)}`
+}
+
+/**
  * Parses a hierarchical sheet node.
  * @param {Array} node Sheet node.
  * @param {number} index Sheet index.
@@ -435,13 +521,14 @@ function sheetEntrySide(pinAt, sheet) {
  */
 function parseSchematicSymbol(node, index, librarySymbols) {
     const libId = symbolLibId(node)
+    const libName = symbolLibName(node)
     const at = parseAt(child(node, 'at'))
     const uuid = textValue(child(node, 'uuid')) || `symbol:${index}`
     const properties = parseProperties(node)
     const designator = properties.get('Reference')?.value || `U${index + 1}`
     const value = properties.get('Value')?.value || ''
     const footprint = properties.get('Footprint')?.value || ''
-    const librarySymbol = librarySymbols.get(libId)
+    const librarySymbol = resolveLibrarySymbol(librarySymbols, libId, libName)
     const unit = numberValue(child(node, 'unit')?.[1], 1)
     const convert = numberValue(
         child(node, 'convert')?.[1] || child(node, 'body_style')?.[1],
@@ -515,6 +602,20 @@ function parseSchematicSymbol(node, index, librarySymbols) {
 }
 
 /**
+ * Resolves an embedded library symbol for a placed schematic symbol.
+ * @param {Map<string, Array>} librarySymbols Embedded symbols.
+ * @param {string} libId Public symbol library id.
+ * @param {string} libName Embedded symbol node alias.
+ * @returns {Array | undefined}
+ */
+function resolveLibrarySymbol(librarySymbols, libId, libName) {
+    return (
+        (libName ? librarySymbols.get(libName) : undefined) ||
+        librarySymbols.get(libId)
+    )
+}
+
+/**
  * Resolves a symbol library id from current and legacy schematic syntax.
  * @param {Array} node Symbol node.
  * @returns {string}
@@ -524,6 +625,15 @@ function symbolLibId(node) {
     if (libId) return libId
 
     return Array.isArray(node[1]) ? '' : String(node[1] || '')
+}
+
+/**
+ * Resolves the embedded library symbol name from current schematic syntax.
+ * @param {Array} node Symbol node.
+ * @returns {string}
+ */
+function symbolLibName(node) {
+    return textValue(child(node, 'lib_name'))
 }
 
 /**

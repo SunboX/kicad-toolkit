@@ -17,6 +17,7 @@ import {
     resolveRenderedTextRotation,
     textHeight,
     textLineSpacing,
+    textLines,
     textLineX,
     textLineY,
     textStrokeWidth,
@@ -731,7 +732,7 @@ function resolveSchematicTextColor(text) {
  * @returns {string}
  */
 function renderStrokeText(text) {
-    const lines = String(text.value || '').split('\n')
+    const lines = textLines(text.value)
     const lineSpacing = textLineSpacing(text)
     const strokeWidth = textStrokeWidth(text)
     const attrs = [
