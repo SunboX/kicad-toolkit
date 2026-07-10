@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { promisify } from 'node:util'
 
 import { KicadBenchmarkFixtureFactory } from '../../benchmarks/KicadBenchmarkFixtureFactory.mjs'
 import { KicadConvergenceBenchmark } from '../../benchmarks/KicadConvergenceBenchmark.mjs'
@@ -13,6 +15,7 @@ import {
 } from '../../scripts/run-benchmarks.mjs'
 
 const repositoryRoot = new URL('../../', import.meta.url)
+const execFileAsync = promisify(execFile)
 
 /**
  * Reads one repository-relative JSON artifact.
@@ -73,7 +76,7 @@ test('API baseline freezes every entrypoint, inventory, method contract, and bas
         passing: 382,
         sourceDefinitions: 382
     })
-    assert.equal(api.features.length, 3320)
+    assert.equal(api.features.length, 5062)
     assert.equal(ledger.length, api.features.length)
     assert.equal(
         new Set(api.features.map((feature) => feature.feature)).size,
@@ -101,6 +104,186 @@ test('API baseline freezes every entrypoint, inventory, method contract, and bas
                 feature.documentation.length > 0
         ),
         true
+    )
+})
+
+test('preservation mappings use audited shared and native ownership decisions', async () => {
+    const ledger = await readJson('spec/feature-preservation.json')
+    const byFeature = new Map(ledger.map((row) => [row.feature, row]))
+
+    assert.deepEqual(selectMapping(byFeature.get('.#PcbInteractionIndex')), {
+        capabilityId: 'geometry_helpers',
+        disposition: 'shared',
+        replacement: 'circuitjson-toolkit/interaction#PcbInteractionIndex'
+    })
+    for (const owner of [
+        'SExpressionParser',
+        'SExpressionSchema',
+        'SExpressionSerializer',
+        'SExpressionTree'
+    ]) {
+        assert.deepEqual(selectMapping(byFeature.get(`.#${owner}`)), {
+            capabilityId: 's_expression_parser',
+            disposition: 'native-extension',
+            replacement: `kicad-toolkit/extensions#${owner}`
+        })
+    }
+    assert.deepEqual(
+        selectMapping(
+            byFeature.get('./scene3d#KicadScene3dBoardOutlineAdapter')
+        ),
+        {
+            capabilityId: 'pcb_scene3d_description',
+            disposition: 'native-extension',
+            replacement:
+                'kicad-toolkit/extensions#KicadScene3dBoardOutlineAdapter'
+        }
+    )
+    assert.deepEqual(
+        selectMapping(byFeature.get('./scene3d#PcbScene3dBuilder')),
+        {
+            capabilityId: 'pcb_scene3d_description',
+            disposition: 'shared',
+            replacement: 'circuitjson-toolkit/scene3d#PcbScene3dBuilder'
+        }
+    )
+})
+
+test('callable capture follows delegated options and documented nested results', async () => {
+    const api = await readJson('spec/api-baseline-v1.0.29.json')
+    const renderers = api.entrypoints.find(
+        (entrypoint) => entrypoint.entrypoint === './renderers'
+    )
+    const interaction = renderers.exports.find(
+        (exported) => exported.name === 'PcbInteractionIndex'
+    )
+    for (const methodName of ['hitTest', 'hitTestItems', 'pick']) {
+        const callable = interaction.callables.find(
+            (row) => row.name === methodName
+        )
+        assert.deepEqual(callable.options, [
+            'hiddenLayers',
+            'hiddenObjects',
+            'side',
+            'tolerance'
+        ])
+    }
+
+    const root = api.entrypoints.find(
+        (entrypoint) => entrypoint.entrypoint === '.'
+    )
+    const query = api.entrypoints.find(
+        (entrypoint) => entrypoint.entrypoint === './netlist-query'
+    )
+    const loadedDesign = query.exports.find(
+        (exported) => exported.name === 'LoadedDesignNetlistService'
+    )
+    assert.deepEqual(
+        loadedDesign.callables.find((row) => row.name === 'listDesigns')
+            .options,
+        ['max_results', 'pattern']
+    )
+    const packages = root.exports.find(
+        (exported) => exported.name === 'PcbScene3dPackages'
+    )
+    const resolveContract = packages.callables.find(
+        (row) => row.name === 'resolve'
+    )
+    assert.deepEqual(resolveContract.resultFields, [
+        'family',
+        'sizeMil',
+        'sizeMil.depth',
+        'sizeMil.height',
+        'sizeMil.width'
+    ])
+})
+
+test('worker capture freezes every request and response field', async () => {
+    const api = await readJson('spec/api-baseline-v1.0.29.json')
+    const ledger = await readJson('spec/feature-preservation.json')
+
+    assert.deepEqual(api.workerProtocol, {
+        entrypoint: './workers/kicad-parser.worker.mjs',
+        messages: [
+            {
+                type: 'parse:file',
+                direction: 'request',
+                fields: [
+                    { name: 'buffer', required: true },
+                    { name: 'fileName', required: true },
+                    { name: 'options', required: false },
+                    { name: 'requestId', required: false },
+                    { name: 'type', required: true }
+                ]
+            },
+            {
+                type: 'parser:error',
+                direction: 'response',
+                fields: [
+                    { name: 'message', required: true },
+                    { name: 'requestId', required: true },
+                    { name: 'type', required: true }
+                ]
+            },
+            {
+                type: 'parser:success',
+                direction: 'response',
+                fields: [
+                    { name: 'documentModel', required: true },
+                    { name: 'requestId', required: true },
+                    { name: 'type', required: true }
+                ]
+            }
+        ]
+    })
+    assert.deepEqual(
+        ledger
+            .filter(
+                (row) => row.sourceContract?.type === 'worker-message-field'
+            )
+            .map((row) => row.feature),
+        [
+            './workers/kicad-parser.worker.mjs#message.parse:file.field.buffer',
+            './workers/kicad-parser.worker.mjs#message.parse:file.field.fileName',
+            './workers/kicad-parser.worker.mjs#message.parse:file.field.options',
+            './workers/kicad-parser.worker.mjs#message.parse:file.field.requestId',
+            './workers/kicad-parser.worker.mjs#message.parse:file.field.type',
+            './workers/kicad-parser.worker.mjs#message.parser:error.field.message',
+            './workers/kicad-parser.worker.mjs#message.parser:error.field.requestId',
+            './workers/kicad-parser.worker.mjs#message.parser:error.field.type',
+            './workers/kicad-parser.worker.mjs#message.parser:success.field.documentModel',
+            './workers/kicad-parser.worker.mjs#message.parser:success.field.requestId',
+            './workers/kicad-parser.worker.mjs#message.parser:success.field.type'
+        ]
+    )
+})
+
+test('baseline provenance comes only from the fixed source commit', async () => {
+    const api = await readJson('spec/api-baseline-v1.0.29.json')
+    const testNames = api.testBaseline.definitions.map((row) => row.name)
+
+    assert.equal(
+        testNames.includes('project folder is named kicad-toolkit'),
+        true
+    )
+    assert.equal(
+        testNames.includes(
+            'project root identifies the kicad-toolkit package in any checkout'
+        ),
+        false
+    )
+})
+
+test('capture reproduces the immutable baseline away from the baseline HEAD', async () => {
+    const { stdout } = await execFileAsync(
+        process.execPath,
+        ['scripts/capture-api-baseline.mjs'],
+        { cwd: repositoryRoot }
+    )
+
+    assert.match(
+        stdout,
+        /Captured \d+ KiCad API features across 8 entrypoints/u
     )
 })
 
@@ -162,4 +345,17 @@ async function caseContractChecksum() {
     return createHash('sha256')
         .update(JSON.stringify(KicadConvergenceBenchmark.cases()))
         .digest('hex')
+}
+
+/**
+ * Selects the audited ownership fields from one preservation row.
+ * @param {Record<string, any> | undefined} row Preservation row.
+ * @returns {Record<string, any>} Comparable ownership fields.
+ */
+function selectMapping(row) {
+    return {
+        capabilityId: row?.capabilityId,
+        disposition: row?.disposition,
+        replacement: row?.replacement
+    }
 }

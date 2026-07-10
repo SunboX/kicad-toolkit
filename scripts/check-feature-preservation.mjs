@@ -8,6 +8,8 @@ import { basename, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isDeepStrictEqual, promisify } from 'node:util'
 
+import { KicadApiContractInspector } from './KicadApiContractInspector.mjs'
+
 const execFileAsync = promisify(execFile)
 const TOOLKITS = [
     'altium-toolkit',
@@ -88,68 +90,6 @@ function isAvailability(value) {
 }
 
 /**
- * Produces the bounded public value contract used by API capture.
- * @param {unknown} value Public value.
- * @returns {Record<string, any>} Value contract.
- */
-function valueContract(value) {
-    if (
-        value === null ||
-        ['boolean', 'number', 'string', 'undefined'].includes(typeof value)
-    ) {
-        return { type: typeof value, value: value === undefined ? null : value }
-    }
-    if (Array.isArray(value)) return { type: 'array', length: value.length }
-    return {
-        type: typeof value,
-        keys:
-            value && typeof value === 'object' ? Object.keys(value).sort() : []
-    }
-}
-
-/**
- * Captures accessor descriptors without invoking them.
- * @param {object | Function | undefined} owner Property owner.
- * @param {string[]} ignored Ignored property names.
- * @returns {{ name: string, get: boolean, set: boolean }[]} Accessor rows.
- */
-function accessorRows(owner, ignored) {
-    return Object.entries(Object.getOwnPropertyDescriptors(owner || {}))
-        .filter(
-            ([name, descriptor]) =>
-                !ignored.includes(name) &&
-                (typeof descriptor.get === 'function' ||
-                    typeof descriptor.set === 'function')
-        )
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([name, descriptor]) => ({
-            name,
-            get: typeof descriptor.get === 'function',
-            set: typeof descriptor.set === 'function'
-        }))
-}
-
-/**
- * Captures public static data-property contracts.
- * @param {Function} value Exported function or class.
- * @returns {{ name: string, value: Record<string, any> }[]} Static properties.
- */
-function staticPropertyRows(value) {
-    return Object.entries(Object.getOwnPropertyDescriptors(value))
-        .filter(
-            ([name, descriptor]) =>
-                !['length', 'name', 'prototype'].includes(name) &&
-                Object.hasOwn(descriptor, 'value') &&
-                typeof descriptor.value !== 'function'
-        )
-        .sort(([left], [right]) => left.localeCompare(right))
-        .map(([name, descriptor]) => ({
-            name,
-            value: valueContract(descriptor.value)
-        }))
-}
-
-/**
  * Returns whether a baseline or ledger mapping is complete.
  * @param {Record<string, any>} row Mapping candidate.
  * @returns {boolean} Whether required mapping fields are valid.
@@ -196,84 +136,35 @@ function validatePackedApi(baseline, modules) {
                 `Packed entrypoint is missing: ${entrypoint.entrypoint}`
             )
         }
-        const actualNames = Object.keys(module).sort()
-        const expectedNames = entrypoint.exports.map((row) => row.name).sort()
+        const actual = KicadApiContractInspector.entrypoint(
+            entrypoint.entrypoint,
+            entrypoint.target,
+            module
+        )
+        const actualNames = actual.exports.map((row) => row.name)
+        const expectedNames = entrypoint.exports.map((row) => row.name)
         if (!isDeepStrictEqual(actualNames, expectedNames)) {
             throw new Error(`Packed API differs for ${entrypoint.entrypoint}`)
         }
-        const expectedByName = new Map(
-            entrypoint.exports.map((row) => [row.name, row])
-        )
-        for (const name of actualNames) {
-            const expected = expectedByName.get(name)
-            const value = module[name]
-            if (typeof value !== expected.type) {
-                throw new Error(
-                    `Packed export type differs for ${entrypoint.entrypoint}#${name}`
-                )
-            }
+        for (let index = 0; index < actual.exports.length; index += 1) {
+            const expected = entrypoint.exports[index]
+            const current = actual.exports[index]
             if (
-                !isDeepStrictEqual(valueContract(value), expected.valueContract)
+                !isDeepStrictEqual(current.callables, expected.callables || [])
             ) {
                 throw new Error(
-                    `Packed export value differs for ${entrypoint.entrypoint}#${name}`
+                    `Packed callable contract differs for ${entrypoint.entrypoint}#${expected.name}`
                 )
             }
-            if (typeof value !== 'function') continue
-            const staticMethods = Object.getOwnPropertyNames(value)
-                .filter(
-                    (member) =>
-                        !['length', 'name', 'prototype'].includes(member) &&
-                        typeof Object.getOwnPropertyDescriptor(value, member)
-                            ?.value === 'function'
-                )
-                .sort()
-            const instanceMethods = Object.getOwnPropertyNames(
-                value.prototype || {}
-            )
-                .filter(
-                    (member) =>
-                        member !== 'constructor' &&
-                        typeof Object.getOwnPropertyDescriptor(
-                            value.prototype,
-                            member
-                        )?.value === 'function'
-                )
-                .sort()
-            const staticAccessors = accessorRows(value, [
-                'length',
-                'name',
-                'prototype'
-            ])
-            const instanceAccessors = accessorRows(value.prototype, [
-                'constructor'
-            ])
-            const staticProperties = staticPropertyRows(value)
-            const callableArity = expected.callables
-                .filter((callable) =>
-                    ['constructor', 'function'].includes(callable.methodType)
-                )
-                .map((callable) => callable.arity)
+            const { callables: currentCallables, ...currentExport } = current
+            const { callables: expectedCallables, ...expectedExport } = expected
             if (
-                !isDeepStrictEqual(staticMethods, expected.staticMethods) ||
-                !isDeepStrictEqual(instanceMethods, expected.instanceMethods) ||
-                !isDeepStrictEqual(
-                    staticAccessors,
-                    expected.staticAccessors || []
-                ) ||
-                !isDeepStrictEqual(
-                    instanceAccessors,
-                    expected.instanceAccessors || []
-                ) ||
-                !isDeepStrictEqual(
-                    staticProperties,
-                    expected.staticProperties || []
-                ) ||
-                (callableArity.length > 0 &&
-                    !callableArity.every((arity) => arity === value.length))
+                currentCallables === undefined ||
+                expectedCallables === undefined ||
+                !isDeepStrictEqual(currentExport, expectedExport)
             ) {
                 throw new Error(
-                    `Packed callable API differs for ${entrypoint.entrypoint}#${name}`
+                    `Packed API differs for ${entrypoint.entrypoint}#${expected.name}`
                 )
             }
         }
@@ -281,20 +172,31 @@ function validatePackedApi(baseline, modules) {
 }
 
 /**
- * Reads live capability ids from a packed root namespace.
+ * Validates complete packed capability and parity inventories.
+ * @param {Record<string, any>} baseline API baseline.
  * @param {Map<string, Record<string, any> | null>} modules Imported modules.
  * @returns {Set<string>} Capability ids.
  */
-function packedCapabilityIds(modules) {
+function validatePackedInventories(baseline, modules) {
     const root = modules.get('.')
-    if (typeof root?.KicadToolkitCapabilities?.inventory !== 'function') {
+    if (
+        typeof root?.KicadToolkitCapabilities?.inventory !== 'function' ||
+        typeof root?.KicadFeatureParity?.inventory !== 'function'
+    ) {
         throw new Error(
-            'Packed root does not expose KicadToolkitCapabilities.inventory().'
+            'Packed root does not expose complete capability and parity inventories.'
         )
     }
-    const inventory = root.KicadToolkitCapabilities.inventory()
-    const rows = Array.isArray(inventory?.capabilities)
-        ? inventory.capabilities
+    const capabilityInventory = root.KicadToolkitCapabilities.inventory()
+    const parityInventory = root.KicadFeatureParity.inventory()
+    if (!isDeepStrictEqual(capabilityInventory, baseline.capabilityInventory)) {
+        throw new Error('Packed capability inventory differs from baseline.')
+    }
+    if (!isDeepStrictEqual(parityInventory, baseline.featureInventory)) {
+        throw new Error('Packed parity inventory differs from baseline.')
+    }
+    const rows = Array.isArray(capabilityInventory?.capabilities)
+        ? capabilityInventory.capabilities
         : []
     const ids = rows.map((row) => String(row.id || ''))
     const repeated = duplicates(ids)
@@ -304,6 +206,33 @@ function packedCapabilityIds(modules) {
         )
     }
     return new Set(ids)
+}
+
+/**
+ * Validates the packed worker request and response protocol.
+ * @param {Record<string, any>} baseline API baseline.
+ * @param {string} packageRoot Packed package root.
+ * @returns {Promise<void>}
+ */
+async function validatePackedWorkerProtocol(baseline, packageRoot) {
+    if (!baseline.workerProtocol) return
+    const entrypoint = (baseline.entrypoints || []).find(
+        (row) => row.entrypoint === baseline.workerProtocol.entrypoint
+    )
+    if (!entrypoint) {
+        throw new Error('Worker protocol entrypoint is missing from baseline.')
+    }
+    const source = await readFile(
+        resolve(packageRoot, entrypoint.target),
+        'utf8'
+    )
+    const actual = KicadApiContractInspector.workerProtocol(
+        source,
+        entrypoint.entrypoint
+    )
+    if (!isDeepStrictEqual(actual, baseline.workerProtocol)) {
+        throw new Error('Packed worker protocol differs from baseline.')
+    }
 }
 
 /**
@@ -475,9 +404,17 @@ export async function validateFeaturePreservation(options) {
             ? await importEntrypoints(options.apiBaseline, options.packageRoot)
             : null
         if (modules) validatePackedApi(options.apiBaseline, modules)
-        const capabilityIds =
-            options.capabilityIds ||
-            (modules ? packedCapabilityIds(modules) : null)
+        if (options.packageRoot) {
+            await validatePackedWorkerProtocol(
+                options.apiBaseline,
+                options.packageRoot
+            )
+        }
+        const inventoryIds =
+            modules?.has('.') && options.apiBaseline.capabilityInventory
+                ? validatePackedInventories(options.apiBaseline, modules)
+                : null
+        const capabilityIds = options.capabilityIds || inventoryIds
         if (!capabilityIds) {
             throw new Error('Strict validation requires live capability ids.')
         }

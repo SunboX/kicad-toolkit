@@ -2,9 +2,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 import { validateFeaturePreservation } from '../../scripts/check-feature-preservation.mjs'
+
+const execFileAsync = promisify(execFile)
+const repositoryRoot = new URL('../../', import.meta.url)
 
 const mapping = Object.freeze({
     feature: '.#KicadParser',
@@ -125,3 +134,172 @@ test('feature checker rejects duplicate and mismatched mapping contracts', async
         /Baseline and ledger mapping differ/u
     )
 })
+
+test('strict packed checker rejects callable and complete inventory drift', async () => {
+    const [apiBaseline, fullLedger, packed] = await Promise.all([
+        readJson('spec/api-baseline-v1.0.29.json'),
+        readJson('spec/feature-preservation.json'),
+        packRepositoryFixture()
+    ])
+    try {
+        const callableMutations = [
+            ['signature', (callable) => (callable.signature += ' /* drift */')],
+            ['arity', (callable) => (callable.arity += 1)],
+            ['parameters', (callable) => (callable.parameters = ['drift'])],
+            ['options', (callable) => (callable.options = ['drift'])],
+            ['result fields', (callable) => (callable.resultFields = ['drift'])]
+        ]
+        for (const [label, mutate] of callableMutations) {
+            const callableDrift = structuredClone(apiBaseline)
+            mutate(interactionHitTest(callableDrift))
+            await assert.rejects(
+                validateFeaturePreservation({
+                    apiBaseline: callableDrift,
+                    ledger: fullLedger,
+                    strict: true,
+                    packageRoot: packed.packageRoot
+                }),
+                /Packed callable contract differs/u,
+                `strict validation accepted drifted ${label}`
+            )
+        }
+        const instanceDrift = structuredClone(apiBaseline)
+        loadedDesignList(instanceDrift).options = ['drift']
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: instanceDrift,
+                ledger: fullLedger,
+                strict: true,
+                packageRoot: packed.packageRoot
+            }),
+            /Packed callable contract differs/u,
+            'strict validation accepted drifted instance method options'
+        )
+
+        const capabilityDrift = structuredClone(apiBaseline)
+        capabilityDrift.capabilityInventory.capabilities[0].label =
+            'Drifted capability'
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: capabilityDrift,
+                ledger: fullLedger,
+                strict: true,
+                packageRoot: packed.packageRoot
+            }),
+            /Packed capability inventory differs/u
+        )
+
+        const parityDrift = structuredClone(apiBaseline)
+        parityDrift.featureInventory.features[0].status = 'drifted'
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: parityDrift,
+                ledger: fullLedger,
+                strict: true,
+                packageRoot: packed.packageRoot
+            }),
+            /Packed parity inventory differs/u
+        )
+
+        const workerDrift = structuredClone(apiBaseline)
+        workerDrift.workerProtocol.messages[0].fields.pop()
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: workerDrift,
+                ledger: fullLedger,
+                strict: true,
+                packageRoot: packed.packageRoot
+            }),
+            /Packed worker protocol differs/u
+        )
+    } finally {
+        await packed.cleanup()
+    }
+})
+
+/**
+ * Returns the packed-drift target callable from one API baseline.
+ * @param {Record<string, any>} apiBaseline API baseline.
+ * @returns {Record<string, any>} Interaction hit-test contract.
+ */
+function interactionHitTest(apiBaseline) {
+    const rendererEntrypoint = apiBaseline.entrypoints.find(
+        (entrypoint) => entrypoint.entrypoint === './renderers'
+    )
+    const interaction = rendererEntrypoint.exports.find(
+        (exported) => exported.name === 'PcbInteractionIndex'
+    )
+    return interaction.callables.find(
+        (callable) => callable.name === 'hitTestItems'
+    )
+}
+
+/**
+ * Returns one instance-method contract from the netlist-query entrypoint.
+ * @param {Record<string, any>} apiBaseline API baseline.
+ * @returns {Record<string, any>} Loaded-design list contract.
+ */
+function loadedDesignList(apiBaseline) {
+    const entrypoint = apiBaseline.entrypoints.find(
+        (row) => row.entrypoint === './netlist-query'
+    )
+    const service = entrypoint.exports.find(
+        (row) => row.name === 'LoadedDesignNetlistService'
+    )
+    return service.callables.find((row) => row.name === 'listDesigns')
+}
+
+/**
+ * Reads one repository-relative JSON file.
+ * @param {string} relativePath Repository-relative path.
+ * @returns {Promise<any>} Parsed JSON.
+ */
+async function readJson(relativePath) {
+    return JSON.parse(
+        await readFile(new URL(relativePath, repositoryRoot), 'utf8')
+    )
+}
+
+/**
+ * Packs, extracts, and installs the real package for strict drift tests.
+ * @returns {Promise<{ packageRoot: string, cleanup: () => Promise<void> }>} Packed package fixture.
+ */
+async function packRepositoryFixture() {
+    const directory = await mkdtemp(join(tmpdir(), 'kicad-packed-drift-'))
+    try {
+        const { stdout } = await execFileAsync(
+            'npm',
+            ['pack', '--json', '--pack-destination', directory],
+            {
+                cwd: fileURLToPath(repositoryRoot),
+                maxBuffer: 16 * 1024 * 1024
+            }
+        )
+        const report = JSON.parse(stdout)
+        await execFileAsync('tar', [
+            '-xzf',
+            resolve(directory, report[0].filename),
+            '-C',
+            directory
+        ])
+        const packageRoot = resolve(directory, 'package')
+        await execFileAsync(
+            'npm',
+            [
+                'install',
+                '--ignore-scripts',
+                '--omit=dev',
+                '--no-audit',
+                '--no-fund'
+            ],
+            { cwd: packageRoot, maxBuffer: 16 * 1024 * 1024 }
+        )
+        return {
+            packageRoot,
+            cleanup: () => rm(directory, { force: true, recursive: true })
+        }
+    } catch (error) {
+        await rm(directory, { force: true, recursive: true })
+        throw error
+    }
+}
