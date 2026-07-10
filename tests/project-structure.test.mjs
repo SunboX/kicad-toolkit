@@ -4,7 +4,6 @@
 import assert from 'node:assert/strict'
 import { access, readFile } from 'node:fs/promises'
 import { constants } from 'node:fs'
-import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { ExampleServer } from '../examples/server.mjs'
@@ -469,10 +468,18 @@ test('model docs publish the normalized model JSON schema contract', async () =>
 })
 
 /**
- * Verifies the repository folder has the requested library slug.
+ * Verifies the test-relative repository root carries the package identity.
  */
-test('project folder is named kicad-toolkit', () => {
-    assert.equal(basename(fileURLToPath(root)), 'kicad-toolkit')
+test('project root identifies the kicad-toolkit package in any checkout', async () => {
+    const pkg = JSON.parse(
+        await readFile(new URL('package.json', root), 'utf8')
+    )
+
+    assert.equal(pkg.name, 'kicad-toolkit')
+    assert.equal(
+        new URL('tests/', root).href,
+        new URL('./', import.meta.url).href
+    )
 })
 
 /**

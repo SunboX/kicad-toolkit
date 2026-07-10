@@ -94,7 +94,10 @@
         "start": "node examples/server.mjs",
         "test": "node --test",
         "format": "prettier --write .",
-        "check:format": "prettier --check ."
+        "check:format": "prettier --check .",
+        "capture:api": "node scripts/capture-api-baseline.mjs",
+        "check:features": "node scripts/check-feature-preservation.mjs",
+        "benchmark": "node --expose-gc scripts/run-benchmarks.mjs"
     },
     "dependencies": {
         "fflate": "^0.8.2"

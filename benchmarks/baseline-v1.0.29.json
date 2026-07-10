@@ -1,0 +1,165 @@
+{
+    "schema": "kicad-toolkit.benchmark.v1",
+    "package": "kicad-toolkit",
+    "packageVersion": "1.0.29",
+    "gitRef": "c71c88d69d236accce123656dfa66914c0d5489c",
+    "sourceTree": "f857c5f50e3d40f9f6fd5484ffad48a43a0bbb45",
+    "fixture": {
+        "schema": "kicad-toolkit.benchmark-fixture.v1",
+        "footprintCount": 96,
+        "segmentCount": 384,
+        "projectEntryNames": [
+            "synthetic-main.kicad_pcb",
+            "synthetic-panel.kicad_pcb",
+            "synthetic.kicad_pro",
+            "models/synthetic.step"
+        ],
+        "sourceBytes": 137794,
+        "projectBytes": 104337,
+        "checksum": "65e23079ec27bd4622e6483d14de316dab910f44afd67ef7667da79161c484c9"
+    },
+    "fixtureChecksum": "65e23079ec27bd4622e6483d14de316dab910f44afd67ef7667da79161c484c9",
+    "caseContractChecksum": "36caf029a2bc94f61877b2ca82beb3b9b046d64354ac59f08f38397a5ca1ca96",
+    "environment": {
+        "platform": "darwin",
+        "architecture": "arm64",
+        "node": "v20.17.0",
+        "cpu": "Apple M3 Max",
+        "logicalCpuCount": 16
+    },
+    "cases": [
+        {
+            "id": "parse.large-board",
+            "primary": true,
+            "workload": "Parse and project one large synthetic KiCad PCB.",
+            "warmups": 1,
+            "sampleCount": 3,
+            "samples": [47.094291, 45.939, 45.095291],
+            "medianMilliseconds": 45.939,
+            "result": {
+                "elementCount": 1829,
+                "componentCount": 96,
+                "drawingCount": 480
+            },
+            "resultChecksum": "5b97143a8caa24dd4a844248ee9971fbf3aa69a791172530a5ef188a85704699",
+            "cloneBytes": 1933822,
+            "retainedHeap": {
+                "gcControlled": true,
+                "beforeBytes": 16813528,
+                "afterBytes": 17231648,
+                "retainedBytes": 418120
+            }
+        },
+        {
+            "id": "parse.all-reports",
+            "primary": false,
+            "workload": "Parse the native board model and all eager 1.0.29 reports.",
+            "warmups": 1,
+            "sampleCount": 3,
+            "samples": [29.171041, 30.340292, 28.838542],
+            "medianMilliseconds": 29.171041,
+            "result": {
+                "elementCount": 0,
+                "componentCount": 96,
+                "drawingCount": 480
+            },
+            "resultChecksum": "8937c4f6f354ce63d87d6c697da1050bb7f5a38a99bd99253e9dc9b3982d52bf",
+            "cloneBytes": 1219597,
+            "retainedHeap": {
+                "gcControlled": true,
+                "beforeBytes": 16623536,
+                "afterBytes": 16698120,
+                "retainedBytes": 74584
+            }
+        },
+        {
+            "id": "project.multi-entry",
+            "primary": false,
+            "workload": "Load a deterministic multi-board project and companion asset.",
+            "warmups": 1,
+            "sampleCount": 3,
+            "samples": [30.203541, 27.193333, 26.303625],
+            "medianMilliseconds": 27.193333,
+            "result": {
+                "documentCount": 2,
+                "rendererDocumentCount": 2,
+                "assetCount": 1,
+                "diagnosticCount": 0
+            },
+            "resultChecksum": "7f32263577b1227958076c11d66aa9dd6f1739da559a0590b175e0760149e23c",
+            "cloneBytes": 1467605,
+            "retainedHeap": {
+                "gcControlled": true,
+                "beforeBytes": 17135272,
+                "afterBytes": 17456912,
+                "retainedBytes": 321640
+            }
+        },
+        {
+            "id": "render.multi-layer",
+            "primary": true,
+            "workload": "Render all deterministic PCB layer SVGs.",
+            "warmups": 1,
+            "sampleCount": 3,
+            "samples": [7.87425, 6.92325, 5.984708],
+            "medianMilliseconds": 6.92325,
+            "result": {
+                "layerCount": 4,
+                "svgBytes": 361194
+            },
+            "resultChecksum": "45dbb2aa9a20e9b0b4b012c2efad486bed5a34e69eecaf03c5dd982b25afd324",
+            "cloneBytes": 361508,
+            "retainedHeap": {
+                "gcControlled": true,
+                "beforeBytes": 16526312,
+                "afterBytes": 16642192,
+                "retainedBytes": 115880
+            }
+        },
+        {
+            "id": "query.interaction.repeated",
+            "primary": false,
+            "workload": "Repeat query-netlist construction and interaction hit testing.",
+            "warmups": 1,
+            "sampleCount": 3,
+            "samples": [16.883458, 12.517584, 11.894833],
+            "medianMilliseconds": 12.517584,
+            "result": {
+                "queryCount": 8,
+                "hitBatchCount": 8,
+                "hitCount": 6
+            },
+            "resultChecksum": "42a32544e619e58afffed9c47d3d63ccfaa191adbb2cdc6c3dcadab4c66b9cb3",
+            "cloneBytes": 82851,
+            "retainedHeap": {
+                "gcControlled": true,
+                "beforeBytes": 16866648,
+                "afterBytes": 16982264,
+                "retainedBytes": 115616
+            }
+        },
+        {
+            "id": "worker.clone",
+            "primary": true,
+            "workload": "Structured-clone the current hybrid parser result.",
+            "warmups": 1,
+            "sampleCount": 3,
+            "samples": [7.446208, 7.405917, 7.371875],
+            "medianMilliseconds": 7.405917,
+            "result": {
+                "elementCount": 1829,
+                "componentCount": 96,
+                "drawingCount": 480
+            },
+            "resultChecksum": "5b97143a8caa24dd4a844248ee9971fbf3aa69a791172530a5ef188a85704699",
+            "cloneBytes": 1916376,
+            "retainedHeap": {
+                "gcControlled": true,
+                "beforeBytes": 19785472,
+                "afterBytes": 19776104,
+                "retainedBytes": 0
+            }
+        }
+    ],
+    "reportChecksum": "15d2264e0f45cbd779346f28bc3ee9025c03f4c0495193281db44dfa1cd6c55f"
+}
