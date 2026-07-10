@@ -41,6 +41,26 @@ test('KiCad baselines identify every public feature and fixed primary cases', as
     )
 })
 
+test('API baseline freezes the package export manifest and checksum', async () => {
+    const api = await readJson('spec/api-baseline-v1.0.29.json')
+
+    assert.deepEqual(api.packageExports, {
+        '.': './src/index.mjs',
+        './parser': './src/parser.mjs',
+        './node': './src/node.mjs',
+        './netlist-query': './src/netlist-query.mjs',
+        './renderers': './src/renderers.mjs',
+        './scene3d': './src/scene3d.mjs',
+        './workers/kicad-parser.worker.mjs':
+            './src/workers/kicad-parser.worker.mjs',
+        './styles/kicad-renderers.css': './src/styles/kicad-renderers.css'
+    })
+    assert.equal(
+        api.packageExportsChecksum,
+        '486405f7518d9811eb7ca9f97c882f15e103821b7f05f267ab062a4c3c819a30'
+    )
+})
+
 test('API baseline freezes every entrypoint, inventory, method contract, and baseline test', async () => {
     const api = await readJson('spec/api-baseline-v1.0.29.json')
     const ledger = await readJson('spec/feature-preservation.json')
@@ -76,7 +96,7 @@ test('API baseline freezes every entrypoint, inventory, method contract, and bas
         passing: 382,
         sourceDefinitions: 382
     })
-    assert.equal(api.features.length, 5062)
+    assert.equal(api.features.length, 5204)
     assert.equal(ledger.length, api.features.length)
     assert.equal(
         new Set(api.features.map((feature) => feature.feature)).size,
@@ -196,6 +216,59 @@ test('callable capture follows delegated options and documented nested results',
         'sizeMil.height',
         'sizeMil.width'
     ])
+})
+
+test('standalone side resolver wrapper preserves its cross-class contract', async () => {
+    const api = await readJson('spec/api-baseline-v1.0.29.json')
+    const ledger = await readJson('spec/feature-preservation.json')
+    const resultFields = [
+        'drawings',
+        'footprints',
+        'outlines',
+        'pads',
+        'pcb',
+        'pcb.arcs',
+        'pcb.boardRegions',
+        'pcb.components',
+        'pcb.fills',
+        'pcb.kicadBoard',
+        'pcb.pads',
+        'pcb.polygons',
+        'pcb.regions',
+        'pcb.shapeBasedRegions',
+        'pcb.texts',
+        'pcb.tracks',
+        'pcb.vias',
+        'renderSide',
+        'texts'
+    ]
+
+    for (const entrypointName of ['.', './renderers']) {
+        const entrypoint = api.entrypoints.find(
+            (row) => row.entrypoint === entrypointName
+        )
+        const exported = entrypoint.exports.find(
+            (row) => row.name === 'preparePcbSideResolvedRenderModel'
+        )
+        const callable = exported.callables[0]
+        assert.deepEqual(callable.options, ['side'])
+        assert.deepEqual(callable.resultFields, resultFields)
+
+        const prefix = `${entrypointName}#preparePcbSideResolvedRenderModel()`
+        assert.deepEqual(
+            ledger
+                .filter(
+                    (row) =>
+                        row.feature.startsWith(`${prefix}.option.`) ||
+                        row.feature.startsWith(`${prefix}.result.`)
+                )
+                .map((row) => row.feature),
+            [
+                `${prefix}.option.side`,
+                ...resultFields.map((field) => `${prefix}.result.${field}`)
+            ]
+        )
+    }
 })
 
 test('worker capture freezes every request and response field', async () => {

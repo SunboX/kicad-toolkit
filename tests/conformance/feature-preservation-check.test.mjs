@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -213,6 +213,56 @@ test('strict packed checker rejects callable and complete inventory drift', asyn
             /Packed worker protocol differs/u
         )
     } finally {
+        await packed.cleanup()
+    }
+})
+
+test('strict packed checker rejects checksum and isolated export-map drift', async () => {
+    const [apiBaseline, fullLedger, packed] = await Promise.all([
+        readJson('spec/api-baseline-v1.0.29.json'),
+        readJson('spec/feature-preservation.json'),
+        packRepositoryFixture()
+    ])
+    const packagePath = join(packed.packageRoot, 'package.json')
+    const originalPackage = await readFile(packagePath, 'utf8')
+    try {
+        const checksumDrift = structuredClone(apiBaseline)
+        checksumDrift.packageExportsChecksum = '0'.repeat(64)
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: checksumDrift,
+                ledger: fullLedger,
+                strict: true,
+                packageRoot: packed.packageRoot
+            }),
+            /Baseline package exports checksum differs/u
+        )
+
+        const mutations = [
+            [
+                'remapped renderer export',
+                (pkg) => (pkg.exports['./renderers'] = './src/index.mjs')
+            ],
+            ['removed scene export', (pkg) => delete pkg.exports['./scene3d']]
+        ]
+        for (const [label, mutate] of mutations) {
+            const pkg = JSON.parse(originalPackage)
+            mutate(pkg)
+            await writeFile(packagePath, JSON.stringify(pkg, null, 4) + '\n')
+            await assert.rejects(
+                validateFeaturePreservation({
+                    apiBaseline,
+                    ledger: fullLedger,
+                    strict: true,
+                    packageRoot: packed.packageRoot
+                }),
+                /Packed package exports differ/u,
+                `strict validation accepted ${label}`
+            )
+            await writeFile(packagePath, originalPackage)
+        }
+    } finally {
+        await writeFile(packagePath, originalPackage).catch(() => {})
         await packed.cleanup()
     }
 })

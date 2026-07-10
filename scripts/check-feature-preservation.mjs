@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
@@ -119,6 +120,99 @@ function mappingOf(row) {
     return Object.fromEntries(
         MAPPING_FIELDS.map((field) => [field, row[field]])
     )
+}
+
+/**
+ * Computes the deterministic checksum for one package export map.
+ * @param {Record<string, any>} packageExports Package export definitions.
+ * @returns {string} SHA-256 checksum.
+ */
+function packageExportsChecksum(packageExports) {
+    return createHash('sha256')
+        .update(JSON.stringify(packageExports))
+        .digest('hex')
+}
+
+/**
+ * Resolves one package export definition to its import target.
+ * @param {string | Record<string, string>} definition Export definition.
+ * @returns {string} Relative target.
+ */
+function packageExportTarget(definition) {
+    if (typeof definition === 'string') return definition
+    const target = definition?.import || definition?.default
+    return typeof target === 'string' ? target : ''
+}
+
+/**
+ * Returns a sorted export-to-target inventory for one package export map.
+ * @param {Record<string, any>} packageExports Package export definitions.
+ * @returns {{ entrypoint: string, target: string }[]} Export inventory.
+ */
+function packageExportInventory(packageExports) {
+    return Object.entries(packageExports)
+        .map(([entrypoint, definition]) => ({
+            entrypoint,
+            target: packageExportTarget(definition)
+        }))
+        .sort((left, right) => left.entrypoint.localeCompare(right.entrypoint))
+}
+
+/**
+ * Validates the packed manifest and captured export-map provenance.
+ * @param {Record<string, any>} baseline API baseline.
+ * @param {string} packageRoot Extracted package root.
+ * @returns {Promise<void>}
+ */
+async function validatePackedManifest(baseline, packageRoot) {
+    const packageExports = baseline.packageExports
+    if (!packageExports || typeof packageExports !== 'object') {
+        throw new Error('Baseline package exports are missing.')
+    }
+    const baselineChecksum = packageExportsChecksum(packageExports)
+    if (baselineChecksum !== baseline.packageExportsChecksum) {
+        throw new Error(
+            'Baseline package exports checksum differs from captured map.'
+        )
+    }
+    const entrypointInventory = (baseline.entrypoints || [])
+        .map(({ entrypoint, target }) => ({ entrypoint, target }))
+        .sort((left, right) => left.entrypoint.localeCompare(right.entrypoint))
+    const baselineInventory = packageExportInventory(packageExports)
+    if (!isDeepStrictEqual(baselineInventory, entrypointInventory)) {
+        throw new Error(
+            'Baseline package export inventory differs from entrypoints.'
+        )
+    }
+
+    const packedPackage = JSON.parse(
+        await readFile(resolve(packageRoot, 'package.json'), 'utf8')
+    )
+    if (
+        packedPackage.name !== baseline.package ||
+        packedPackage.version !== baseline.packageVersion
+    ) {
+        throw new Error('Packed package identity differs from baseline.')
+    }
+    if (!isDeepStrictEqual(packedPackage.exports, packageExports)) {
+        throw new Error('Packed package exports differ from baseline.')
+    }
+    if (
+        packageExportsChecksum(packedPackage.exports) !==
+        baseline.packageExportsChecksum
+    ) {
+        throw new Error('Packed package exports differ from baseline checksum.')
+    }
+    if (
+        !isDeepStrictEqual(
+            packageExportInventory(packedPackage.exports),
+            entrypointInventory
+        )
+    ) {
+        throw new Error(
+            'Packed package export inventory differs from baseline.'
+        )
+    }
 }
 
 /**
@@ -400,6 +494,12 @@ export async function validateFeaturePreservation(options) {
     }
 
     if (options.strict) {
+        if (options.packageRoot) {
+            await validatePackedManifest(
+                options.apiBaseline,
+                options.packageRoot
+            )
+        }
         const modules = options.packageRoot
             ? await importEntrypoints(options.apiBaseline, options.packageRoot)
             : null

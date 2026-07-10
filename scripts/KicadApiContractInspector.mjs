@@ -26,6 +26,7 @@ export class KicadApiContractInspector {
         const exports = Object.keys(api)
             .sort()
             .map((name) => KicadApiContractInspector.exported(name, api[name]))
+        extendDelegatedContracts(exports, api)
         return { entrypoint, target, kind: 'module', exports }
     }
 
@@ -470,20 +471,156 @@ function resultFields(source, definitions, methodName) {
 }
 
 /**
+ * Extends wrapper callables with contracts delegated to other public exports.
+ * @param {Record<string, any>[]} exports Captured export contracts.
+ * @param {Record<string, any>} api Imported module namespace.
+ * @returns {void}
+ */
+function extendDelegatedContracts(exports, api) {
+    const exportsByName = new Map(
+        exports.map((exported) => [exported.name, exported])
+    )
+    let changed = true
+    while (changed) {
+        changed = false
+        for (const exported of exports) {
+            for (const callable of exported.callables) {
+                const source = exportedCallableSource(
+                    api[exported.name],
+                    callable
+                )
+                const optionParameters = optionParameterNames(
+                    callable.parameters
+                )
+                for (const call of methodCalls(source)) {
+                    const delegate = exportsByName
+                        .get(call.owner)
+                        ?.callables.find(
+                            (candidate) => candidate.name === call.name
+                        )
+                    if (!delegate) continue
+                    const delegatedOptions = delegatedOptionFields(
+                        call,
+                        optionParameters,
+                        delegate
+                    )
+                    if (mergeFields(callable.options, delegatedOptions)) {
+                        changed = true
+                    }
+                    if (
+                        returnedCall(source, call.index) &&
+                        mergeFields(
+                            callable.resultFields,
+                            delegate.resultFields
+                        )
+                    ) {
+                        changed = true
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Returns source for one callable belonging to an exported runtime value.
+ * @param {unknown} value Exported runtime value.
+ * @param {Record<string, any>} callable Captured callable contract.
+ * @returns {string} Callable source or an empty string.
+ */
+function exportedCallableSource(value, callable) {
+    if (typeof value !== 'function') return ''
+    if (callable.methodType === 'function') {
+        return Function.prototype.toString.call(value)
+    }
+    if (callable.methodType === 'constructor') {
+        return (
+            methodDefinitions(Function.prototype.toString.call(value)).get(
+                'constructor'
+            )?.source || ''
+        )
+    }
+    const owner = callable.methodType === 'static' ? value : value.prototype
+    const method = Object.getOwnPropertyDescriptor(owner, callable.name)?.value
+    return typeof method === 'function'
+        ? Function.prototype.toString.call(method)
+        : ''
+}
+
+/**
+ * Returns delegated options whose target parameter receives wrapper options.
+ * @param {{ owner: string, name: string, arguments: string[], index: number }} call Parsed method call.
+ * @param {string[]} callerOptions Option-bearing wrapper parameters.
+ * @param {Record<string, any>} delegate Delegated callable contract.
+ * @returns {string[]} Delegated option fields.
+ */
+function delegatedOptionFields(call, callerOptions, delegate) {
+    const delegatedParameters = new Set(
+        optionParameterNames(delegate.parameters)
+    )
+    const receivesOptions = delegate.parameters.some((parameter, index) => {
+        const delegatedName = parameterName(parameter)
+        if (!delegatedParameters.has(delegatedName)) return false
+        const argument = call.arguments[index] || ''
+        return callerOptions.some((name) => forwardsParameter(argument, name))
+    })
+    return receivesOptions ? delegate.options : []
+}
+
+/**
+ * Returns whether an argument forwards a parameter without narrowing fields.
+ * @param {string} argument Call argument source.
+ * @param {string} parameter Caller parameter name.
+ * @returns {boolean} Whether the full parameter contract is forwarded.
+ */
+function forwardsParameter(argument, parameter) {
+    const value = argument.trim()
+    if (value === parameter) return true
+    if (!value.startsWith('{')) return false
+    const spread = new RegExp(`\\.\\.\\.\\s*${escapeRegExp(parameter)}\\b`, 'u')
+    return spread.test(value)
+}
+
+/**
+ * Merges sorted unique fields into a captured contract list.
+ * @param {string[]} target Mutable target list.
+ * @param {string[]} additions Candidate fields.
+ * @returns {boolean} Whether the target changed.
+ */
+function mergeFields(target, additions) {
+    const merged = [...new Set([...target, ...additions])].sort()
+    if (merged.length === target.length) return false
+    target.splice(0, target.length, ...merged)
+    return true
+}
+
+/**
+ * Returns whether a parsed call is the value of a return statement.
+ * @param {string} source Callable source.
+ * @param {number} index Call start index.
+ * @returns {boolean} Whether the call is returned directly.
+ */
+function returnedCall(source, index) {
+    const prefix = source.slice(Math.max(0, index - 48), index)
+    return /\breturn\s*(?:await\s*)?$/u.test(prefix)
+}
+
+/**
  * Parses class method calls and their arguments.
  * @param {string} source Method body.
- * @returns {{ name: string, arguments: string[], index: number }[]} Calls.
+ * @returns {{ owner: string, name: string, arguments: string[], index: number }[]} Calls.
  */
 function methodCalls(source) {
     const calls = []
     const pattern =
-        /\b(?:this|[A-Za-z_$][\w$]*)\s*(?:\?\.)?\.\s*(#?[A-Za-z_$][\w$]*)\s*\(/gu
+        /\b(this|[A-Za-z_$][\w$]*)\s*(?:\?\.)?\.\s*(#?[A-Za-z_$][\w$]*)\s*\(/gu
     for (const match of source.matchAll(pattern)) {
         const opening = match.index + match[0].lastIndexOf('(')
         const closing = closingDelimiter(source, opening, '(', ')')
         if (closing < 0) continue
         calls.push({
-            name: match[1],
+            owner: match[1],
+            name: match[2],
             arguments: splitTopLevel(source.slice(opening + 1, closing)),
             index: match.index
         })

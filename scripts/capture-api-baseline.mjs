@@ -571,6 +571,7 @@ async function captureBaselineSource(sourceRoot) {
         packageVersion: pkg.version,
         gitRef: BASE_GIT_REF,
         sourceTree,
+        packageExports: pkg.exports,
         packageExportsChecksum: createHash('sha256')
             .update(JSON.stringify(pkg.exports))
             .digest('hex'),
