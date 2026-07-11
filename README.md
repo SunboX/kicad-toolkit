@@ -38,6 +38,12 @@ passive and connector properties, retains footprint ownership for artwork,
 and maps board notes and courtyard geometry to their canonical CircuitJSON
 types. See the [1.1.2 release notes](docs/release-notes-v1.1.2.md).
 
+Version 1.1.3 fixes the complete browser-worker path for multi-entry projects
+and binary assets. Worker requests now carry only the common public entry
+fields, derive byte accounting on the receiving side, and honor
+`transferInput` exactly like the other toolkits. See the
+[1.1.3 release notes](docs/release-notes-v1.1.3.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).
@@ -172,6 +178,7 @@ import 'kicad-toolkit/styles/renderers.css'
 - [1.1.0 release notes](docs/release-notes-v1.1.0.md)
 - [1.1.1 release notes](docs/release-notes-v1.1.1.md)
 - [1.1.2 release notes](docs/release-notes-v1.1.2.md)
+- [1.1.3 release notes](docs/release-notes-v1.1.3.md)
 - [Model Format](docs/model-format.md)
 - [Native Extension API](docs/native-api.md)
 - [Native Capability Inventory](docs/native-capabilities.md)

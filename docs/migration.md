@@ -21,6 +21,13 @@ notes, and shape-specific courtyard elements. The common `Parser` and
 `ProjectLoader` signatures and their document/project envelope shapes remain
 unchanged; consumers no longer need to repair these elements after parsing.
 
+Version 1.1.3 aligns asynchronous worker transport with the other toolkits.
+Applications continue to pass the same public parser input and project-entry
+objects; no `assetBytes` field or app-side preparation is needed. Full binary
+assets now cross workers correctly, asset-inclusive archive limits apply in
+every decode mode, and `transferInput: true` transfers exact source and asset
+buffers instead of an internal copy.
+
 | 1.0.29                                              | 1.1.0 common API                              |
 | --------------------------------------------------- | --------------------------------------------- |
 | `KicadParser.parseArrayBuffer(fileName, data)`      | `Parser.parse({ fileName, data })`            |

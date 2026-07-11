@@ -79,9 +79,6 @@ export class Parser {
             Parser.#assertExtensions(normalized)
             Parser.#assertReports(normalized)
             Parser.#assertNotCancelled(normalized)
-            normalized = inputOwned
-                ? { ...normalized, inputOwned: true }
-                : Parser.#ownAsyncInput(normalized)
         } catch (error) {
             throw Parser.#parseError(error, input)
         }
@@ -100,6 +97,13 @@ export class Parser {
                 throw Parser.#parseError(attempt.error, input)
             }
             KicadWorkerClient.dispose()
+        }
+        try {
+            normalized = inputOwned
+                ? { ...normalized, inputOwned: true }
+                : Parser.#ownAsyncInput(normalized)
+        } catch (error) {
+            throw Parser.#parseError(error, input)
         }
         let progress = Parser.#progress(normalized, 'detect')
         Parser.#assertNotCancelled(normalized)

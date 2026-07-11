@@ -20,6 +20,9 @@ The tests cover:
 - the exact shared root/package contract, canonical document and project
   envelopes, direct ZIP loading, common services, workers, progress,
   cancellation, archive safety, and typed errors
+- cloned worker transport for multi-entry projects, full binary assets,
+  asset-inclusive limits in `none` mode, caller-buffer isolation, and explicit
+  transferable-buffer ownership
 - exhaustive provenance-bound preservation of the native 1.0.29 API from the
   packed extension namespace
 - historical native regression comparisons plus absolute runtime ceilings for

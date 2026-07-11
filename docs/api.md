@@ -60,6 +60,10 @@ other common services.
 Common options include `worker`, `signal`, `onProgress`, `extensions`,
 `preserveRaw`, `decodeAssets`, `retainSource`, `transferInput`, and `reports`.
 Unknown extension/report ids fail with `ERR_CAPABILITY_UNAVAILABLE`.
+Worker parsing sends only the same public `{ fileName, data, assets? }` input
+shape. Full binary assets remain available in the returned document;
+`transferInput: false` preserves caller buffers and `transferInput: true`
+transfers exact transferable buffers.
 
 The parser supports native `.kicad_sch`, `.kicad_pcb`, `.kicad_mod`,
 `.kicad_sym`, `.kicad_jobset`, `.kicad_dru`, `.kicad_wks`, `.net`, `.cmp`,
@@ -87,6 +91,10 @@ windows, assets, and options before progress delivery. Candidates parse
 independently: successful documents remain in the project, failed candidates
 emit deterministic diagnostics, and `statistics.failureCount` counts only
 those parse failures.
+
+The worker path accepts the same public entries without sender-only accounting
+fields. Asset byte lengths are derived inside the receiving worker, so
+`archiveLimits` include assets in `none`, `metadata`, and `full` decode modes.
 
 The project subpath also exports the shared `ArchiveEntryPath`, `ArchiveLimits`,
 `ProjectResult`, and `ZipArchiveInspector` identities from

@@ -93,11 +93,31 @@ export class ProjectLoader {
     /** @param {object[]} entries Entries. @param {object} [options] Options. @returns {Promise<object>} Project. */
     static async loadAsync(entries, options = {}) {
         let normalized
-        let snapshot
         const entriesOwned = KicadAsyncInputOwnership.ownsProject(entries)
         try {
             normalized = ProjectLoader.#normalizeOptions(options)
             ProjectLoader.#assertNotCancelled(normalized.signal)
+        } catch (error) {
+            throw ProjectLoader.#inputError(error)
+        }
+        const useWorker =
+            normalized.worker === true ||
+            (normalized.worker === 'auto' &&
+                normalized.retainSource !== 'reference' &&
+                KicadWorkerClient.isAvailable())
+        if (useWorker) {
+            const attempt = await KicadWorkerClient.loadProjectAttempt(
+                entries,
+                normalized
+            )
+            if (attempt.ok) return attempt.value
+            if (normalized.worker !== 'auto' || !attempt.unavailable) {
+                throw ProjectLoader.#loadError(attempt.error)
+            }
+            KicadWorkerClient.dispose()
+        }
+        let snapshot
+        try {
             snapshot = entriesOwned
                 ? ProjectLoader.#markReceiverEntries(
                       entries,
@@ -110,22 +130,6 @@ export class ProjectLoader {
                   )
         } catch (error) {
             throw ProjectLoader.#inputError(error)
-        }
-        const useWorker =
-            normalized.worker === true ||
-            (normalized.worker === 'auto' &&
-                normalized.retainSource !== 'reference' &&
-                KicadWorkerClient.isAvailable())
-        if (useWorker) {
-            const attempt = await KicadWorkerClient.loadProjectAttempt(
-                snapshot,
-                normalized
-            )
-            if (attempt.ok) return attempt.value
-            if (normalized.worker !== 'auto' || !attempt.unavailable) {
-                throw ProjectLoader.#loadError(attempt.error)
-            }
-            KicadWorkerClient.dispose()
         }
         let progress = ProjectLoader.#progress(normalized, {
             stage: 'detect',
@@ -270,24 +274,30 @@ export class ProjectLoader {
                 )
             }
             let assetBytes = 0
-            const preparedAssets = ToolkitAsset.prepareAll(
-                fields.assets || [],
-                {
-                    mode: assetMode,
-                    acceptPayload: (byteLength) => {
-                        assetBytes += byteLength
+            let assets
+            try {
+                assets = ToolkitAsset.prepareAll(
+                    fields.assets === undefined ? [] : fields.assets,
+                    {
+                        mode: assetMode,
+                        acceptPayload: (byteLength) => {
+                            assetBytes += byteLength
+                        }
                     }
-                }
-            )
-            snapshot[index] = {
+                )
+            } catch (error) {
+                throw ProjectLoader.#inputError(error, rawName)
+            }
+            const entry = {
                 name: ArchiveEntryPath.normalize(rawName),
                 data:
                     typeof fields.data === 'string'
                         ? fields.data
                         : ParserInput.bytes(fields.data),
-                assets: preparedAssets,
+                assets,
                 assetBytes
             }
+            snapshot[index] = entry
         }
         return snapshot
     }
@@ -332,8 +342,9 @@ export class ProjectLoader {
         let expandedBytes = 0
         let archiveExpanded = false
         for (let index = 0; index < count; index += 1) {
+            const entry = descriptors[String(index)].value
             const fields = ParserInput.plainFields(
-                descriptors[String(index)].value,
+                entry,
                 'KiCad project entry must be a plain object.'
             )
             const name = ArchiveEntryPath.normalize(fields.name)
@@ -347,7 +358,9 @@ export class ProjectLoader {
             const bytes =
                 typeof fields.data === 'string'
                     ? ParserInput.bytes(fields.data)
-                    : fields.data
+                    : fields.data instanceof Uint8Array
+                      ? fields.data
+                      : ParserInput.bytes(fields.data)
             ProjectLoader.#assertLimit(
                 'maxEntryBytes',
                 options.archiveLimits.maxEntryBytes,
@@ -361,20 +374,30 @@ export class ProjectLoader {
                 totalBytes,
                 name
             )
+            let assetBytes = fields.assetBytes
+            let assets = fields.assets
             if (
-                !Array.isArray(fields.assets) ||
-                !Number.isSafeInteger(fields.assetBytes) ||
-                fields.assetBytes < 0
+                !Array.isArray(assets) ||
+                !Number.isSafeInteger(assetBytes) ||
+                assetBytes < 0
             ) {
-                throw ProjectLoader.#inputError(
-                    new TypeError(
-                        'KiCad project entry asset snapshots are invalid.'
-                    ),
-                    name
-                )
+                assetBytes = 0
+                try {
+                    assets = ToolkitAsset.prepareAll(
+                        fields.assets === undefined ? [] : fields.assets,
+                        {
+                            mode: options.decodeAssets,
+                            acceptPayload: (byteLength) => {
+                                assetBytes += byteLength
+                            }
+                        }
+                    )
+                } catch (error) {
+                    throw ProjectLoader.#inputError(error, name)
+                }
             }
-            const entryBytes = bytes.byteLength + fields.assetBytes
-            totalBytes += fields.assetBytes
+            const entryBytes = bytes.byteLength + assetBytes
+            totalBytes += assetBytes
             ProjectLoader.#assertLimit(
                 'maxEntryBytes',
                 options.archiveLimits.maxEntryBytes,
@@ -387,7 +410,7 @@ export class ProjectLoader {
                 totalBytes,
                 name
             )
-            attachedAssets.push(...fields.assets)
+            attachedAssets.push(...assets)
             if (/\.zip$/iu.test(name)) {
                 archiveExpanded = true
                 for (const member of KicadProjectArchive.expand(
@@ -413,7 +436,7 @@ export class ProjectLoader {
                 expanded.push({
                     name,
                     bytes,
-                    assets: fields.assets,
+                    assets,
                     archiveDepth: 0
                 })
             }

@@ -5,8 +5,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { zipSync } from 'fflate'
-import { ToolkitContractFixtures } from 'circuitjson-toolkit/testing'
+import {
+    ToolkitContractFixtures,
+    ToolkitLoopbackWorker
+} from 'circuitjson-toolkit/testing'
 
+import { KicadAsyncInputOwnership } from '../src/convergence/KicadAsyncInputOwnership.mjs'
+import { KicadWorkerClient } from '../src/convergence/KicadWorkerClient.mjs'
 import { Parser } from '../src/parser.mjs'
 import { ProjectLoader } from '../src/project.mjs'
 
@@ -117,6 +122,205 @@ test('async project loading snapshots entries and reports every candidate', asyn
         project.assets.find((row) => row.name === 'models/body.step').data,
         new Uint8Array([4, 3, 2, 1])
     )
+})
+
+test('async parser and project loading preserve binary assets across worker cloning', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'Worker')
+    const observations = { parse: 0, loadProject: 0 }
+    const workerToolkit = {
+        Parser: {
+            /** @param {object} input Input. @param {object} options Options. @returns {Promise<object>} Document. */
+            parseAsync: async (input, options) =>
+                await Parser.parseAsync(
+                    KicadAsyncInputOwnership.markParser(input),
+                    options
+                )
+        },
+        ProjectLoader: {
+            /** @param {object[]} entries Entries. @param {object} options Options. @returns {Promise<object>} Project. */
+            loadAsync: async (entries, options) =>
+                await ProjectLoader.loadAsync(
+                    KicadAsyncInputOwnership.markProject(entries),
+                    options
+                )
+        }
+    }
+    Object.defineProperty(globalThis, 'Worker', {
+        configurable: true,
+        value: ToolkitLoopbackWorker.constructorFor(
+            workerToolkit,
+            observations
+        ),
+        writable: true
+    })
+    KicadWorkerClient.dispose()
+    try {
+        const parserAsset = new Uint8Array([1, 2, 3])
+        const document = await Parser.parseAsync(
+            {
+                ...FIXTURE,
+                assets: [
+                    {
+                        name: 'models/parser-body.step',
+                        data: parserAsset
+                    }
+                ]
+            },
+            { worker: 'auto', decodeAssets: 'full' }
+        )
+        assert.equal(observations.parse, 1)
+        assert.deepEqual(document.assets[0].data, new Uint8Array([1, 2, 3]))
+        assert.deepEqual(parserAsset, new Uint8Array([1, 2, 3]))
+
+        const projectAsset = new Uint8Array([5, 4, 3])
+        const project = await ProjectLoader.loadAsync(
+            [
+                { name: 'assembly.kicad_pro', data: '{}' },
+                {
+                    name: 'logic.kicad_sch',
+                    data: '(kicad_sch (version 20250114) (paper "A4"))'
+                },
+                {
+                    name: 'primary.kicad_pcb',
+                    data: FIXTURE.data,
+                    assets: [
+                        {
+                            name: 'models/body.step',
+                            data: projectAsset
+                        }
+                    ]
+                }
+            ],
+            { worker: 'auto', decodeAssets: 'full' }
+        )
+
+        assert.equal(observations.loadProject, 1)
+        assert.deepEqual(
+            project.documents.map((document) => document.source.fileName),
+            ['logic.kicad_sch', 'primary.kicad_pcb']
+        )
+        assert.equal(
+            project.assets.find((row) => row.name === 'models/body.step')
+                .byteLength,
+            3
+        )
+        assert.deepEqual(
+            project.assets.find((row) => row.name === 'models/body.step').data,
+            new Uint8Array([5, 4, 3])
+        )
+        assert.deepEqual(projectAsset, new Uint8Array([5, 4, 3]))
+
+        const invalidAssetsEntry = {
+            name: 'invalid-assets.kicad_pcb',
+            data: FIXTURE.data,
+            assets: null
+        }
+        assert.throws(
+            () => ProjectLoader.load([invalidAssetsEntry]),
+            (error) => error?.code === 'ERR_PROJECT_INPUT'
+        )
+        await assert.rejects(
+            () =>
+                ProjectLoader.loadAsync([invalidAssetsEntry], {
+                    worker: true
+                }),
+            (error) => error?.code === 'ERR_PROJECT_INPUT'
+        )
+
+        const beforeLimitedRequest = observations.loadProject
+        const boardByteLength = new TextEncoder().encode(
+            FIXTURE.data
+        ).byteLength
+        await assert.rejects(
+            () =>
+                ProjectLoader.loadAsync(
+                    [
+                        {
+                            name: 'limited.kicad_pcb',
+                            data: FIXTURE.data,
+                            assets: [
+                                {
+                                    name: 'models/limited.step',
+                                    data: new Uint8Array([7, 8, 9])
+                                }
+                            ]
+                        }
+                    ],
+                    {
+                        worker: true,
+                        decodeAssets: 'none',
+                        archiveLimits: {
+                            maxEntryBytes: boardByteLength + 2
+                        }
+                    }
+                ),
+            (error) =>
+                error?.code === 'ERR_ARCHIVE_LIMIT_EXCEEDED' &&
+                error?.details?.limit === 'maxEntryBytes'
+        )
+        assert.equal(observations.loadProject, beforeLimitedRequest + 1)
+
+        const transferredParserData = new TextEncoder().encode(FIXTURE.data)
+        const transferredParserAsset = new Uint8Array([9, 8, 7])
+        const transferredDocument = await Parser.parseAsync(
+            {
+                fileName: FIXTURE.fileName,
+                data: transferredParserData,
+                assets: [
+                    {
+                        name: 'models/transferred-parser.step',
+                        data: transferredParserAsset
+                    }
+                ]
+            },
+            {
+                worker: true,
+                decodeAssets: 'full',
+                transferInput: true
+            }
+        )
+        assert.equal(transferredParserData.byteLength, 0)
+        assert.equal(transferredParserAsset.byteLength, 0)
+        assert.deepEqual(
+            transferredDocument.assets[0].data,
+            new Uint8Array([9, 8, 7])
+        )
+
+        const transferredProjectData = new TextEncoder().encode(FIXTURE.data)
+        const transferredProjectAsset = new Uint8Array([6, 5, 4])
+        const transferredProject = await ProjectLoader.loadAsync(
+            [
+                {
+                    name: 'transferred.kicad_pcb',
+                    data: transferredProjectData,
+                    assets: [
+                        {
+                            name: 'models/transferred-project.step',
+                            data: transferredProjectAsset
+                        }
+                    ]
+                }
+            ],
+            {
+                worker: true,
+                decodeAssets: 'full',
+                transferInput: true
+            }
+        )
+        assert.equal(transferredProjectData.byteLength, 0)
+        assert.equal(transferredProjectAsset.byteLength, 0)
+        assert.deepEqual(
+            transferredProject.assets[0].data,
+            new Uint8Array([6, 5, 4])
+        )
+    } finally {
+        KicadWorkerClient.dispose()
+        if (descriptor) {
+            Object.defineProperty(globalThis, 'Worker', descriptor)
+        } else {
+            delete globalThis.Worker
+        }
+    }
 })
 
 test('project loading keeps valid documents when another candidate fails', () => {
