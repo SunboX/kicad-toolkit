@@ -3,8 +3,8 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import * as nodeApi from '../../src/node.mjs'
-import * as parserApi from '../../src/parser.mjs'
+import * as nodeApi from '../../src/legacy-node.mjs'
+import * as parserApi from '../../src/legacy-parser.mjs'
 
 const {
     CircuitJsonKicadLibraryExporter,

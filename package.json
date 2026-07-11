@@ -1,7 +1,7 @@
 {
     "name": "kicad-toolkit",
-    "version": "1.0.29",
-    "description": "KiCad PCB parsing and deterministic SVG rendering utilities",
+    "version": "1.1.0",
+    "description": "KiCad parsing into CircuitJSON with shared ECAD toolkit services",
     "keywords": [
         "kicad",
         "pcb",
@@ -26,18 +26,33 @@
     "exports": {
         ".": "./src/index.mjs",
         "./parser": "./src/parser.mjs",
-        "./node": "./src/node.mjs",
-        "./netlist-query": "./src/netlist-query.mjs",
+        "./project": "./src/project.mjs",
         "./renderers": "./src/renderers.mjs",
+        "./interaction": "./src/interaction.mjs",
+        "./query": "./src/query.mjs",
+        "./manufacturing": "./src/manufacturing.mjs",
+        "./simulation": "./src/simulation.mjs",
         "./scene3d": "./src/scene3d.mjs",
-        "./workers/kicad-parser.worker.mjs": "./src/workers/kicad-parser.worker.mjs",
-        "./styles/kicad-renderers.css": "./src/styles/kicad-renderers.css"
+        "./capabilities": "./src/capabilities.mjs",
+        "./extensions": "./src/extensions.mjs",
+        "./testing": "./src/testing.mjs",
+        "./workers/parser.worker.mjs": "./src/workers/parser.worker.mjs",
+        "./styles/renderers.css": "./src/styles/renderers.css",
+        "./extensions/node": "./src/legacy-node.mjs",
+        "./extensions/netlist-query": "./src/legacy-netlist-query.mjs",
+        "./extensions/workers/kicad-parser.worker.mjs": "./src/workers/kicad-parser.worker.mjs",
+        "./extensions/styles/kicad-renderers.css": "./src/styles/kicad-renderers.css"
     },
     "files": [
         "src",
         "docs/api.md",
         "docs/capabilities.md",
+        "docs/migration.md",
         "docs/model-format.md",
+        "docs/native-api.md",
+        "docs/native-capabilities.md",
+        "docs/native-model-format.md",
+        "docs/release-notes-v1.1.0.md",
         "docs/schemas/kicad_toolkit/normalized_model_a1.schema.json",
         "docs/schemas/kicad_toolkit/project_bundle_a1.schema.json",
         "docs/schemas/kicad_toolkit/netlist_a1.schema.json",
@@ -100,9 +115,11 @@
         "benchmark": "node --expose-gc scripts/run-benchmarks.mjs"
     },
     "dependencies": {
+        "circuitjson-toolkit": "^1.1.0",
         "fflate": "^0.8.2"
     },
     "devDependencies": {
+        "acorn": "^8.17.0",
         "prettier": "^3.4.2"
     },
     "engines": {

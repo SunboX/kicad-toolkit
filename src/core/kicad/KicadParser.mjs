@@ -14,6 +14,7 @@ import { KicadSchematicParser } from './KicadSchematicParser.mjs'
 import { KicadSymbolLibraryParser } from './KicadSymbolLibraryParser.mjs'
 import { NormalizedModelSchema } from './NormalizedModelSchema.mjs'
 import { CircuitJsonModelAdapter } from '../circuit-json/CircuitJsonModelAdapter.mjs'
+import { CircuitJsonModelProjectionContext } from '../circuit-json/CircuitJsonModelProjectionContext.mjs'
 const milsPerMillimeter = 1000 / 25.4
 /**
  * Circuit JSON parser facade for KiCad documents.
@@ -61,13 +62,14 @@ export class KicadParser {
         }
 
         if (/\.kicad_pcb$/i.test(normalizedName)) {
-            return KicadParser.wrapBoard(
+            const board = CircuitJsonModelProjectionContext.attach(
                 KicadPcbParser.parse(source, {
                     ...options,
                     fileName: normalizedName
                 }),
-                normalizedName
+                options
             )
+            return KicadParser.wrapBoard(board, normalizedName)
         }
 
         if (/\.kicad_mod$/i.test(normalizedName)) {
@@ -135,6 +137,7 @@ export class KicadParser {
                 allowMissingCourtyard: footprint.allowMissingCourtyard === true,
                 allowSolderMaskBridges:
                     footprint.allowSolderMaskBridges === true,
+                models: footprint.models || [],
                 ...modelComponentFields(model),
                 height: null
             }

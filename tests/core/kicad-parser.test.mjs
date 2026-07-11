@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadParser, NormalizedModelSchema } from '../../src/parser.mjs'
+import { KicadParser, NormalizedModelSchema } from '../../src/legacy-parser.mjs'
 
 test('KicadParser wraps .kicad_pcb files in the ECAD Forge document model', () => {
     const document = KicadParser.parseArrayBuffer(

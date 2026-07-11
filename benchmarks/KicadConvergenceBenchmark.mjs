@@ -6,9 +6,12 @@ import { cpus } from 'node:os'
 import { performance } from 'node:perf_hooks'
 import { serialize } from 'node:v8'
 
-import { KicadProjectLoader, KicadParser } from '../src/parser.mjs'
-import { QueryNetlistBuilder } from '../src/netlist-query.mjs'
-import { PcbInteractionIndex, PcbSvgRenderer } from '../src/renderers.mjs'
+import { KicadProjectLoader, KicadParser } from '../src/legacy-parser.mjs'
+import { QueryNetlistBuilder } from '../src/legacy-netlist-query.mjs'
+import {
+    PcbInteractionIndex,
+    PcbSvgRenderer
+} from '../src/legacy-renderers.mjs'
 import { KicadBenchmarkFixtureFactory } from './KicadBenchmarkFixtureFactory.mjs'
 
 const CASES = Object.freeze([

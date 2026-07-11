@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import test from 'node:test'
-import { NormalizedModelSchema } from '../../src/parser.mjs'
+import { NormalizedModelSchema } from '../../src/legacy-parser.mjs'
 
 /**
  * Reads one schema fixture relative to this test file.

@@ -7,7 +7,7 @@ import {
     CircuitJsonKicadProjectExporter,
     KicadPcbParser,
     KicadSchematicParser
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Decodes one export entry as UTF-8 text.

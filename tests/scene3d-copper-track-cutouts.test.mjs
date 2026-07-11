@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadScene3dCopperTrackCutoutBuilder } from '../src/scene3d.mjs'
+import { KicadScene3dCopperTrackCutoutBuilder } from '../src/legacy-scene3d.mjs'
 
 /**
  * Builds one horizontal top-copper track.

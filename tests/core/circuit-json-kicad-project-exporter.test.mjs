@@ -11,7 +11,7 @@ import {
     KicadPcbParser,
     SExpressionParser,
     SExpressionTree
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Decodes one export entry as UTF-8 text.

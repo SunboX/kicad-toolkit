@@ -13,7 +13,7 @@ import {
     KicadNetlistParser,
     KicadParser,
     KicadWorksheetParser
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadJobsetParser exposes KiCad output job metadata', () => {
     const model = KicadJobsetParser.parse(jobsetSource(), {

@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { CircuitJsonModelAdapter } from '../../src/parser.mjs'
+import { CircuitJsonModelAdapter } from '../../src/legacy-parser.mjs'
 
 /**
  * Verifies renderer models convert to Circuit JSON arrays while preserving
@@ -880,6 +880,7 @@ test('CircuitJsonModelAdapter emits schema-shaped schematic elements', () => {
             lines: [
                 {
                     kind: 'wire',
+                    sourceType: 'wire',
                     netName: 'GND',
                     x1: 12,
                     y1: 20,

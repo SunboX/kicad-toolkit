@@ -7,28 +7,33 @@ import { access, readFile } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import test from 'node:test'
 
-import * as packageApi from '../src/index.mjs'
-import * as nodeApi from '../src/node.mjs'
-import * as parserApi from '../src/parser.mjs'
-import * as rendererApi from '../src/renderers.mjs'
-import * as scene3dApi from '../src/scene3d.mjs'
+import * as packageApi from '../src/extensions.mjs'
+import * as nodeApi from '../src/legacy-node.mjs'
+import * as parserApi from '../src/legacy-parser.mjs'
+import * as rendererApi from '../src/legacy-renderers.mjs'
+import * as scene3dApi from '../src/legacy-scene3d.mjs'
 
-test('package exposes Altium-style parser and renderer entrypoints', async () => {
+test('package exposes common entrypoints and explicit native extensions', async () => {
     const packageConfig = JSON.parse(
         await readFile(new URL('../package.json', import.meta.url), 'utf8')
     )
 
     assert.equal(packageConfig.exports['.'], './src/index.mjs')
     assert.equal(packageConfig.exports['./parser'], './src/parser.mjs')
-    assert.equal(packageConfig.exports['./node'], './src/node.mjs')
+    assert.equal(packageConfig.exports['./project'], './src/project.mjs')
     assert.equal(packageConfig.exports['./renderers'], './src/renderers.mjs')
     assert.equal(packageConfig.exports['./scene3d'], './src/scene3d.mjs')
+    assert.equal(packageConfig.exports['./extensions'], './src/extensions.mjs')
     assert.equal(
-        packageConfig.exports['./workers/kicad-parser.worker.mjs'],
+        packageConfig.exports['./extensions/node'],
+        './src/legacy-node.mjs'
+    )
+    assert.equal(
+        packageConfig.exports['./extensions/workers/kicad-parser.worker.mjs'],
         './src/workers/kicad-parser.worker.mjs'
     )
     assert.equal(
-        packageConfig.exports['./styles/kicad-renderers.css'],
+        packageConfig.exports['./extensions/styles/kicad-renderers.css'],
         './src/styles/kicad-renderers.css'
     )
 
@@ -380,7 +385,7 @@ test('package keeps KiCad parser internals in a format-specific core folder', as
     await assertFileExists('../src/ui/SchematicRenderOpsSidecarBuilder.mjs')
     await assertFileExists('../src/ui/SchematicContentLayout.mjs')
     await assertFileExists('../src/ui/SchematicOwnerPinLabelLayout.mjs')
-    await assertFileExists('../src/scene3d.mjs')
+    await assertFileExists('../src/legacy-scene3d.mjs')
     await assertFileExists('../src/workers/kicad-parser.worker.mjs')
     await assertFileMissing('../src/ui/BadgeRenderer.mjs')
     await assertFileMissing('../src/ui/BadgeStyle.mjs')
@@ -402,10 +407,10 @@ test('browser entrypoints do not load Node built-ins', async () => {
     const offenders = []
 
     for (const entrypoint of [
-        '../src/index.mjs',
-        '../src/parser.mjs',
-        '../src/renderers.mjs',
-        '../src/scene3d.mjs'
+        '../src/extensions.mjs',
+        '../src/legacy-parser.mjs',
+        '../src/legacy-renderers.mjs',
+        '../src/legacy-scene3d.mjs'
     ]) {
         offenders.push(...(await collectNodeBuiltinImports(entrypoint)))
     }

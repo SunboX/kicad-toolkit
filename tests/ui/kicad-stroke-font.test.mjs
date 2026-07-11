@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { KicadStrokeFont } from '../../src/renderers.mjs'
+import { KicadStrokeFont } from '../../src/legacy-renderers.mjs'
 
 test('KicadStrokeFont renders Latin-1 glyphs instead of fallback question marks', () => {
     const attrs = { x: 0, y: 0, sizeX: 1, sizeY: 1 }

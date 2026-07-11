@@ -6,7 +6,7 @@ import test from 'node:test'
 import {
     KicadParser,
     KicadSchematicGeometryReadinessReportBuilder
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadSchematicGeometryReadinessReportBuilder summarizes schematic fidelity-sensitive geometry', () => {
     const report = KicadSchematicGeometryReadinessReportBuilder.build({

@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { CircuitJsonKicadProjectExporter } from '../../src/parser.mjs'
+import { CircuitJsonKicadProjectExporter } from '../../src/legacy-parser.mjs'
 
 /**
  * Decodes one export entry as UTF-8 text.

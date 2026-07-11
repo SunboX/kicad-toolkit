@@ -7,7 +7,7 @@ import {
     KicadFootprintLibraryParser,
     KicadParser,
     KicadSymbolLibraryParser
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Encodes a text fixture as a UTF-8 byte buffer.

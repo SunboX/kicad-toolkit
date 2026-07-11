@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadParser } from '../../src/parser.mjs'
+import { KicadParser } from '../../src/legacy-parser.mjs'
 
 test('KicadParser resolves embedded lib_name aliases for schematic symbols', () => {
     const document = KicadParser.parseArrayBuffer(

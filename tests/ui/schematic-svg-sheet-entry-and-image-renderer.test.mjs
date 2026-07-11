@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { SchematicSvgRenderer } from '../../src/renderers.mjs'
+import { SchematicSvgRenderer } from '../../src/legacy-renderers.mjs'
 
 test('SchematicSvgRenderer renders hierarchical sheet entries', () => {
     const markup = SchematicSvgRenderer.render(sheetEntryDocument())

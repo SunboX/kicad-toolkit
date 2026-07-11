@@ -9,6 +9,20 @@ const MILS_PER_MM = 39.37007874015748
  */
 export class CircuitJsonModelAdapterPrimitives {
     /**
+     * Returns the positive native board thickness in millimeters.
+     * @param {Record<string, unknown>} model Renderer model.
+     * @returns {number} Board thickness.
+     */
+    static boardThickness(model) {
+        return (
+            CircuitJsonModelAdapterPrimitives.number(
+                model?.pcb?.kicadBoard?.general?.thickness,
+                1.6
+            ) || 1.6
+        )
+    }
+
+    /**
      * Returns a deterministic id scope for one parsed file.
      * @param {Record<string, unknown>} model
      * @param {string} sourceFormat

@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
     KicadSelectedPartExporter,
     SelectedPartKicadExportAdapter
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Decodes one exported text entry.

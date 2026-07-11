@@ -12,7 +12,7 @@ import {
     KicadPcbLayerStackReadModelBuilder,
     KicadPcbRegionSemanticsBuilder,
     KicadSchematicOwnershipGraphBuilder
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadPcbLayerStackReadModelBuilder summarizes KiCad stackup material layers', () => {
     const report = KicadPcbLayerStackReadModelBuilder.build(createPcb())

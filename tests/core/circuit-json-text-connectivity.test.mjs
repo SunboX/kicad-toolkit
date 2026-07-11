@@ -7,7 +7,7 @@ import {
     CircuitJsonConformanceChecker,
     KicadParser,
     CircuitJsonModelAdapter
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Returns the first Circuit JSON element matching a type and predicate.

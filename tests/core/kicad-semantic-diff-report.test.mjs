@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadSemanticDiffReportBuilder } from '../../src/parser.mjs'
+import { KicadSemanticDiffReportBuilder } from '../../src/legacy-parser.mjs'
 
 test('KicadSemanticDiffReportBuilder normalizes volatile S-expression fields', () => {
     const report = KicadSemanticDiffReportBuilder.build({

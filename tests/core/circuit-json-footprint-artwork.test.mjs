@@ -6,7 +6,7 @@ import test from 'node:test'
 import {
     CircuitJsonConformanceChecker,
     KicadParser
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Encodes fixture text as an ArrayBuffer.

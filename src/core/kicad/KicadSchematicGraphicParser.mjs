@@ -21,7 +21,9 @@ export class KicadSchematicGraphicParser {
         return {
             busEntries: children(root, 'bus_entry').map(parseBusEntry),
             busAliases: children(root, 'bus_alias').map(parseBusAlias),
-            images: children(root, 'image').map(parseImage),
+            images: children(root, 'image').map((node, index) =>
+                parseImage(node, index)
+            ),
             directives: children(root, 'directive_label').map((node, index) =>
                 parseDirective(node, index)
             ),
@@ -106,16 +108,19 @@ function parseBusAlias(node) {
 /**
  * Parses a schematic image.
  * @param {Array} node Image node.
+ * @param {number} index Render index.
  * @returns {object}
  */
-function parseImage(node) {
+function parseImage(node, index) {
     const at = parseAt(child(node, 'at'))
     return {
         x: at.x,
         y: at.y,
+        rotation: at.rotation,
         scale: numberValue(child(node, 'scale')?.[1], 1),
         data: String(child(node, 'data')?.[1] || ''),
         uuid: textValue(child(node, 'uuid')),
+        renderOrder: index,
         sourceType: 'image'
     }
 }

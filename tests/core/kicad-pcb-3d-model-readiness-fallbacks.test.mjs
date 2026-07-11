@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadPcb3dModelReadinessReportBuilder } from '../../src/parser.mjs'
+import { KicadPcb3dModelReadinessReportBuilder } from '../../src/legacy-parser.mjs'
 
 test('KicadPcb3dModelReadinessReportBuilder names procedural fallback packages', () => {
     const report = KicadPcb3dModelReadinessReportBuilder.build({

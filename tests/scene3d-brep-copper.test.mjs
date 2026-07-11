@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { PcbScene3dBuilder } from '../src/scene3d.mjs'
+import { PcbScene3dBuilder } from '../src/legacy-scene3d.mjs'
 
 test('PcbScene3dBuilder maps saved copper B-Rep rings into 3D layer space', () => {
     const scene = PcbScene3dBuilder.build({

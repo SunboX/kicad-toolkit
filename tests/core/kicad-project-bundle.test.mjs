@@ -8,7 +8,7 @@ import {
     ProjectDesignBundleBuilder,
     ProjectNetlistExporter,
     ProjectVariantViewBuilder
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('ProjectDesignBundleBuilder composes KiCad design bundle API rows', () => {
     const bundle = ProjectDesignBundleBuilder.build({

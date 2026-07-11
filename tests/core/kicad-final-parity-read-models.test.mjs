@@ -11,7 +11,7 @@ import {
     KicadProjectOutputDigestBuilder,
     KicadSourceCoverageReportBuilder,
     SExpressionParser
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadPcbRuleReadModelBuilder normalizes KiCad custom and project rules', () => {
     const designRules = KicadDesignRulesParser.parse(

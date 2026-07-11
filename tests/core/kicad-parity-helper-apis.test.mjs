@@ -12,7 +12,7 @@ import {
     KicadLibrarySearchIndex,
     KicadSchematicConnectivityQaBuilder,
     KicadSchematicQaReportBuilder
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadLibrarySearchIndex searches footprint, symbol, and design-block items', () => {
     const index = libraryIndexFixture()

@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import * as parserApi from '../../src/parser.mjs'
+import * as parserApi from '../../src/legacy-parser.mjs'
 
 const {
     CircuitJsonKicadModExporter,

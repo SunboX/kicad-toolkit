@@ -16,7 +16,7 @@ import {
     SchematicSvgTextMetrics,
     isCopperPrimitive,
     preparePcbSideResolvedRenderModel
-} from '../../src/renderers.mjs'
+} from '../../src/legacy-renderers.mjs'
 
 test('PcbSvgRenderer accepts an ECAD Forge KiCad document wrapper', () => {
     const markup = PcbSvgRenderer.render({

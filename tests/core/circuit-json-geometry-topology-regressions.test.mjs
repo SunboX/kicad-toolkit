@@ -7,7 +7,7 @@ import {
     CircuitJsonConformanceChecker,
     CircuitJsonModelAdapter,
     KicadParser
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Encodes fixture text as an ArrayBuffer.

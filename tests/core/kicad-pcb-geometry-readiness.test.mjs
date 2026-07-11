@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadPcbGeometryReadinessReportBuilder } from '../../src/parser.mjs'
+import { KicadPcbGeometryReadinessReportBuilder } from '../../src/legacy-parser.mjs'
 
 test('KicadPcbGeometryReadinessReportBuilder reports rendering-sensitive geometry', () => {
     const report = KicadPcbGeometryReadinessReportBuilder.build(

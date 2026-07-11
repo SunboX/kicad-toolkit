@@ -3,11 +3,11 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import * as nodeApi from '../src/node.mjs'
-import * as rootApi from '../src/index.mjs'
-import * as parserApi from '../src/parser.mjs'
-import * as rendererApi from '../src/renderers.mjs'
-import * as scene3dApi from '../src/scene3d.mjs'
+import * as nodeApi from '../src/legacy-node.mjs'
+import * as rootApi from '../src/extensions.mjs'
+import * as parserApi from '../src/legacy-parser.mjs'
+import * as rendererApi from '../src/legacy-renderers.mjs'
+import * as scene3dApi from '../src/legacy-scene3d.mjs'
 
 /**
  * Verifies the root entrypoint exposes parser and renderer APIs.

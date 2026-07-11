@@ -5,17 +5,20 @@
 import { CircuitJsonModelSchema } from './CircuitJsonModelSchema.mjs'
 import { CircuitJsonModelAdapterPrimitives } from './CircuitJsonModelAdapterPrimitives.mjs'
 import { CircuitJsonModelAdapterElements } from './CircuitJsonModelAdapterElements.mjs'
+import { CircuitJsonModelProjectionContext } from './CircuitJsonModelProjectionContext.mjs'
+import { CircuitJsonGeneratedAssetContext } from './CircuitJsonGeneratedAssetContext.mjs'
 import { CircuitJsonPcbArtworkBuilder } from './CircuitJsonPcbArtworkBuilder.mjs'
 import { CircuitJsonPcbCopperPourBuilder } from './CircuitJsonPcbCopperPourBuilder.mjs'
+import { CircuitJsonPcbCadComponentBuilder } from './CircuitJsonPcbCadComponentBuilder.mjs'
 import { CircuitJsonPcbLibraryBuilder } from './CircuitJsonPcbLibraryBuilder.mjs'
 import { CircuitJsonPcbTextBuilder } from './CircuitJsonPcbTextBuilder.mjs'
 import { CircuitJsonPcbTraceRouteBuilder } from './CircuitJsonPcbTraceRouteBuilder.mjs'
 import { CircuitJsonProjectMetadataBuilder } from './CircuitJsonProjectMetadataBuilder.mjs'
 import { CircuitJsonSchematicLibraryBuilder } from './CircuitJsonSchematicLibraryBuilder.mjs'
+import { CircuitJsonSchematicGraphicsBuilder } from './CircuitJsonSchematicGraphicsBuilder.mjs'
 import { CircuitJsonSchematicTraceBuilder } from './CircuitJsonSchematicTraceBuilder.mjs'
 import { CircuitJsonSourceComponentFtype } from './CircuitJsonSourceComponentFtype.mjs'
 import { CircuitJsonSourceComponentMetadata } from './CircuitJsonSourceComponentMetadata.mjs'
-
 const Primitives = CircuitJsonModelAdapterPrimitives
 const Elements = CircuitJsonModelAdapterElements
 
@@ -32,18 +35,18 @@ export class CircuitJsonModelAdapter {
         if (CircuitJsonModelSchema.isModel(rendererModel)) {
             return CircuitJsonModelSchema.attach(rendererModel)
         }
-
         const model = rendererModel || {}
+        const options = CircuitJsonModelProjectionContext.forBoard(
+            model.pcb?.kicadBoard
+        )
         const circuitJson = []
         const sourceFormat = Primitives.sourceFormat(model)
         const idScope = Primitives.idScope(model, sourceFormat)
-
         const projectMetadata = CircuitJsonModelAdapter.#appendProjectMetadata(
             circuitJson,
             model,
             sourceFormat
         )
-
         if (model.schematic) {
             CircuitJsonModelAdapter.#appendSchematic(
                 circuitJson,
@@ -51,15 +54,17 @@ export class CircuitJsonModelAdapter {
                 idScope
             )
         }
-
         if (model.pcb) {
-            CircuitJsonModelAdapter.#appendPcb(circuitJson, model, idScope)
+            CircuitJsonModelAdapter.#appendPcb(
+                circuitJson,
+                model,
+                idScope,
+                options
+            )
         }
-
         if (model.pcbLibrary) {
             CircuitJsonPcbLibraryBuilder.append(circuitJson, model, idScope)
         }
-
         if (model.schematicLibrary) {
             CircuitJsonSchematicLibraryBuilder.append(
                 circuitJson,
@@ -67,7 +72,6 @@ export class CircuitJsonModelAdapter {
                 idScope
             )
         }
-
         CircuitJsonModelAdapter.#appendBom(circuitJson, model, idScope)
         CircuitJsonProjectMetadataBuilder.finalize(
             projectMetadata,
@@ -75,7 +79,6 @@ export class CircuitJsonModelAdapter {
             model
         )
         CircuitJsonModelAdapter.#attachCompatibility(circuitJson, model)
-
         return CircuitJsonModelSchema.attach(circuitJson)
     }
 
@@ -92,7 +95,6 @@ export class CircuitJsonModelAdapter {
         ) {
             return circuitJson
         }
-
         if (
             circuitJson?.kind ||
             circuitJson?.schematic ||
@@ -102,7 +104,6 @@ export class CircuitJsonModelAdapter {
         ) {
             return circuitJson
         }
-
         CircuitJsonModelSchema.assertModel(circuitJson)
 
         const metadata = circuitJson.find(
@@ -169,6 +170,7 @@ export class CircuitJsonModelAdapter {
     static #appendSchematic(circuitJson, model, idScope) {
         const schematic = model.schematic || {}
         const componentIds = new Map()
+        const schematicComponentIds = new Map()
         const portIds = new Map()
         const portIdsByKey = new Map()
         const netIds = new Map()
@@ -180,12 +182,22 @@ export class CircuitJsonModelAdapter {
                 'source_component',
                 component.designator || component.name || componentIndex
             ])
+            const schematicComponentId = Primitives.id(idScope, [
+                'schematic_component',
+                component.designator || component.name || componentIndex
+            ])
             componentIds.set(component, sourceComponentId)
             CircuitJsonModelAdapter.#indexSchematicComponent(
                 componentIds,
                 component,
                 componentIndex,
                 sourceComponentId
+            )
+            CircuitJsonModelAdapter.#indexSchematicComponent(
+                schematicComponentIds,
+                component,
+                componentIndex,
+                schematicComponentId
             )
             circuitJson.push(
                 CircuitJsonModelAdapter.#sourceComponent(
@@ -196,10 +208,7 @@ export class CircuitJsonModelAdapter {
             )
             circuitJson.push({
                 type: 'schematic_component',
-                schematic_component_id: Primitives.id(idScope, [
-                    'schematic_component',
-                    component.designator || component.name || componentIndex
-                ]),
+                schematic_component_id: schematicComponentId,
                 source_component_id: sourceComponentId,
                 center: Primitives.point(component.x, component.y),
                 size: {
@@ -278,35 +287,26 @@ export class CircuitJsonModelAdapter {
                 portIdsByKey
             )
 
-        for (const [lineIndex, line] of Primitives.array(
-            schematic.lines
-        ).entries()) {
-            if (
-                consumedSchematicSegments.has(
-                    CircuitJsonSchematicTraceBuilder.segmentKey(line)
-                )
-            ) {
-                continue
+        const graphicResult = CircuitJsonSchematicGraphicsBuilder.append(
+            circuitJson,
+            schematic,
+            idScope,
+            {
+                componentIds: schematicComponentIds,
+                consumedSegments: consumedSchematicSegments,
+                netIds,
+                rendererModel: model
             }
-
-            CircuitJsonModelAdapter.#appendSchematicLine(
-                circuitJson,
-                idScope,
-                line,
-                lineIndex,
-                netIds
-            )
-        }
-
-        for (const [textIndex, text] of Primitives.array(
-            schematic.texts
-        ).entries()) {
-            CircuitJsonModelAdapter.#appendSchematicText(
-                circuitJson,
-                idScope,
-                text,
-                textIndex
-            )
+        )
+        CircuitJsonGeneratedAssetContext.attach(
+            circuitJson,
+            graphicResult.assets
+        )
+        if (graphicResult.diagnostics.length) {
+            model.diagnostics = [
+                ...Primitives.array(model.diagnostics),
+                ...graphicResult.diagnostics
+            ]
         }
     }
 
@@ -315,9 +315,10 @@ export class CircuitJsonModelAdapter {
      * @param {object[]} circuitJson
      * @param {Record<string, unknown>} model
      * @param {string} idScope
+     * @param {object} options Projection options.
      * @returns {void}
      */
-    static #appendPcb(circuitJson, model, idScope) {
+    static #appendPcb(circuitJson, model, idScope, options) {
         const pcb = model.pcb || {}
         const componentIds = new Map()
         const pcbComponentIds = new Map()
@@ -394,6 +395,16 @@ export class CircuitJsonModelAdapter {
                     component.height || component.heightMil,
                     0
                 )
+            })
+            CircuitJsonPcbCadComponentBuilder.append(circuitJson, {
+                ...options,
+                component,
+                componentIndex,
+                idScope,
+                pcbComponentId,
+                sourceComponentId,
+                sourceFileName: model.fileName,
+                rendererModel: model
             })
         }
 
@@ -484,7 +495,7 @@ export class CircuitJsonModelAdapter {
             ),
             width: Primitives.milNumber(widthMil, 0),
             height: Primitives.milNumber(heightMil, 0),
-            thickness: 1.6,
+            thickness: Primitives.boardThickness(model),
             num_layers: Primitives.number(model.summary?.layerCount, 2),
             material: 'fr4',
             outline,
@@ -733,125 +744,6 @@ export class CircuitJsonModelAdapter {
                 })
             }
         }
-    }
-
-    /**
-     * Appends one schematic line or trace.
-     * @param {object[]} circuitJson
-     * @param {string} idScope
-     * @param {Record<string, unknown>} line
-     * @param {number} lineIndex
-     * @param {Map<string, string>} netIds
-     * @returns {void}
-     */
-    static #appendSchematicLine(circuitJson, idScope, line, lineIndex, netIds) {
-        const schematicLineId = Primitives.id(idScope, [
-            'schematic_line',
-            lineIndex
-        ])
-        const lineElement = {
-            type: 'schematic_line',
-            schematic_line_id: schematicLineId,
-            x1: Primitives.number(line.x1, 0),
-            y1: Primitives.number(line.y1, 0),
-            x2: Primitives.number(line.x2, 0),
-            y2: Primitives.number(line.y2, 0),
-            stroke_width: Primitives.number(line.width, 1),
-            is_dashed: line.dashed === true
-        }
-        circuitJson.push(lineElement)
-
-        if (line.kind === 'wire' || line.netName || line.netIndex) {
-            const sourceTraceId = Primitives.id(idScope, [
-                'source_trace',
-                line.netName || line.netIndex || lineIndex
-            ])
-            const sourceNetId = Elements.sourceNetIdForPrimitive(
-                circuitJson,
-                idScope,
-                line,
-                netIds
-            )
-
-            circuitJson.push({
-                type: 'source_trace',
-                source_trace_id: sourceTraceId,
-                connected_source_port_ids: [],
-                connected_source_net_ids: sourceNetId ? [sourceNetId] : []
-            })
-            circuitJson.push({
-                type: 'schematic_trace',
-                schematic_trace_id: Primitives.id(idScope, [
-                    'schematic_trace',
-                    lineIndex
-                ]),
-                source_trace_id: sourceTraceId,
-                junctions: [],
-                edges: [
-                    {
-                        from: {
-                            x: lineElement.x1,
-                            y: lineElement.y1
-                        },
-                        to: {
-                            x: lineElement.x2,
-                            y: lineElement.y2
-                        }
-                    }
-                ]
-            })
-        }
-    }
-
-    /**
-     * Appends one schematic text or net label.
-     * @param {object[]} circuitJson
-     * @param {string} idScope
-     * @param {Record<string, unknown>} text
-     * @param {number} textIndex
-     * @returns {void}
-     */
-    static #appendSchematicText(circuitJson, idScope, text, textIndex) {
-        const textValue = Primitives.string(
-            text.text || text.value || text.name,
-            ''
-        )
-        const position = Primitives.point(text.x, text.y)
-
-        if (Primitives.isNetLabel(text)) {
-            const sourceNetId = Primitives.sourceNetId(
-                idScope,
-                textValue || textIndex
-            )
-            Elements.appendMissingSourceNet(
-                circuitJson,
-                sourceNetId,
-                textValue || String(textIndex)
-            )
-            circuitJson.push({
-                type: 'schematic_net_label',
-                schematic_net_label_id: Primitives.id(idScope, [
-                    'schematic_net_label',
-                    textIndex
-                ]),
-                source_net_id: sourceNetId,
-                center: position,
-                anchor_side: 'top',
-                text: textValue
-            })
-            return
-        }
-
-        circuitJson.push({
-            type: 'schematic_text',
-            schematic_text_id: Primitives.id(idScope, [
-                'schematic_text',
-                textIndex
-            ]),
-            text: textValue,
-            position,
-            anchor: 'center'
-        })
     }
 
     /**

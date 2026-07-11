@@ -6,7 +6,7 @@ import {
     LoadedDesignNetlistService,
     QueryNetlistBuilder,
     RegexPattern
-} from 'kicad-toolkit/netlist-query'
+} from 'kicad-toolkit/extensions/netlist-query'
 
 /**
  * Builds one fake KiCad-style schematic document.

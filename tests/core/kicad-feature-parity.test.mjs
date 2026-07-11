@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadFeatureParity } from '../../src/parser.mjs'
+import { KicadFeatureParity } from '../../src/legacy-parser.mjs'
 
 test('KicadFeatureParity inventories implemented KiCad-native parity features', () => {
     const inventory = KicadFeatureParity.inventory()

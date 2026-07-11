@@ -4,7 +4,7 @@ SPDX-PackageSupplier = "André Fiedler / SunboX"
 SPDX-PackageDownloadLocation = "https://github.com/SunboX/kicad-toolkit"
 
 [[annotations]]
-path = [".gitignore", ".prettierignore", ".prettierrc.json", "package.json", "package-lock.json"]
+path = [".gitignore", ".prettierignore", ".prettierrc.json", "package.json", "package-lock.json", "REUSE.toml"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 André Fiedler"
 SPDX-License-Identifier = "GPL-3.0-or-later"
@@ -17,6 +17,40 @@ SPDX-License-Identifier = "CC-BY-SA-4.0"
 
 [[annotations]]
 path = ["tests/fixtures/*"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 André Fiedler"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = ["benchmarks/baseline-v1.0.29.json", "spec/api-baseline-v1.0.29.json", "spec/feature-preservation.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 André Fiedler"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = [
+    ".github/workflows/*",
+    ".superpowers/sdd/*",
+    "docs/schemas/kicad_toolkit/*",
+    "src/KicadScene3dBoardOutlineAdapter.mjs",
+    "src/KicadScene3dCopperLayerAdapter.mjs",
+    "src/KicadScene3dCopperTrackCutoutBuilder.mjs",
+    "src/KicadScene3dModelRegistryAdapter.mjs",
+    "src/KicadScene3dPadShapeAdapter.mjs",
+    "src/KicadScene3dSilkscreenKeepoutAdapter.mjs",
+    "src/KicadScene3dSilkscreenSmoothingAdapter.mjs",
+    "src/KicadScene3dWrlUnitScaleAdapter.mjs",
+    "src/core/kicad/KicadSavedFillRingNormalizer.mjs",
+    "src/core/kicad/SelectedPartKicadExportAdapter.mjs",
+    "src/core/kicad/SelectedPartKicadModelNodeBuilder.mjs",
+    "src/ui/KicadPcbRenderOutlineAdapter.mjs",
+    "src/ui/PcbFootprintPadAxisNormalizer.mjs",
+    "tests/core/kicad-selected-part-exporter.test.mjs",
+    "tests/core/netlist-query.test.mjs",
+    "tests/core/selected-part-kicad-export-adapter.test.mjs",
+    "tests/scene3d-app-adapters.test.mjs",
+    "tests/scene3d-copper-track-cutouts.test.mjs",
+]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 André Fiedler"
 SPDX-License-Identifier = "GPL-3.0-or-later"

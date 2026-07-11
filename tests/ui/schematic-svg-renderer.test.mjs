@@ -3,8 +3,11 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadParser } from '../../src/parser.mjs'
-import { KicadStrokeFont, SchematicSvgRenderer } from '../../src/renderers.mjs'
+import { KicadParser } from '../../src/legacy-parser.mjs'
+import {
+    KicadStrokeFont,
+    SchematicSvgRenderer
+} from '../../src/legacy-renderers.mjs'
 
 /**
  * Creates a schematic document model with representative KiCad text cases.

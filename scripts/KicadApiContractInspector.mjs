@@ -1,6 +1,11 @@
 // SPDX-FileCopyrightText: 2026 André Fiedler
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { KicadJavaScriptContractAnalyzer } from './KicadJavaScriptContractAnalyzer.mjs'
+import { KicadDelegatedCallAnalyzer } from './KicadDelegatedCallAnalyzer.mjs'
+import { KicadStylesheetContract } from './KicadStylesheetContract.mjs'
+import { KicadWorkerProtocolContract } from './KicadWorkerProtocolContract.mjs'
+
 const IGNORED_FUNCTION_MEMBERS = new Set(['length', 'name', 'prototype'])
 const CONTROL_KEYWORDS = new Set([
     'catch',
@@ -20,13 +25,35 @@ export class KicadApiContractInspector {
      * @param {string} entrypoint Package export key.
      * @param {string} target Relative package target.
      * @param {Record<string, any>} api Imported namespace.
+     * @param {Record<string, any>} [delegates] Reachable internal values.
      * @returns {Record<string, any>} Entrypoint contract.
      */
-    static entrypoint(entrypoint, target, api) {
+    static entrypoint(entrypoint, target, api, delegates = api) {
+        const registry =
+            typeof delegates?.contextFor === 'function' ? delegates : null
+        const runtimeValues = {
+            ...(registry?.values || delegates),
+            ...api
+        }
+        const contracts = new Map(
+            Object.keys(runtimeValues)
+                .sort()
+                .map((name) => [
+                    name,
+                    KicadApiContractInspector.exported(
+                        name,
+                        runtimeValues[name]
+                    )
+                ])
+        )
         const exports = Object.keys(api)
             .sort()
-            .map((name) => KicadApiContractInspector.exported(name, api[name]))
-        extendDelegatedContracts(exports, api)
+            .map((name) => contracts.get(name))
+        extendDelegatedContracts(
+            [...contracts.values()],
+            runtimeValues,
+            registry
+        )
         return { entrypoint, target, kind: 'module', exports }
     }
 
@@ -53,8 +80,8 @@ export class KicadApiContractInspector {
             valueContract: valueContract(value),
             staticMethods: staticNames,
             instanceMethods: instanceNames,
-            staticAccessors: accessors(value, 'static'),
-            instanceAccessors: accessors(value, 'instance'),
+            staticAccessors: accessors(value, 'static', ownerSource),
+            instanceAccessors: accessors(value, 'instance', ownerSource),
             staticProperties: staticProperties(value),
             callables: [
                 ...(typeof value === 'function' && !classValue
@@ -96,53 +123,22 @@ export class KicadApiContractInspector {
     }
 
     /**
+     * Captures exact and structural stylesheet behavior.
+     * @param {string} source Stylesheet source.
+     * @returns {{ sha256: string, rules: object[] }} Stylesheet contract.
+     */
+    static stylesheet(source) {
+        return KicadStylesheetContract.capture(source)
+    }
+
+    /**
      * Captures worker request and response message fields from source.
      * @param {string} source Worker module source.
      * @param {string} entrypoint Worker package entrypoint.
      * @returns {Record<string, any>} Worker protocol contract.
      */
     static workerProtocol(source, entrypoint) {
-        const requestTypes = [
-            ...new Set(
-                Array.from(
-                    source.matchAll(
-                        /\bmessage\s*(?:\?\.\s*|\.\s*)type\s*(?:===|!==)\s*['"]([^'"]+)['"]/gu
-                    ),
-                    (match) => match[1]
-                )
-            )
-        ]
-        const requestFieldNames = [
-            ...new Set(
-                Array.from(
-                    source.matchAll(
-                        /\bmessage\s*(?:\?\.\s*|\.\s*)([A-Za-z_$][\w$]*)/gu
-                    ),
-                    (match) => match[1]
-                )
-            )
-        ].sort()
-        const requests = requestTypes.map((type) => ({
-            type,
-            direction: 'request',
-            fields: requestFieldNames.map((name) => ({
-                name,
-                required: workerRequestFieldRequired(source, name)
-            }))
-        }))
-        const responses = returnObjectContracts(source)
-            .filter((row) => row.literalType?.startsWith('parser:'))
-            .map((row) => ({
-                type: row.literalType,
-                direction: 'response',
-                fields: row.fields.map((name) => ({ name, required: true }))
-            }))
-        return {
-            entrypoint,
-            messages: [...requests, ...responses].sort((left, right) =>
-                left.type.localeCompare(right.type)
-            )
-        }
+        return KicadWorkerProtocolContract.capture(source, entrypoint)
     }
 }
 
@@ -184,9 +180,10 @@ function instanceMethods(value) {
  * Lists public accessor properties without invoking them.
  * @param {unknown} value Exported value.
  * @param {'static' | 'instance'} accessorType Accessor owner.
- * @returns {{ name: string, get: boolean, set: boolean }[]} Accessor contracts.
+ * @param {string} ownerSource Full class source.
+ * @returns {object[]} Accessor contracts.
  */
-function accessors(value, accessorType) {
+function accessors(value, accessorType, ownerSource) {
     if (typeof value !== 'function') return []
     const owner = accessorType === 'static' ? value : value.prototype
     if (!owner) return []
@@ -200,11 +197,104 @@ function accessors(value, accessorType) {
                     typeof descriptors[name].set === 'function')
         )
         .sort()
-        .map((name) => ({
-            name,
-            get: typeof descriptors[name].get === 'function',
-            set: typeof descriptors[name].set === 'function'
-        }))
+        .map((name) => {
+            const hasGetter = typeof descriptors[name].get === 'function'
+            const contract = {
+                name,
+                get: hasGetter,
+                set: typeof descriptors[name].set === 'function'
+            }
+            if (hasGetter) {
+                contract.getContract = {
+                    returnType:
+                        KicadJavaScriptContractAnalyzer.accessorReturnType(
+                            ownerSource,
+                            name,
+                            accessorType === 'static'
+                        ),
+                    value:
+                        accessorType === 'static'
+                            ? staticAccessorValue(value, name)
+                            : null
+                }
+            }
+            if (contract.set) {
+                contract.setContract =
+                    KicadJavaScriptContractAnalyzer.accessorSetterContract(
+                        ownerSource,
+                        name,
+                        accessorType === 'static'
+                    )
+            }
+            return contract
+        })
+}
+
+/**
+ * Reads a static accessor without allowing capture failures to abort inventory.
+ * @param {Function} value Exported class.
+ * @param {string} name Accessor name.
+ * @returns {Record<string, any> | null} Value contract.
+ */
+function staticAccessorValue(value, name) {
+    try {
+        return deepValueContract(Reflect.get(value, name))
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Produces a bounded deep contract for an observable accessor value.
+ * @param {unknown} value Public value.
+ * @param {number} [depth] Current depth.
+ * @param {WeakSet<object>} [seen] Visited objects.
+ * @returns {Record<string, any>} Deep value contract.
+ */
+function deepValueContract(value, depth = 0, seen = new WeakSet()) {
+    if (
+        value === null ||
+        ['boolean', 'number', 'string', 'undefined'].includes(typeof value)
+    ) {
+        return valueContract(value)
+    }
+    if (typeof value !== 'object') return { type: typeof value }
+    if (seen.has(value)) return { type: 'circular' }
+    if (depth >= 6) {
+        return {
+            type: Array.isArray(value) ? 'array' : 'object',
+            truncated: true
+        }
+    }
+    seen.add(value)
+    if (Array.isArray(value)) {
+        const rows = value
+            .slice(0, 32)
+            .map((row) => deepValueContract(row, depth + 1, seen))
+        seen.delete(value)
+        return {
+            type: 'array',
+            length: value.length,
+            value: rows,
+            ...(value.length > rows.length ? { truncated: true } : {})
+        }
+    }
+    const keys = Object.keys(value).sort()
+    const capturedKeys = keys.slice(0, 64)
+    const captured = Object.fromEntries(
+        capturedKeys.map((key) => [
+            key,
+            deepValueContract(value[key], depth + 1, seen)
+        ])
+    )
+    seen.delete(value)
+    return {
+        type: 'object',
+        value: captured,
+        ...(keys.length > capturedKeys.length
+            ? { keyCount: keys.length, truncated: true }
+            : {})
+    }
 }
 
 /**
@@ -280,7 +370,11 @@ function callableContract(callable, methodType, ownerSource, methodName) {
             ? source.slice(opening + 1, closing)
             : ''
     const parameters = splitTopLevel(parameterSource)
-    const definitions = methodDefinitions(ownerSource)
+    const analyzed = KicadJavaScriptContractAnalyzer.callable({
+        ownerSource,
+        callableSource: source,
+        methodName
+    })
     return {
         type: 'method',
         methodType,
@@ -293,8 +387,8 @@ function callableContract(callable, methodType, ownerSource, methodName) {
                 : source.split('{')[0].trim(),
         arity: callable.length,
         parameters,
-        options: optionNames(source, parameters, definitions, methodName),
-        resultFields: resultFields(source, definitions, methodName)
+        options: analyzed.options,
+        resultFields: analyzed.resultFields
     }
 }
 
@@ -308,6 +402,11 @@ function constructorContract(value, ownerSource) {
     const definitions = methodDefinitions(ownerSource)
     const definition = definitions.get('constructor')
     const parameters = definition?.parameters || []
+    const analyzed = KicadJavaScriptContractAnalyzer.callable({
+        ownerSource,
+        callableSource: definition?.source || '',
+        methodName: 'constructor'
+    })
     return {
         type: 'method',
         methodType: 'constructor',
@@ -316,12 +415,7 @@ function constructorContract(value, ownerSource) {
             : 'constructor()',
         arity: value.length,
         parameters,
-        options: optionNames(
-            definition?.source || '',
-            parameters,
-            definitions,
-            'constructor'
-        ),
+        options: analyzed.options,
         resultFields: []
     }
 }
@@ -361,159 +455,55 @@ function methodDefinitions(source) {
 }
 
 /**
- * Collects option paths directly and through internal method delegation.
- * @param {string} source Callable source.
- * @param {string[]} parameters Callable parameters.
- * @param {Map<string, Record<string, any>>} definitions Class definitions.
- * @param {string} methodName Initial method name.
- * @returns {string[]} Sorted option paths.
- */
-function optionNames(source, parameters, definitions, methodName) {
-    const initial = optionParameterNames(parameters)
-    if (!initial.length) return []
-    const options = new Set()
-    const visited = new Set()
-    const fallback = {
-        name: methodName,
-        parameters,
-        source,
-        body: source,
-        jsdoc: ''
-    }
-
-    /**
-     * Visits one internal callable with the option-bearing parameter names.
-     * @param {Record<string, any>} definition Method definition.
-     * @param {Set<string>} tainted Option-bearing parameter names.
-     * @returns {void}
-     */
-    function visit(definition, tainted) {
-        const key = `${definition.name}:${[...tainted].sort().join(',')}`
-        if (visited.has(key)) return
-        visited.add(key)
-        for (const parameter of tainted) {
-            for (const name of propertyReads(definition.source, parameter)) {
-                options.add(name)
-            }
-            for (const name of documentedParameterFields(
-                definition.jsdoc,
-                parameter
-            )) {
-                options.add(name)
-            }
-        }
-        for (const call of methodCalls(definition.body)) {
-            const callee = definitions.get(call.name)
-            if (!callee) continue
-            const nextTainted = new Set()
-            call.arguments.forEach((argument, index) => {
-                if (![...tainted].some((name) => references(argument, name))) {
-                    return
-                }
-                const calleeName = parameterName(callee.parameters[index])
-                if (calleeName) nextTainted.add(calleeName)
-                for (const field of objectExpressionFields(argument)) {
-                    options.add(field)
-                }
-            })
-            if (nextTainted.size) visit(callee, nextTainted)
-        }
-    }
-
-    visit(definitions.get(methodName) || fallback, new Set(initial))
-    return [...options].sort()
-}
-
-/**
- * Collects direct, documented, and delegated result field paths.
- * @param {string} source Callable source.
- * @param {Map<string, Record<string, any>>} definitions Class definitions.
- * @param {string} methodName Initial method name.
- * @returns {string[]} Sorted result paths.
- */
-function resultFields(source, definitions, methodName) {
-    const fields = new Set()
-    const visited = new Set()
-    const fallback = {
-        name: methodName,
-        source,
-        body: source,
-        jsdoc: ''
-    }
-
-    /**
-     * Visits one result-producing method.
-     * @param {Record<string, any>} definition Method definition.
-     * @returns {void}
-     */
-    function visit(definition) {
-        if (visited.has(definition.name)) return
-        visited.add(definition.name)
-        for (const field of returnObjectPaths(definition.source)) {
-            fields.add(field)
-        }
-        for (const field of documentedReturnFields(definition.jsdoc)) {
-            fields.add(field)
-        }
-        for (const call of methodCalls(definition.body)) {
-            const prefix = definition.body.slice(
-                Math.max(0, call.index - 48),
-                call.index
-            )
-            if (!/\breturn\s*(?:await\s*)?$/u.test(prefix)) continue
-            const callee = definitions.get(call.name)
-            if (callee) visit(callee)
-        }
-    }
-
-    visit(definitions.get(methodName) || fallback)
-    return [...fields].sort()
-}
-
-/**
  * Extends wrapper callables with contracts delegated to other public exports.
  * @param {Record<string, any>[]} exports Captured export contracts.
- * @param {Record<string, any>} api Imported module namespace.
+ * @param {Record<string, any>} runtimeValues Runtime values by source name.
+ * @param {object | null} registry Exact module registry.
  * @returns {void}
  */
-function extendDelegatedContracts(exports, api) {
-    const exportsByName = new Map(
-        exports.map((exported) => [exported.name, exported])
-    )
+function extendDelegatedContracts(exports, runtimeValues, registry) {
+    if (!registry) return
+    const contractsByValue = new Map()
+    for (const exported of exports) {
+        const value = runtimeValues[exported.name]
+        if (!contractsByValue.has(value)) {
+            contractsByValue.set(value, exported)
+        }
+    }
+    const edgesByCallable = new Map()
+    for (const exported of exports) {
+        const value = runtimeValues[exported.name]
+        for (const callable of exported.callables) {
+            edgesByCallable.set(
+                callable,
+                KicadDelegatedCallAnalyzer.capture(registry, value, callable)
+            )
+        }
+    }
     let changed = true
     while (changed) {
         changed = false
         for (const exported of exports) {
             for (const callable of exported.callables) {
-                const source = exportedCallableSource(
-                    api[exported.name],
-                    callable
-                )
-                const optionParameters = optionParameterNames(
-                    callable.parameters
-                )
-                for (const call of methodCalls(source)) {
-                    const delegate = exportsByName
-                        .get(call.owner)
-                        ?.callables.find(
-                            (candidate) => candidate.name === call.name
-                        )
-                    if (!delegate) continue
-                    const delegatedOptions = delegatedOptionFields(
-                        call,
-                        optionParameters,
-                        delegate
+                for (const edge of edgesByCallable.get(callable) || []) {
+                    const delegateOwner = contractsByValue.get(edge.targetValue)
+                    const delegate = delegateOwner?.callables.find(
+                        (candidate) => candidate.name === edge.methodName
                     )
-                    if (mergeFields(callable.options, delegatedOptions)) {
-                        changed = true
-                    }
+                    if (!delegate) continue
                     if (
-                        returnedCall(source, call.index) &&
                         mergeFields(
-                            callable.resultFields,
-                            delegate.resultFields
+                            callable.options,
+                            delegatedOptionFields(edge, delegate)
                         )
                     ) {
+                        changed = true
+                    }
+                    if (!edge.returned) continue
+                    const returnedFields = edge.contextResolved
+                        ? edge.returnedFields
+                        : delegate.resultFields
+                    if (mergeFields(callable.resultFields, returnedFields)) {
                         changed = true
                     }
                 }
@@ -523,62 +513,23 @@ function extendDelegatedContracts(exports, api) {
 }
 
 /**
- * Returns source for one callable belonging to an exported runtime value.
- * @param {unknown} value Exported runtime value.
- * @param {Record<string, any>} callable Captured callable contract.
- * @returns {string} Callable source or an empty string.
- */
-function exportedCallableSource(value, callable) {
-    if (typeof value !== 'function') return ''
-    if (callable.methodType === 'function') {
-        return Function.prototype.toString.call(value)
-    }
-    if (callable.methodType === 'constructor') {
-        return (
-            methodDefinitions(Function.prototype.toString.call(value)).get(
-                'constructor'
-            )?.source || ''
-        )
-    }
-    const owner = callable.methodType === 'static' ? value : value.prototype
-    const method = Object.getOwnPropertyDescriptor(owner, callable.name)?.value
-    return typeof method === 'function'
-        ? Function.prototype.toString.call(method)
-        : ''
-}
-
-/**
  * Returns delegated options whose target parameter receives wrapper options.
- * @param {{ owner: string, name: string, arguments: string[], index: number }} call Parsed method call.
- * @param {string[]} callerOptions Option-bearing wrapper parameters.
+ * @param {object} edge Exact delegated call edge.
  * @param {Record<string, any>} delegate Delegated callable contract.
  * @returns {string[]} Delegated option fields.
  */
-function delegatedOptionFields(call, callerOptions, delegate) {
-    const delegatedParameters = new Set(
-        optionParameterNames(delegate.parameters)
-    )
-    const receivesOptions = delegate.parameters.some((parameter, index) => {
-        const delegatedName = parameterName(parameter)
-        if (!delegatedParameters.has(delegatedName)) return false
-        const argument = call.arguments[index] || ''
-        return callerOptions.some((name) => forwardsParameter(argument, name))
+function delegatedOptionFields(edge, delegate) {
+    const fields = []
+    delegate.parameters.forEach((parameter, index) => {
+        if (!isOptionParameter(parameter)) return
+        for (const origin of edge.argumentOrigins[index] || []) {
+            for (const option of delegate.options) {
+                if (origin.excluded.has(option.split('.')[0])) continue
+                fields.push([...origin.path, option].filter(Boolean).join('.'))
+            }
+        }
     })
-    return receivesOptions ? delegate.options : []
-}
-
-/**
- * Returns whether an argument forwards a parameter without narrowing fields.
- * @param {string} argument Call argument source.
- * @param {string} parameter Caller parameter name.
- * @returns {boolean} Whether the full parameter contract is forwarded.
- */
-function forwardsParameter(argument, parameter) {
-    const value = argument.trim()
-    if (value === parameter) return true
-    if (!value.startsWith('{')) return false
-    const spread = new RegExp(`\\.\\.\\.\\s*${escapeRegExp(parameter)}\\b`, 'u')
-    return spread.test(value)
+    return fields
 }
 
 /**
@@ -595,217 +546,15 @@ function mergeFields(target, additions) {
 }
 
 /**
- * Returns whether a parsed call is the value of a return statement.
- * @param {string} source Callable source.
- * @param {number} index Call start index.
- * @returns {boolean} Whether the call is returned directly.
+ * Returns whether one parameter carries named options.
+ * @param {string} parameter Parameter source.
+ * @returns {boolean} Option-bearing flag.
  */
-function returnedCall(source, index) {
-    const prefix = source.slice(Math.max(0, index - 48), index)
-    return /\breturn\s*(?:await\s*)?$/u.test(prefix)
-}
-
-/**
- * Parses class method calls and their arguments.
- * @param {string} source Method body.
- * @returns {{ owner: string, name: string, arguments: string[], index: number }[]} Calls.
- */
-function methodCalls(source) {
-    const calls = []
-    const pattern =
-        /\b(this|[A-Za-z_$][\w$]*)\s*(?:\?\.)?\.\s*(#?[A-Za-z_$][\w$]*)\s*\(/gu
-    for (const match of source.matchAll(pattern)) {
-        const opening = match.index + match[0].lastIndexOf('(')
-        const closing = closingDelimiter(source, opening, '(', ')')
-        if (closing < 0) continue
-        calls.push({
-            owner: match[1],
-            name: match[2],
-            arguments: splitTopLevel(source.slice(opening + 1, closing)),
-            index: match.index
-        })
-    }
-    return calls
-}
-
-/**
- * Returns option-like parameter identifiers.
- * @param {string[]} parameters Parameter declarations.
- * @returns {string[]} Option parameter names.
- */
-function optionParameterNames(parameters) {
-    return parameters
-        .map(parameterName)
-        .filter((name) =>
-            /(?:args|config|options?|request|settings)$/iu.test(name)
-        )
-}
-
-/**
- * Returns one simple identifier from a parameter declaration.
- * @param {string | undefined} parameter Parameter declaration.
- * @returns {string} Identifier or empty string.
- */
-function parameterName(parameter) {
-    const match = String(parameter || '')
-        .trim()
-        .match(/^(?:\.\.\.)?([A-Za-z_$][\w$]*)/u)
-    return match?.[1] || ''
-}
-
-/**
- * Finds property reads rooted at one identifier.
- * @param {string} source Source text.
- * @param {string} identifier Root identifier.
- * @returns {string[]} Property names.
- */
-function propertyReads(source, identifier) {
-    const pattern = new RegExp(
-        `\\b${escapeRegExp(identifier)}\\s*(?:\\?\\.\\s*|\\.\\s*)([A-Za-z_$][\\w$]*)`,
-        'gu'
-    )
-    return Array.from(source.matchAll(pattern), (match) => match[1])
-}
-
-/**
- * Returns documented object fields for one JSDoc parameter.
- * @param {string} jsdoc JSDoc block.
- * @param {string} parameter Parameter name.
- * @returns {string[]} Field paths.
- */
-function documentedParameterFields(jsdoc, parameter) {
-    const rows = jsdocTags(jsdoc, 'param')
-    const row = rows.find((entry) => entry.name === parameter)
-    return row ? objectTypePaths(row.type) : []
-}
-
-/**
- * Returns documented JSDoc result field paths.
- * @param {string} jsdoc JSDoc block.
- * @returns {string[]} Result paths.
- */
-function documentedReturnFields(jsdoc) {
-    const row = jsdocTags(jsdoc, 'returns')[0]
-    return row ? objectTypePaths(row.type) : []
-}
-
-/**
- * Parses JSDoc tags with balanced type braces.
- * @param {string} jsdoc JSDoc block.
- * @param {'param' | 'returns'} tag Tag name.
- * @returns {{ type: string, name: string }[]} Parsed tags.
- */
-function jsdocTags(jsdoc, tag) {
-    const rows = []
-    const pattern = new RegExp(`@${tag}\\s*\\{`, 'gu')
-    for (const match of jsdoc.matchAll(pattern)) {
-        const opening = match.index + match[0].lastIndexOf('{')
-        const closing = closingDelimiter(jsdoc, opening, '{', '}')
-        if (closing < 0) continue
-        const remainder = jsdoc.slice(closing + 1).match(/^\s*\[?([\w$]+)/u)
-        rows.push({
-            type: jsdoc.slice(opening + 1, closing).trim(),
-            name: tag === 'param' ? remainder?.[1] || '' : ''
-        })
-    }
-    return rows
-}
-
-/**
- * Expands a JSDoc object type to nested field paths.
- * @param {string} type JSDoc type expression.
- * @param {string} [prefix] Parent path.
- * @returns {string[]} Field paths.
- */
-function objectTypePaths(type, prefix = '') {
-    const start = type.indexOf('{')
-    if (start < 0) return []
-    const end = closingDelimiter(type, start, '{', '}')
-    if (end < 0) return []
-    const fields = []
-    for (const declaration of splitTopLevel(type.slice(start + 1, end))) {
-        const match = declaration.match(
-            /^\s*([A-Za-z_$][\w$]*)(?:\?)?\s*:\s*([\s\S]+)$/u
-        )
-        if (!match) continue
-        const path = prefix ? `${prefix}.${match[1]}` : match[1]
-        fields.push(path)
-        fields.push(...objectTypePaths(match[2], path))
-    }
-    return fields
-}
-
-/**
- * Collects nested paths from returned object literals.
- * @param {string} source Callable source.
- * @returns {string[]} Result paths.
- */
-function returnObjectPaths(source) {
-    return returnObjectContracts(source).flatMap((row) => row.paths)
-}
-
-/**
- * Parses returned object literals with literal message types.
- * @param {string} source Source text.
- * @returns {{ fields: string[], paths: string[], literalType: string }[]} Object contracts.
- */
-function returnObjectContracts(source) {
-    const rows = []
-    for (const match of source.matchAll(/\breturn\s*\{/gu)) {
-        const opening = match.index + match[0].lastIndexOf('{')
-        const closing = closingDelimiter(source, opening, '{', '}')
-        if (closing < 0) continue
-        const parsed = objectLiteralPaths(source.slice(opening + 1, closing))
-        const literalType = source
-            .slice(opening + 1, closing)
-            .match(/(?:^|,)\s*type\s*:\s*['"]([^'"]+)['"]/u)?.[1]
-        rows.push({
-            fields: parsed.filter((path) => !path.includes('.')).sort(),
-            paths: parsed,
-            literalType: literalType || ''
-        })
-    }
-    return rows
-}
-
-/**
- * Expands one object-literal body to nested field paths.
- * @param {string} source Object body.
- * @param {string} [prefix] Parent path.
- * @returns {string[]} Field paths.
- */
-function objectLiteralPaths(source, prefix = '') {
-    const fields = []
-    for (const declaration of splitTopLevel(source)) {
-        const match = declaration.match(
-            /^\s*([A-Za-z_$][\w$]*)\s*(?::\s*([\s\S]+))?$/u
-        )
-        if (!match) continue
-        const path = prefix ? `${prefix}.${match[1]}` : match[1]
-        fields.push(path)
-        const value = match[2]?.trim() || ''
-        if (value.startsWith('{')) {
-            const closing = closingDelimiter(value, 0, '{', '}')
-            if (closing >= 0) {
-                fields.push(
-                    ...objectLiteralPaths(value.slice(1, closing), path)
-                )
-            }
-        }
-    }
-    return fields
-}
-
-/**
- * Returns object-literal keys from an option-bearing call argument.
- * @param {string} argument Call argument.
- * @returns {string[]} Literal option fields.
- */
-function objectExpressionFields(argument) {
-    const value = argument.trim()
-    if (!value.startsWith('{')) return []
-    const closing = closingDelimiter(value, 0, '{', '}')
-    return closing < 0 ? [] : objectLiteralPaths(value.slice(1, closing))
+function isOptionParameter(parameter) {
+    const source = String(parameter || '').trim()
+    if (source.startsWith('{')) return true
+    const name = source.match(/^(?:\.\.\.)?([A-Za-z_$][\w$]*)/u)?.[1] || ''
+    return /(?:args|config|options?|request|settings)$/iu.test(name)
 }
 
 /**
@@ -888,39 +637,4 @@ function precedingJsdoc(source, start) {
     if (end < 0 || source.slice(end + 2, start).trim()) return ''
     const opening = source.lastIndexOf('/**', end)
     return opening < 0 ? '' : source.slice(opening, end + 2)
-}
-
-/**
- * Returns whether source references one identifier.
- * @param {string} source Source expression.
- * @param {string} identifier Identifier.
- * @returns {boolean} Whether the identifier is referenced.
- */
-function references(source, identifier) {
-    return new RegExp(`\\b${escapeRegExp(identifier)}\\b`, 'u').test(source)
-}
-
-/**
- * Escapes a string for a regular expression.
- * @param {string} value Literal value.
- * @returns {string} Escaped value.
- */
-function escapeRegExp(value) {
-    return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
-}
-
-/**
- * Determines whether a worker request field is required.
- * @param {string} source Worker source.
- * @param {string} name Field name.
- * @returns {boolean} Required-field flag.
- */
-function workerRequestFieldRequired(source, name) {
-    if (name === 'type') return true
-    const access = `message\\s*(?:\\?\\.\\s*|\\.\\s*)${escapeRegExp(name)}`
-    const fallback = new RegExp(`${access}\\s*(?:\\|\\||\\?\\?)`, 'u')
-    if (fallback.test(source)) return false
-    return new RegExp(`message\\s*\\.\\s*${escapeRegExp(name)}`, 'u').test(
-        source
-    )
 }

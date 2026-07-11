@@ -6,11 +6,20 @@ SPDX-License-Identifier: CC-BY-SA-4.0
 
 # Library Scope
 
-KiCad Toolkit provides reusable native KiCad parsing and non-interactive
-rendering primitives.
+KiCad Toolkit is the KiCad source adapter in the common ECAD toolkit family.
+Its default boundary is a canonical CircuitJSON document or project envelope;
+the complete native parsing, reporting, export, renderer, and scene APIs remain
+available through explicit extensions.
 
 ## In Scope
 
+- Exact common root names, package layout, parser/project parameters, immutable
+  return envelopes, typed errors, progress, cancellation, workers, archive
+  limits, assets, and capability discovery
+- Shared CircuitJSON rendering, interaction, query, manufacturing, simulation,
+  and 3D scene services
+- Dense `{ name, data }` project entries and bounded internal ZIP expansion
+- Complete 1.0.29 native API preservation under `/extensions`
 - `.kicad_sch`, `.kicad_pcb`, `.kicad_mod`, `.kicad_sym`,
   `.kicad_jobset`, `.kicad_dru`, `.kicad_wks`, `.net`, `.cmp`, legacy
   `.lib`/`.dcm`/`.mod`, `fp-lib-table`, and `sym-lib-table` parsing from

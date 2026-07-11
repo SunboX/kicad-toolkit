@@ -12,7 +12,7 @@ import {
     SchematicOwnerPinLabelLayout,
     SchematicSvgUtils,
     SchematicTypography
-} from '../../src/renderers.mjs'
+} from '../../src/legacy-renderers.mjs'
 
 test('PcbArcUtils exposes deterministic KiCad arc geometry helpers', () => {
     assert.equal(PcbArcUtils.resolveSweepDelta(350, 10), 20)

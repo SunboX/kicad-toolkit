@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadParser } from '../../src/parser.mjs'
+import { KicadParser } from '../../src/legacy-parser.mjs'
 
 test('KicadParser uses KiCad default A3 drawing-sheet zones', () => {
     const document = KicadParser.parseArrayBuffer(

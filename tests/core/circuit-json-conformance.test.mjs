@@ -6,7 +6,7 @@ import test from 'node:test'
 import {
     CircuitJsonConformanceChecker,
     CircuitJsonModelAdapter
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 /**
  * Returns Circuit JSON source nets keyed by their preserved source label.

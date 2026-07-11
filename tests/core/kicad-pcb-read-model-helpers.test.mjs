@@ -16,7 +16,7 @@ import {
     KicadPcbRouteAnalysisBuilder,
     KicadPcbStatisticsBuilder,
     KicadSchematicHierarchyGraphBuilder
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadPcbRouteAnalysisBuilder groups routed copper by net and layer', () => {
     const report = KicadPcbRouteAnalysisBuilder.build(createPcbModel().pcb)

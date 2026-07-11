@@ -8,7 +8,7 @@ import {
     PcbSvgRenderer,
     SchematicRenderOpsSidecarBuilder,
     SchematicSvgRenderer
-} from '../../src/renderers.mjs'
+} from '../../src/legacy-renderers.mjs'
 
 /**
  * Decodes one SVG metadata JSON block.

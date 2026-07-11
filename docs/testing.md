@@ -10,10 +10,20 @@ Run the complete suite:
 
 ```bash
 npm test
+npm run check:features -- --strict
+npm run benchmark
+npm run check:format
 ```
 
 The tests cover:
 
+- the exact shared root/package contract, canonical document and project
+  envelopes, direct ZIP loading, common services, workers, progress,
+  cancellation, archive safety, and typed errors
+- exhaustive provenance-bound preservation of the native 1.0.29 API from the
+  packed extension namespace
+- historical native regression comparisons plus absolute runtime ceilings for
+  the new canonical parser and project paths
 - S-expression parsing and KiCad source decoding for `.kicad_sch` and
   `.kicad_pcb` entrypoints
 - KiCad project ZIP expansion, project summary recovery, hierarchical sheet

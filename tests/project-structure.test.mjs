@@ -7,7 +7,7 @@ import { constants } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 import { ExampleServer } from '../examples/server.mjs'
-import { NormalizedModelSchema } from '../src/parser.mjs'
+import { NormalizedModelSchema } from '../src/legacy-parser.mjs'
 
 const root = new URL('../', import.meta.url)
 
@@ -43,7 +43,12 @@ test('required project files exist', async () => {
         'spec/library-scope.md',
         'docs/api.md',
         'docs/capabilities.md',
+        'docs/migration.md',
         'docs/model-format.md',
+        'docs/native-api.md',
+        'docs/native-capabilities.md',
+        'docs/native-model-format.md',
+        'docs/release-notes-v1.1.0.md',
         'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json',
         'docs/schemas/kicad_toolkit/project_bundle_a1.schema.json',
         'docs/schemas/kicad_toolkit/netlist_a1.schema.json',
@@ -85,9 +90,9 @@ test('required project files exist', async () => {
         'examples/rp2040-minimal-design/index.html',
         'examples/rp2040-minimal-design/example.mjs',
         'examples/rp2040-minimal-design/styles.css',
-        'src/index.mjs',
-        'src/parser.mjs',
-        'src/renderers.mjs',
+        'src/extensions.mjs',
+        'src/legacy-parser.mjs',
+        'src/legacy-renderers.mjs',
         'src/styles/kicad-renderers.css',
         'src/core/kicad/Geometry.mjs',
         'src/core/kicad/KicadAuxiliaryParserRouter.mjs',
@@ -241,7 +246,7 @@ test('example server redirects root requests to the default example URL', async 
 /**
  * Verifies browser examples resolve package dependencies without bundling.
  */
-test('browser examples that import the package root map fflate for browsers', async () => {
+test('browser extension examples map their bare package dependencies', async () => {
     const exampleSlugs = ['rp2040-minimal-design']
 
     for (const slug of exampleSlugs) {
@@ -254,12 +259,17 @@ test('browser examples that import the package root map fflate for browsers', as
             'utf8'
         )
 
-        if (!source.includes('../../src/index.mjs')) continue
+        if (!source.includes('../../src/extensions.mjs')) continue
 
         assert.match(
             html,
             /"fflate":\s*"\.\.\/\.\.\/node_modules\/fflate\/esm\/browser\.js"/,
             slug + ' must provide a browser import map for fflate'
+        )
+        assert.match(
+            html,
+            /"circuitjson-toolkit\/extensions":\s*"\.\.\/\.\.\/node_modules\/circuitjson-toolkit\/src\/extensions\.mjs"/,
+            slug + ' must map the shared browser extension entrypoint'
         )
     }
 })
@@ -315,61 +325,73 @@ test('package declares GPL and commercial licensing notices', async () => {
 /**
  * Verifies public exports mirror the Altium Toolkit entrypoint shape.
  */
-test('package exposes root parser renderer and style entrypoints', async () => {
+test('package exposes common and native extension entrypoints', async () => {
     const pkg = JSON.parse(
         await readFile(new URL('package.json', root), 'utf8')
     )
 
     assert.equal(pkg.exports['.'], './src/index.mjs')
     assert.equal(pkg.exports['./parser'], './src/parser.mjs')
-    assert.equal(pkg.exports['./node'], './src/node.mjs')
+    assert.equal(pkg.exports['./project'], './src/project.mjs')
     assert.equal(pkg.exports['./renderers'], './src/renderers.mjs')
     assert.equal(pkg.exports['./scene3d'], './src/scene3d.mjs')
+    assert.equal(pkg.exports['./extensions'], './src/extensions.mjs')
+    assert.equal(pkg.exports['./extensions/node'], './src/legacy-node.mjs')
     assert.equal(
-        pkg.exports['./workers/kicad-parser.worker.mjs'],
+        pkg.exports['./extensions/workers/kicad-parser.worker.mjs'],
         './src/workers/kicad-parser.worker.mjs'
     )
     assert.equal(
-        pkg.exports['./styles/kicad-renderers.css'],
+        pkg.exports['./extensions/styles/kicad-renderers.css'],
         './src/styles/kicad-renderers.css'
     )
 })
 
 /**
- * Verifies the public API docs describe the Altium-style entrypoint usage.
+ * Verifies the common and native API references document their public paths.
  */
-test('API docs describe Altium-style KiCad entrypoints', async () => {
+test('API docs describe common and native KiCad entrypoints', async () => {
     const apiDocs = await readFile(new URL('docs/api.md', root), 'utf8')
+    const nativeApiDocs = await readFile(
+        new URL('docs/native-api.md', root),
+        'utf8'
+    )
 
+    assert.match(apiDocs, /CircuitJsonDocumentContext/)
+    assert.match(apiDocs, /Parser\.parseAsync/)
+    assert.match(apiDocs, /ProjectLoader\.loadAsync/)
     assert.match(apiDocs, /kicad-toolkit\/scene3d/)
-    assert.match(apiDocs, /kicad-toolkit\/workers\/kicad-parser\.worker\.mjs/)
-    assert.match(apiDocs, /NormalizedModelSchema/)
-    assert.match(apiDocs, /preparePcbSideResolvedRenderModel/)
-    assert.match(apiDocs, /PcbScene3dPackages/)
-    assert.match(apiDocs, /KicadToolkitCapabilities/)
-    assert.match(apiDocs, /KicadFeatureParity/)
-    assert.match(apiDocs, /KicadReadinessReport/)
-    assert.match(apiDocs, /KicadProjectMetadataParser/)
-    assert.match(apiDocs, /KicadProjectDocumentGraphBuilder/)
-    assert.match(apiDocs, /KicadCiArtifactBundleBuilder/)
-    assert.match(apiDocs, /KicadSvgModelCrossLinkValidator/)
-    assert.match(apiDocs, /KicadParserCompatibilityFuzzer/)
-    assert.match(apiDocs, /KicadPcbRouteAnalysisBuilder/)
-    assert.match(apiDocs, /KicadPcbStatisticsBuilder/)
-    assert.match(apiDocs, /KicadPcbPickPlacePositionResolver/)
-    assert.match(apiDocs, /KicadPcbOwnershipGraphBuilder/)
-    assert.match(apiDocs, /KicadSchematicHierarchyGraphBuilder/)
-    assert.match(apiDocs, /KicadSvgUtils/)
-    assert.match(apiDocs, /PcbArcUtils/)
-    assert.match(apiDocs, /PcbFootprintPrimitiveSelector/)
-    assert.match(apiDocs, /PcbSvgSemanticMetadata/)
-    assert.match(apiDocs, /SchematicColorResolver/)
-    assert.match(apiDocs, /SchematicProjectParameterResolver/)
-    assert.match(apiDocs, /SchematicSvgUtils/)
-    assert.match(apiDocs, /SchematicSvgTextMetrics/)
-    assert.match(apiDocs, /SchematicTypography/)
-    assert.match(apiDocs, /ProjectDesignBundleBuilder/)
-    assert.match(apiDocs, /ProjectNetlistExporter/)
+    assert.match(apiDocs, /kicad-toolkit\/workers\/parser\.worker\.mjs/)
+    assert.match(apiDocs, /PcbScene3dPreparator/)
+    assert.match(apiDocs, /kicad-toolkit\/extensions/)
+
+    assert.match(nativeApiDocs, /NormalizedModelSchema/)
+    assert.match(nativeApiDocs, /preparePcbSideResolvedRenderModel/)
+    assert.match(nativeApiDocs, /PcbScene3dPackages/)
+    assert.match(nativeApiDocs, /KicadToolkitCapabilities/)
+    assert.match(nativeApiDocs, /KicadFeatureParity/)
+    assert.match(nativeApiDocs, /KicadReadinessReport/)
+    assert.match(nativeApiDocs, /KicadProjectMetadataParser/)
+    assert.match(nativeApiDocs, /KicadProjectDocumentGraphBuilder/)
+    assert.match(nativeApiDocs, /KicadCiArtifactBundleBuilder/)
+    assert.match(nativeApiDocs, /KicadSvgModelCrossLinkValidator/)
+    assert.match(nativeApiDocs, /KicadParserCompatibilityFuzzer/)
+    assert.match(nativeApiDocs, /KicadPcbRouteAnalysisBuilder/)
+    assert.match(nativeApiDocs, /KicadPcbStatisticsBuilder/)
+    assert.match(nativeApiDocs, /KicadPcbPickPlacePositionResolver/)
+    assert.match(nativeApiDocs, /KicadPcbOwnershipGraphBuilder/)
+    assert.match(nativeApiDocs, /KicadSchematicHierarchyGraphBuilder/)
+    assert.match(nativeApiDocs, /KicadSvgUtils/)
+    assert.match(nativeApiDocs, /PcbArcUtils/)
+    assert.match(nativeApiDocs, /PcbFootprintPrimitiveSelector/)
+    assert.match(nativeApiDocs, /PcbSvgSemanticMetadata/)
+    assert.match(nativeApiDocs, /SchematicColorResolver/)
+    assert.match(nativeApiDocs, /SchematicProjectParameterResolver/)
+    assert.match(nativeApiDocs, /SchematicSvgUtils/)
+    assert.match(nativeApiDocs, /SchematicSvgTextMetrics/)
+    assert.match(nativeApiDocs, /SchematicTypography/)
+    assert.match(nativeApiDocs, /ProjectDesignBundleBuilder/)
+    assert.match(nativeApiDocs, /ProjectNetlistExporter/)
 })
 
 /**
@@ -381,8 +403,16 @@ test('model docs publish the normalized model JSON schema contract', async () =>
         new URL('docs/model-format.md', root),
         'utf8'
     )
+    const nativeModelDocs = await readFile(
+        new URL('docs/native-model-format.md', root),
+        'utf8'
+    )
     const capabilityDocs = await readFile(
         new URL('docs/capabilities.md', root),
+        'utf8'
+    )
+    const nativeCapabilityDocs = await readFile(
+        new URL('docs/native-capabilities.md', root),
         'utf8'
     )
     const packageConfig = JSON.parse(
@@ -400,12 +430,17 @@ test('model docs publish the normalized model JSON schema contract', async () =>
 
     assert.match(readme, /Normalized Model Schema/)
     assert.match(readme, /Capabilities/)
-    assert.match(modelDocs, /Schema Contracts/)
-    assert.match(modelDocs, /Helper Report Fields/)
-    assert.match(capabilityDocs, /Capability Inventory/)
-    assert.match(capabilityDocs, /Feature Parity Inventory/)
-    assert.match(capabilityDocs, /Source-Format Exemptions/)
-    assert.match(capabilityDocs, /Fabrication Readiness/)
+    assert.match(modelDocs, /ecad-toolkit\.document\.v1/)
+    assert.match(modelDocs, /dense CircuitJSON array/)
+    assert.match(modelDocs, /Native Model Format/)
+    assert.match(nativeModelDocs, /Schema Contracts/)
+    assert.match(nativeModelDocs, /Helper Report Fields/)
+    assert.match(capabilityDocs, /ToolkitCapabilities\.inventory/)
+    assert.match(capabilityDocs, /shared CircuitJSON services/)
+    assert.match(nativeCapabilityDocs, /Capability Inventory/)
+    assert.match(nativeCapabilityDocs, /Feature Parity Inventory/)
+    assert.match(nativeCapabilityDocs, /Source-Format Exemptions/)
+    assert.match(nativeCapabilityDocs, /Fabrication Readiness/)
     assert.equal(schema.$id, NormalizedModelSchema.CURRENT_SCHEMA_ID)
     assert.equal(schema.properties.schema.const, schema.$id)
     assert.deepEqual(schema.properties.kind.enum, [

@@ -7,7 +7,7 @@ import {
     KicadParser,
     KicadPcbParser,
     KicadProjectMetadataParser
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadProjectMetadataParser exposes KiCad project JSON metadata', () => {
     const metadata = KicadProjectMetadataParser.parse(projectSource(), {

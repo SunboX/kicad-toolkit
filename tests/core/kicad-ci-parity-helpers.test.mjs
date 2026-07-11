@@ -9,8 +9,8 @@ import {
     KicadParserCompatibilityFuzzer,
     KicadProjectDocumentGraphBuilder,
     KicadSvgModelCrossLinkValidator
-} from '../../src/parser.mjs'
-import { SchematicSvgRenderer } from '../../src/renderers.mjs'
+} from '../../src/legacy-parser.mjs'
+import { SchematicSvgRenderer } from '../../src/legacy-renderers.mjs'
 
 test('KicadProjectDocumentGraphBuilder indexes project documents libraries jobsets and outputs', () => {
     const graph = KicadProjectDocumentGraphBuilder.build(createProjectModel(), {

@@ -13,7 +13,10 @@ export class KicadSchematicNetBuilder {
     static build(schematic) {
         const diagnostics = []
         const wireLines = (schematic.lines || []).filter(
-            (line) => !line.ownerIndex && line.isBus !== true
+            (line) =>
+                line.sourceType === 'wire' &&
+                !line.ownerIndex &&
+                line.isBus !== true
         )
         const groups = KicadSchematicNetBuilder.#groupConnectedSegments(
             wireLines,

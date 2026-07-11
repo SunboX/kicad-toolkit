@@ -3,15 +3,35 @@
 
 import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import {
+    access,
+    lstat,
+    mkdtemp,
+    readFile,
+    realpath,
+    rm,
+    writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, join, resolve } from 'node:path'
+import {
+    basename,
+    isAbsolute,
+    join,
+    relative as relativePath,
+    resolve
+} from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { isDeepStrictEqual, promisify } from 'node:util'
 
 import { KicadApiContractInspector } from './KicadApiContractInspector.mjs'
+import { KicadApprovedBaselineProvenance } from './KicadApprovedBaselineProvenance.mjs'
+import { KicadFeatureEvidence } from './KicadFeatureEvidence.mjs'
+import { KicadModuleContractRegistry } from './KicadModuleContractRegistry.mjs'
 
 const execFileAsync = promisify(execFile)
+const moduleDelegates = new WeakMap()
+const inspectedEntrypoints = new WeakMap()
+const packedJavascript = new Map()
 const TOOLKITS = [
     'altium-toolkit',
     'circuitjson-toolkit',
@@ -28,6 +48,39 @@ const FEATURE_KINDS = new Set([
     'option',
     'worker-message'
 ])
+const CONVERGED_PACKAGE_EXPORTS = Object.freeze({
+    '.': './src/index.mjs',
+    './parser': './src/parser.mjs',
+    './project': './src/project.mjs',
+    './renderers': './src/renderers.mjs',
+    './interaction': './src/interaction.mjs',
+    './query': './src/query.mjs',
+    './manufacturing': './src/manufacturing.mjs',
+    './simulation': './src/simulation.mjs',
+    './scene3d': './src/scene3d.mjs',
+    './capabilities': './src/capabilities.mjs',
+    './extensions': './src/extensions.mjs',
+    './testing': './src/testing.mjs',
+    './workers/parser.worker.mjs': './src/workers/parser.worker.mjs',
+    './styles/renderers.css': './src/styles/renderers.css',
+    './extensions/node': './src/legacy-node.mjs',
+    './extensions/netlist-query': './src/legacy-netlist-query.mjs',
+    './extensions/workers/kicad-parser.worker.mjs':
+        './src/workers/kicad-parser.worker.mjs',
+    './extensions/styles/kicad-renderers.css':
+        './src/styles/kicad-renderers.css'
+})
+const LEGACY_TARGETS = Object.freeze({
+    '.': './src/legacy-index.mjs',
+    './parser': './src/legacy-parser.mjs',
+    './node': './src/legacy-node.mjs',
+    './netlist-query': './src/legacy-netlist-query.mjs',
+    './renderers': './src/legacy-renderers.mjs',
+    './scene3d': './src/legacy-scene3d.mjs',
+    './workers/kicad-parser.worker.mjs':
+        './src/workers/kicad-parser.worker.mjs',
+    './styles/kicad-renderers.css': './src/styles/kicad-renderers.css'
+})
 const MAPPING_FIELDS = [
     'feature',
     'kind',
@@ -190,29 +243,33 @@ async function validatePackedManifest(baseline, packageRoot) {
     )
     if (
         packedPackage.name !== baseline.package ||
-        packedPackage.version !== baseline.packageVersion
+        !isConvergedVersion(packedPackage.version, baseline.packageVersion)
     ) {
         throw new Error('Packed package identity differs from baseline.')
     }
-    if (!isDeepStrictEqual(packedPackage.exports, packageExports)) {
-        throw new Error('Packed package exports differ from baseline.')
+    if (!isDeepStrictEqual(packedPackage.exports, CONVERGED_PACKAGE_EXPORTS)) {
+        throw new Error('Packed package exports differ from convergence map.')
     }
-    if (
-        packageExportsChecksum(packedPackage.exports) !==
-        baseline.packageExportsChecksum
-    ) {
-        throw new Error('Packed package exports differ from baseline checksum.')
-    }
-    if (
-        !isDeepStrictEqual(
-            packageExportInventory(packedPackage.exports),
-            entrypointInventory
-        )
-    ) {
-        throw new Error(
-            'Packed package export inventory differs from baseline.'
-        )
-    }
+}
+
+/**
+ * Requires one same-major minor-version convergence bump.
+ * @param {string} candidate Candidate package version.
+ * @param {string} baseline Historical package version.
+ * @returns {boolean} Whether the candidate is a valid convergence version.
+ */
+function isConvergedVersion(candidate, baseline) {
+    const current = String(candidate).split('.').map(Number)
+    const historical = String(baseline).split('.').map(Number)
+    return (
+        current.length === 3 &&
+        historical.length === 3 &&
+        current.every(Number.isSafeInteger) &&
+        historical.every(Number.isSafeInteger) &&
+        current[0] === historical[0] &&
+        (current[1] > historical[1] ||
+            (current[1] === historical[1] && current[2] > historical[2]))
+    )
 }
 
 /**
@@ -223,18 +280,37 @@ async function validatePackedManifest(baseline, packageRoot) {
  */
 function validatePackedApi(baseline, modules) {
     for (const entrypoint of baseline.entrypoints || []) {
-        if (entrypoint.kind === 'asset') continue
+        if (entrypoint.kind === 'asset') {
+            const current = modules.get(entrypoint.entrypoint)
+            if (
+                !isDeepStrictEqual(
+                    current?.assetContract,
+                    entrypoint.assetContract
+                )
+            ) {
+                throw new Error(
+                    `Packed asset contract differs for ${entrypoint.entrypoint}`
+                )
+            }
+            continue
+        }
         const module = modules.get(entrypoint.entrypoint)
         if (!module) {
             throw new Error(
                 `Packed entrypoint is missing: ${entrypoint.entrypoint}`
             )
         }
-        const actual = KicadApiContractInspector.entrypoint(
-            entrypoint.entrypoint,
-            entrypoint.target,
-            module
-        )
+        let actual = inspectedEntrypoints.get(module)
+        if (!actual) {
+            actual = KicadApiContractInspector.entrypoint(
+                entrypoint.entrypoint,
+                entrypoint.target,
+                module,
+                moduleDelegates.get(modules)?.get(entrypoint.entrypoint) ||
+                    module
+            )
+            inspectedEntrypoints.set(module, actual)
+        }
         const actualNames = actual.exports.map((row) => row.name)
         const expectedNames = entrypoint.exports.map((row) => row.name)
         if (!isDeepStrictEqual(actualNames, expectedNames)) {
@@ -317,7 +393,7 @@ async function validatePackedWorkerProtocol(baseline, packageRoot) {
         throw new Error('Worker protocol entrypoint is missing from baseline.')
     }
     const source = await readFile(
-        resolve(packageRoot, entrypoint.target),
+        resolve(packageRoot, legacyTarget(entrypoint)),
         'utf8'
     )
     const actual = KicadApiContractInspector.workerProtocol(
@@ -333,32 +409,104 @@ async function validatePackedWorkerProtocol(baseline, packageRoot) {
  * Validates every strict evidence path and source token.
  * @param {Record<string, any>[]} ledger Preservation ledger.
  * @param {string} repositoryRoot Repository root.
+ * @param {boolean} packageValidated Whether packed source contracts were checked.
  * @returns {Promise<void>}
  */
-async function validateEvidence(ledger, repositoryRoot) {
-    const cache = new Map()
+async function validateEvidence(ledger, repositoryRoot, packageValidated) {
+    const root = resolve(repositoryRoot)
+    const actualRoot = await realpath(root)
     for (const row of ledger) {
+        const declaration = KicadFeatureEvidence.verify(row)
+        const expectedMode = row.kind === 'behavior' ? 'inventory' : 'packed'
+        if (declaration.mode !== expectedMode) {
+            throw new Error(`Evidence mode differs for ${row.feature}`)
+        }
         const evidencePaths = [...row.tests, ...row.documentation]
         for (const relativePath of evidencePaths) {
-            const path = resolve(repositoryRoot, relativePath.split('#')[0])
-            await access(path).catch(() => {
-                throw new Error(`Missing evidence path: ${relativePath}`)
-            })
+            await confinedEvidencePath(root, actualRoot, relativePath)
         }
-        const references = await Promise.all(
-            evidencePaths.map(async (relativePath) => {
-                const path = resolve(repositoryRoot, relativePath.split('#')[0])
-                if (!cache.has(path))
-                    cache.set(path, await readFile(path, 'utf8'))
-                return cache.get(path).includes(row.evidenceToken)
-            })
-        )
-        if (!references.some(Boolean)) {
+        if (!packageValidated) {
             throw new Error(
-                `Evidence tests do not reference ${row.evidenceToken} for ${row.feature}`
+                `Packed contract validation is required for ${row.feature}`
             )
         }
     }
+}
+
+/**
+ * Binds every behavior row to its exact captured capability or parity record.
+ * @param {Record<string, any>} baseline API baseline.
+ * @param {Record<string, any>[]} ledger Preservation ledger.
+ * @returns {void}
+ */
+function validateBehaviorEvidence(baseline, ledger) {
+    const capabilities = new Map(
+        (baseline.capabilityInventory?.capabilities || []).map((row) => [
+            `capability#${row.id}`,
+            row
+        ])
+    )
+    const parity = new Map(
+        (baseline.featureInventory?.features || []).map((row) => [
+            `parity#${row.id}`,
+            row
+        ])
+    )
+    const expected = new Map([...capabilities, ...parity])
+    const behaviors = ledger.filter((row) => row.kind === 'behavior')
+    if (
+        !isDeepStrictEqual(
+            behaviors.map((row) => row.feature).sort(),
+            [...expected.keys()].sort()
+        )
+    ) {
+        throw new Error('Behavior evidence inventory differs from baseline.')
+    }
+    for (const row of behaviors) {
+        if (!isDeepStrictEqual(row.sourceContract, expected.get(row.feature))) {
+            throw new Error(`Behavior evidence differs for ${row.feature}`)
+        }
+    }
+}
+
+/**
+ * Resolves one evidence path without allowing lexical or symlink escapes.
+ * @param {string} root Lexical repository root.
+ * @param {string} actualRoot Canonical repository root.
+ * @param {string} evidencePath Repository-relative evidence path.
+ * @returns {Promise<string>} Canonical evidence file path.
+ */
+async function confinedEvidencePath(root, actualRoot, evidencePath) {
+    const pathWithoutAnchor = evidencePath.split('#')[0]
+    if (!pathWithoutAnchor || isAbsolute(pathWithoutAnchor)) {
+        throw new Error(`Evidence path escapes repository: ${evidencePath}`)
+    }
+    const lexicalPath = resolve(root, pathWithoutAnchor)
+    const lexicalRelative = relativePath(root, lexicalPath)
+    if (
+        lexicalRelative === '..' ||
+        lexicalRelative.startsWith(
+            `..${process.platform === 'win32' ? '\\' : '/'}`
+        ) ||
+        isAbsolute(lexicalRelative)
+    ) {
+        throw new Error(`Evidence path escapes repository: ${evidencePath}`)
+    }
+    await access(lexicalPath).catch(() => {
+        throw new Error(`Missing evidence path: ${evidencePath}`)
+    })
+    const actualPath = await realpath(lexicalPath)
+    const actualRelative = relativePath(actualRoot, actualPath)
+    if (
+        actualRelative === '..' ||
+        actualRelative.startsWith(
+            `..${process.platform === 'win32' ? '\\' : '/'}`
+        ) ||
+        isAbsolute(actualRelative)
+    ) {
+        throw new Error(`Evidence path escapes repository: ${evidencePath}`)
+    }
+    return actualPath
 }
 
 /**
@@ -369,16 +517,52 @@ async function validateEvidence(ledger, repositoryRoot) {
  */
 async function importEntrypoints(baseline, packageRoot) {
     const modules = new Map()
+    const delegates = new Map()
+    const packageUrl = pathToFileURL(`${resolve(packageRoot)}/`)
     for (const entrypoint of baseline.entrypoints || []) {
+        const target = legacyTarget(entrypoint)
         if (entrypoint.kind === 'asset') {
-            await access(resolve(packageRoot, entrypoint.target))
-            modules.set(entrypoint.entrypoint, null)
+            const source = await readFile(resolve(packageRoot, target), 'utf8')
+            modules.set(entrypoint.entrypoint, {
+                assetContract: KicadApiContractInspector.stylesheet(source)
+            })
             continue
         }
-        const url = pathToFileURL(resolve(packageRoot, entrypoint.target))
-        modules.set(entrypoint.entrypoint, await import(url.href))
+        const key = `${resolve(packageRoot)}:${entrypoint.entrypoint}`
+        let cached = packedJavascript.get(key)
+        if (!cached) {
+            const url = pathToFileURL(resolve(packageRoot, target))
+            cached = {
+                imported: await import(url.href),
+                delegates: await KicadModuleContractRegistry.load(
+                    target,
+                    packageUrl
+                )
+            }
+            packedJavascript.set(key, cached)
+        }
+        const expectedNames = new Set(
+            (entrypoint.exports || []).map((row) => row.name)
+        )
+        cached.module ||= Object.fromEntries(
+            Object.entries(cached.imported).filter(([name]) =>
+                expectedNames.has(name)
+            )
+        )
+        modules.set(entrypoint.entrypoint, cached.module)
+        delegates.set(entrypoint.entrypoint, cached.delegates)
     }
+    moduleDelegates.set(modules, delegates)
     return modules
+}
+
+/**
+ * Resolves a historical entrypoint to its explicit native compatibility file.
+ * @param {Record<string, any>} entrypoint Historical entrypoint row.
+ * @returns {string} Packed compatibility target.
+ */
+function legacyTarget(entrypoint) {
+    return LEGACY_TARGETS[entrypoint.entrypoint] || entrypoint.target
 }
 
 /**
@@ -389,6 +573,9 @@ async function importEntrypoints(baseline, packageRoot) {
 async function packRepository(repositoryRoot) {
     const directory = await mkdtemp(join(tmpdir(), 'kicad-toolkit-pack-'))
     try {
+        const manifest = JSON.parse(
+            await readFile(resolve(repositoryRoot, 'package.json'), 'utf8')
+        )
         const { stdout } = await execFileAsync(
             'npm',
             ['pack', '--json', '--pack-destination', directory],
@@ -396,19 +583,42 @@ async function packRepository(repositoryRoot) {
         )
         const report = JSON.parse(stdout)
         const tarball = resolve(directory, report[0].filename)
-        await execFileAsync('tar', ['-xzf', tarball, '-C', directory])
-        const packageRoot = resolve(directory, 'package')
+        await writeFile(
+            resolve(directory, 'package.json'),
+            JSON.stringify({ private: true })
+        )
+        const dependencies = await packLinkedDependencies(
+            repositoryRoot,
+            directory,
+            manifest
+        )
+        if (dependencies.length) {
+            await execFileAsync(
+                'npm',
+                [
+                    'install',
+                    '--ignore-scripts',
+                    '--no-audit',
+                    '--no-fund',
+                    '--package-lock=false',
+                    ...dependencies
+                ],
+                { cwd: directory, maxBuffer: 16 * 1024 * 1024 }
+            )
+        }
         await execFileAsync(
             'npm',
             [
                 'install',
                 '--ignore-scripts',
-                '--omit=dev',
                 '--no-audit',
-                '--no-fund'
+                '--no-fund',
+                '--package-lock=false',
+                tarball
             ],
-            { cwd: packageRoot, maxBuffer: 16 * 1024 * 1024 }
+            { cwd: directory, maxBuffer: 16 * 1024 * 1024 }
         )
+        const packageRoot = resolve(directory, 'node_modules', manifest.name)
         return {
             packageRoot,
             cleanup: () => rm(directory, { force: true, recursive: true })
@@ -417,6 +627,41 @@ async function packRepository(repositoryRoot) {
         await rm(directory, { force: true, recursive: true })
         throw error
     }
+}
+
+/**
+ * Packs linked sibling release candidates before their consuming package.
+ * @param {string} repositoryRoot Repository root.
+ * @param {string} destination Pack destination.
+ * @param {Record<string, any>} manifest Package manifest.
+ * @returns {Promise<string[]>} Local dependency tarballs.
+ */
+async function packLinkedDependencies(repositoryRoot, destination, manifest) {
+    const tarballs = []
+    for (const name of Object.keys(manifest.dependencies || {}).sort()) {
+        const packageRoot = resolve(repositoryRoot, 'node_modules', name)
+        let statistics
+        try {
+            statistics = await lstat(packageRoot)
+        } catch (error) {
+            if (error?.code === 'ENOENT') continue
+            throw error
+        }
+        if (!statistics.isSymbolicLink()) continue
+        const { stdout } = await execFileAsync(
+            'npm',
+            ['pack', '--json', '--pack-destination', destination],
+            { cwd: packageRoot, maxBuffer: 16 * 1024 * 1024 }
+        )
+        const filename = JSON.parse(stdout)?.[0]?.filename
+        if (typeof filename !== 'string' || !filename) {
+            throw new Error(
+                `npm pack did not report a tarball for dependency ${name}.`
+            )
+        }
+        tarballs.push(resolve(destination, filename))
+    }
+    return tarballs
 }
 
 /**
@@ -530,8 +775,14 @@ export async function validateFeaturePreservation(options) {
                 `Fictitious capabilityId mappings: ${fictitious.join(', ')}`
             )
         }
+        validateBehaviorEvidence(options.apiBaseline, ledger)
+        KicadApprovedBaselineProvenance.assert(options.apiBaseline, ledger)
         if (options.repositoryRoot) {
-            await validateEvidence(ledger, options.repositoryRoot)
+            await validateEvidence(
+                ledger,
+                options.repositoryRoot,
+                Boolean(options.packageRoot)
+            )
         }
     }
     return { featureCount: baselineFeatures.length }

@@ -3,8 +3,8 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KicadParser } from '../../src/parser.mjs'
-import { SchematicSvgRenderer } from '../../src/renderers.mjs'
+import { KicadParser } from '../../src/legacy-parser.mjs'
+import { SchematicSvgRenderer } from '../../src/legacy-renderers.mjs'
 
 test('KicadParser and SVG renderer preserve filled schematic symbol arcs', () => {
     const document = KicadParser.parseArrayBuffer(

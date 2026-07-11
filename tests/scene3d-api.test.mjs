@@ -10,7 +10,7 @@ import {
     PcbScene3dScenePreparator,
     PcbScene3dSummaryRenderer,
     PcbScene3dTextBoxLayoutResolver
-} from '../src/scene3d.mjs'
+} from '../src/legacy-scene3d.mjs'
 
 /**
  * Converts millimeters to mils.

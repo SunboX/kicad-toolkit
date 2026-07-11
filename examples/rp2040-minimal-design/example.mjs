@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { KicadPcbParser, PcbSvgRenderer } from '../../src/index.mjs'
+import { KicadPcbParser, PcbSvgRenderer } from '../../src/extensions.mjs'
 
 const SOURCE_PROJECT_URL =
     'https://github.com/tommy-gilligan/RP2040-minimal-design'

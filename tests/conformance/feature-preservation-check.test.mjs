@@ -3,9 +3,17 @@
 
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import {
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rm,
+    writeFile
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -15,7 +23,7 @@ import { validateFeaturePreservation } from '../../scripts/check-feature-preserv
 const execFileAsync = promisify(execFile)
 const repositoryRoot = new URL('../../', import.meta.url)
 
-const mapping = Object.freeze({
+const mappingContract = {
     feature: '.#KicadParser',
     kind: 'export',
     capabilityId: 'kicad_pcb_parser',
@@ -28,11 +36,65 @@ const mapping = Object.freeze({
         'kicad-toolkit': 'shared'
     },
     reason: 'KiCad parsing converges on the shared parser contract.',
-    evidenceToken: 'KicadParser',
     sourceContract: { type: 'function', arity: 2 },
     tests: ['tests/core/kicad-parser.test.mjs'],
     documentation: ['docs/api.md']
+}
+const mapping = Object.freeze({
+    ...mappingContract,
+    evidenceToken: testEvidenceToken(mappingContract, 'KicadParser')
 })
+
+/**
+ * Returns a deterministic test-evidence token for one mapping contract.
+ * @param {Record<string, any>} row Mapping without an evidence token.
+ * @param {string} subject Executable evidence subject.
+ * @returns {string} Evidence token.
+ */
+function testEvidenceToken(row, subject) {
+    const payload = stableValue({
+        mode: 'test',
+        subject,
+        row: Object.fromEntries(
+            Object.entries(row).filter(
+                ([name]) => name !== 'evidenceToken' && name !== 'package'
+            )
+        )
+    })
+    const checksum = createHash('sha256')
+        .update(JSON.stringify(payload))
+        .digest('hex')
+    return `test:${encodeURIComponent(subject)}:sha256:${checksum}`
+}
+
+/**
+ * Sorts object keys recursively for stable evidence hashing.
+ * @param {unknown} value Candidate value.
+ * @returns {unknown} Canonical JSON value.
+ */
+function stableValue(value) {
+    if (Array.isArray(value)) return value.map(stableValue)
+    if (!value || typeof value !== 'object') return value
+    return Object.fromEntries(
+        Object.keys(value)
+            .sort()
+            .map((key) => [key, stableValue(value[key])])
+    )
+}
+
+/**
+ * Creates one mapping sealed to executable test evidence.
+ * @param {Record<string, any>} overrides Mapping overrides.
+ * @param {string} [subject] Executable evidence subject.
+ * @returns {Record<string, any>} Sealed mapping.
+ */
+function sealedMapping(overrides = {}, subject = 'KicadParser') {
+    const row = { ...mappingContract, ...overrides }
+    return {
+        ...row,
+        evidenceToken: testEvidenceToken(row, subject)
+    }
+}
 
 /**
  * Creates a minimal API baseline for checker unit tests.
@@ -70,6 +132,98 @@ test('feature checker accepts one exact complete preservation mapping', async ()
     })
 
     assert.deepEqual(result, { featureCount: 1 })
+})
+
+test('strict evidence rejects custom and fabricated baseline provenance', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'kicad-evidence-root-'))
+    const outsidePath = join(
+        dirname(root),
+        `${basename(root)}-outside-evidence.test.mjs`
+    )
+    try {
+        await Promise.all([
+            mkdir(join(root, 'tests/core'), { recursive: true }),
+            mkdir(join(root, 'docs'), { recursive: true })
+        ])
+        await writeFile(join(root, 'docs/api.md'), '# API\n')
+
+        const valid = sealedMapping()
+        await writeFile(
+            join(root, valid.tests[0]),
+            `const subject = 'KicadParser'\nconst evidence = '${valid.evidenceToken}'\nvoid subject\nvoid evidence\n`
+        )
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: baseline(valid),
+                ledger: ledger(valid),
+                strict: true,
+                capabilityIds: new Set(['kicad_pcb_parser']),
+                repositoryRoot: root
+            }),
+            /Unapproved baseline provenance/u
+        )
+
+        const fabricated = sealedMapping(
+            {
+                feature: '.#FakeOwner.ghost.option',
+                kind: 'option',
+                sourceContract: { type: 'option', name: 'ghost' }
+            },
+            'FakeOwner'
+        )
+        await writeFile(
+            join(root, fabricated.tests[0]),
+            `const prose = 'FakeOwner'\nconst evidence = '${fabricated.evidenceToken}'\nvoid prose\nvoid evidence\n`
+        )
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: baseline(fabricated),
+                ledger: ledger(fabricated),
+                strict: true,
+                capabilityIds: new Set(['kicad_pcb_parser']),
+                repositoryRoot: root
+            }),
+            /Unapproved baseline provenance/u
+        )
+
+        const commentOnly = sealedMapping()
+        await writeFile(
+            join(root, commentOnly.tests[0]),
+            `// KicadParser\n// ${commentOnly.evidenceToken}\n`
+        )
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: baseline(commentOnly),
+                ledger: ledger(commentOnly),
+                strict: true,
+                capabilityIds: new Set(['kicad_pcb_parser']),
+                repositoryRoot: root
+            }),
+            /Unapproved baseline provenance/u
+        )
+
+        const escapedRelativePath = `../${basename(outsidePath)}`
+        const escaped = sealedMapping({ tests: [escapedRelativePath] })
+        await writeFile(
+            outsidePath,
+            `const subject = 'KicadParser'\nconst evidence = '${escaped.evidenceToken}'\nvoid subject\nvoid evidence\n`
+        )
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline: baseline(escaped),
+                ledger: ledger(escaped),
+                strict: true,
+                capabilityIds: new Set(['kicad_pcb_parser']),
+                repositoryRoot: root
+            }),
+            /Unapproved baseline provenance/u
+        )
+    } finally {
+        await Promise.all([
+            rm(root, { force: true, recursive: true }),
+            rm(outsidePath, { force: true })
+        ])
+    }
 })
 
 test('feature checker rejects missing and strict stale mappings', async () => {
@@ -225,6 +379,8 @@ test('strict packed checker rejects checksum and isolated export-map drift', asy
     ])
     const packagePath = join(packed.packageRoot, 'package.json')
     const originalPackage = await readFile(packagePath, 'utf8')
+    const stylePath = join(packed.packageRoot, 'src/styles/kicad-renderers.css')
+    const originalStyles = await readFile(stylePath, 'utf8')
     try {
         const checksumDrift = structuredClone(apiBaseline)
         checksumDrift.packageExportsChecksum = '0'.repeat(64)
@@ -241,7 +397,7 @@ test('strict packed checker rejects checksum and isolated export-map drift', asy
         const mutations = [
             [
                 'remapped renderer export',
-                (pkg) => (pkg.exports['./renderers'] = './src/index.mjs')
+                (pkg) => (pkg.exports['./renderers'] = './src/extensions.mjs')
             ],
             ['removed scene export', (pkg) => delete pkg.exports['./scene3d']]
         ]
@@ -261,8 +417,20 @@ test('strict packed checker rejects checksum and isolated export-map drift', asy
             )
             await writeFile(packagePath, originalPackage)
         }
+
+        await writeFile(stylePath, '.pcb-svg { display: none; }\n')
+        await assert.rejects(
+            validateFeaturePreservation({
+                apiBaseline,
+                ledger: fullLedger,
+                strict: true,
+                packageRoot: packed.packageRoot
+            }),
+            /Packed asset contract differs/u
+        )
     } finally {
         await writeFile(packagePath, originalPackage).catch(() => {})
+        await writeFile(stylePath, originalStyles).catch(() => {})
         await packed.cleanup()
     }
 })
@@ -317,6 +485,7 @@ async function readJson(relativePath) {
 async function packRepositoryFixture() {
     const directory = await mkdtemp(join(tmpdir(), 'kicad-packed-drift-'))
     try {
+        const manifest = await readJson('package.json')
         const { stdout } = await execFileAsync(
             'npm',
             ['pack', '--json', '--pack-destination', directory],
@@ -326,24 +495,43 @@ async function packRepositoryFixture() {
             }
         )
         const report = JSON.parse(stdout)
-        await execFileAsync('tar', [
-            '-xzf',
-            resolve(directory, report[0].filename),
-            '-C',
-            directory
-        ])
-        const packageRoot = resolve(directory, 'package')
+        const tarball = resolve(directory, report[0].filename)
+        await writeFile(
+            resolve(directory, 'package.json'),
+            JSON.stringify({ private: true })
+        )
+        const dependencies = await packLinkedDependencies(
+            fileURLToPath(repositoryRoot),
+            directory,
+            manifest
+        )
+        if (dependencies.length) {
+            await execFileAsync(
+                'npm',
+                [
+                    'install',
+                    '--ignore-scripts',
+                    '--no-audit',
+                    '--no-fund',
+                    '--package-lock=false',
+                    ...dependencies
+                ],
+                { cwd: directory, maxBuffer: 16 * 1024 * 1024 }
+            )
+        }
         await execFileAsync(
             'npm',
             [
                 'install',
                 '--ignore-scripts',
-                '--omit=dev',
                 '--no-audit',
-                '--no-fund'
+                '--no-fund',
+                '--package-lock=false',
+                tarball
             ],
-            { cwd: packageRoot, maxBuffer: 16 * 1024 * 1024 }
+            { cwd: directory, maxBuffer: 16 * 1024 * 1024 }
         )
+        const packageRoot = resolve(directory, 'node_modules', manifest.name)
         return {
             packageRoot,
             cleanup: () => rm(directory, { force: true, recursive: true })
@@ -352,4 +540,37 @@ async function packRepositoryFixture() {
         await rm(directory, { force: true, recursive: true })
         throw error
     }
+}
+
+/**
+ * Packs symlinked sibling dependencies used by a local release candidate.
+ * @param {string} root Repository root.
+ * @param {string} destination Pack destination.
+ * @param {Record<string, any>} manifest Package manifest.
+ * @returns {Promise<string[]>} Dependency tarballs.
+ */
+async function packLinkedDependencies(root, destination, manifest) {
+    const tarballs = []
+    for (const name of Object.keys(manifest.dependencies || {}).sort()) {
+        const packageRoot = resolve(root, 'node_modules', name)
+        let statistics
+        try {
+            statistics = await lstat(packageRoot)
+        } catch (error) {
+            if (error?.code === 'ENOENT') continue
+            throw error
+        }
+        if (!statistics.isSymbolicLink()) continue
+        const { stdout } = await execFileAsync(
+            'npm',
+            ['pack', '--json', '--pack-destination', destination],
+            { cwd: packageRoot, maxBuffer: 16 * 1024 * 1024 }
+        )
+        const filename = JSON.parse(stdout)?.[0]?.filename
+        if (typeof filename !== 'string' || !filename) {
+            throw new Error(`Missing packed dependency tarball for ${name}.`)
+        }
+        tarballs.push(resolve(destination, filename))
+    }
+    return tarballs
 }

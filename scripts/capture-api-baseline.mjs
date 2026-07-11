@@ -2,24 +2,31 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { execFile } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
     mkdir,
     mkdtemp,
     readdir,
     readFile,
+    rename,
     rm,
+    symlink,
     writeFile
 } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isDeepStrictEqual, promisify } from 'node:util'
+import { format } from 'prettier'
 
 import { KicadApiContractInspector } from './KicadApiContractInspector.mjs'
 import { KicadBaselineMappingCatalog } from './KicadBaselineMappingCatalog.mjs'
+import { KicadFeatureEvidence } from './KicadFeatureEvidence.mjs'
+import { KicadModuleContractRegistry } from './KicadModuleContractRegistry.mjs'
 
 const execFileAsync = promisify(execFile)
 const repositoryRoot = new URL('../', import.meta.url)
+const refreshBaselines = process.argv.includes('--refresh')
 const BASE_VERSION = '1.0.29'
 const BASE_GIT_REF = 'c71c88d69d236accce123656dfa66914c0d5489c'
 const ENTRYPOINT_EVIDENCE = Object.freeze({
@@ -68,6 +75,10 @@ async function writeImmutableJson(relativePath, value) {
     const url = new URL(relativePath, repositoryRoot)
     try {
         const current = JSON.parse(await readFile(url, 'utf8'))
+        if (refreshBaselines) {
+            await writeFile(url, await formattedJson(value))
+            return
+        }
         if (!isDeepStrictEqual(current, value)) {
             throw new Error(`Immutable baseline differs: ${relativePath}`)
         }
@@ -76,7 +87,42 @@ async function writeImmutableJson(relativePath, value) {
         if (error?.code !== 'ENOENT') throw error
     }
     await mkdir(new URL('./', url), { recursive: true })
-    await writeFile(url, JSON.stringify(value, null, 4) + '\n')
+    await writeFile(url, await formattedJson(value))
+}
+
+/**
+ * Formats generated JSON with the repository's checked style.
+ * @param {unknown} value JSON value.
+ * @returns {Promise<string>} Formatted JSON source.
+ */
+async function formattedJson(value) {
+    return format(JSON.stringify(value), {
+        parser: 'json',
+        tabWidth: 4,
+        trailingComma: 'none'
+    })
+}
+
+/**
+ * Creates an idempotent cleanup that atomically removes a temporary path.
+ * @param {string} directory Temporary directory.
+ * @returns {() => Promise<void>} Cleanup callback.
+ */
+function atomicTreeCleanup(directory) {
+    let cleanupPromise = null
+    return () => {
+        cleanupPromise ||= (async () => {
+            const removedPath = `${directory}.removing-${randomUUID()}`
+            try {
+                await rename(directory, removedPath)
+            } catch (error) {
+                if (error?.code === 'ENOENT') return
+                throw error
+            }
+            await rm(removedPath, { force: true, recursive: true })
+        })()
+        return cleanupPromise
+    }
 }
 
 /**
@@ -85,10 +131,16 @@ async function writeImmutableJson(relativePath, value) {
  */
 async function extractBaselineSource() {
     const directory = await mkdtemp(
-        fileURLToPath(new URL('.baseline-source-', repositoryRoot))
+        join(tmpdir(), 'kicad-toolkit-baseline-source-')
     )
+    const cleanup = atomicTreeCleanup(directory)
     const archive = join(directory, 'baseline.tar')
     try {
+        await symlink(
+            fileURLToPath(new URL('node_modules/', repositoryRoot)),
+            join(directory, 'node_modules'),
+            'dir'
+        )
         await execFileAsync(
             'git',
             ['archive', '--format=tar', '--output', archive, BASE_GIT_REF],
@@ -97,10 +149,10 @@ async function extractBaselineSource() {
         await execFileAsync('tar', ['-xf', archive, '-C', directory])
         return {
             root: pathToFileURL(`${directory}/`),
-            cleanup: () => rm(directory, { force: true, recursive: true })
+            cleanup
         }
     } catch (error) {
-        await rm(directory, { force: true, recursive: true })
+        await cleanup()
         throw error
     }
 }
@@ -132,18 +184,32 @@ async function captureEntrypoint(
     sourceRoot = repositoryRoot
 ) {
     if (target.endsWith('.css')) {
-        await readFile(new URL(target, sourceRoot), 'utf8')
-        return { entrypoint, target, kind: 'asset', exports: [] }
+        const source = await readFile(new URL(target, sourceRoot), 'utf8')
+        return {
+            entrypoint,
+            target,
+            kind: 'asset',
+            exports: [],
+            assetContract: KicadApiContractInspector.stylesheet(source)
+        }
     }
-    const api = await import(new URL(target, sourceRoot))
-    return KicadApiContractInspector.entrypoint(entrypoint, target, api)
+    const [api, delegates] = await Promise.all([
+        import(new URL(target, sourceRoot)),
+        KicadModuleContractRegistry.load(target, sourceRoot)
+    ])
+    return KicadApiContractInspector.entrypoint(
+        entrypoint,
+        target,
+        api,
+        delegates
+    )
 }
 
 /**
  * Recursively reads repository test files.
  * @param {URL} directory Test directory.
  * @param {string} relativeDirectory Relative directory.
- * @returns {Promise<{ path: string, source: string, cases: string[] }[]>} Test sources.
+ * @returns {Promise<{ path: string, source: string, cases: string[], tokens: Set<string> }[]>} Test sources.
  */
 async function readTests(directory, relativeDirectory = 'tests') {
     const tests = []
@@ -164,7 +230,12 @@ async function readTests(directory, relativeDirectory = 'tests') {
             ),
             (match) => match[2].replace(/\s+/gu, ' ').trim()
         )
-        tests.push({ path, source, cases })
+        tests.push({
+            path,
+            source,
+            cases,
+            tokens: KicadFeatureEvidence.executableTokens(source)
+        })
     }
     return tests.sort((left, right) => left.path.localeCompare(right.path))
 }
@@ -177,7 +248,7 @@ async function readTests(directory, relativeDirectory = 'tests') {
  */
 function evidenceTests(token, tests) {
     return tests
-        .filter((test) => test.source.includes(token))
+        .filter((test) => test.tokens.has(token))
         .map((test) => test.path)
 }
 
@@ -200,16 +271,21 @@ function featureRow(fields, tests) {
             `No repository test references ${fields.evidenceToken} for ${fields.feature}`
         )
     }
-    return {
+    const row = {
         feature: fields.feature,
         kind: fields.kind,
         ...mapping,
-        evidenceToken: fields.evidenceToken,
         sourceContract: fields.sourceContract || null,
         tests: [...new Set(testPaths)].sort(),
         documentation: [
             ...new Set(fields.documentation || ['docs/api.md'])
         ].sort()
+    }
+    return {
+        ...row,
+        evidenceToken: KicadFeatureEvidence.token(row, {
+            mode: row.kind === 'behavior' ? 'inventory' : 'packed'
+        })
     }
 }
 
@@ -233,7 +309,8 @@ function entrypointFeatures(entrypoints, tests) {
                         evidenceToken: 'kicad-renderers.css',
                         sourceContract: {
                             type: 'asset',
-                            target: entrypoint.target
+                            target: entrypoint.target,
+                            ...entrypoint.assetContract
                         }
                     },
                     tests
@@ -303,7 +380,17 @@ function entrypointFeatures(entrypoints, tests) {
                                 type: 'accessor',
                                 accessorType: accessor.accessorType,
                                 get: accessor.get,
-                                set: accessor.set
+                                set: accessor.set,
+                                ...(accessor.getContract
+                                    ? {
+                                          getContract: accessor.getContract
+                                      }
+                                    : {}),
+                                ...(accessor.setContract
+                                    ? {
+                                          setContract: accessor.setContract
+                                      }
+                                    : {})
                             }
                         },
                         tests

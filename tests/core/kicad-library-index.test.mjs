@@ -9,7 +9,7 @@ import {
     KicadLibraryTableParser,
     KicadParser,
     KicadProjectLoader
-} from '../../src/parser.mjs'
+} from '../../src/legacy-parser.mjs'
 
 test('KicadLibraryTableParser parses KiCad footprint library tables', () => {
     const table = KicadLibraryTableParser.parse(footprintTableSource(), {
