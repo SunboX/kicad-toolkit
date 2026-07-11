@@ -131,7 +131,8 @@ export class CircuitJsonPcbLibraryBuilder {
             idScope,
             Primitives.array(footprint.texts || rawFootprint.texts).map(
                 (text) => CircuitJsonPcbLibraryBuilder.#text(text)
-            )
+            ),
+            { ownerComponentIds }
         )
         CircuitJsonPcbArtworkBuilder.append(
             circuitJson,

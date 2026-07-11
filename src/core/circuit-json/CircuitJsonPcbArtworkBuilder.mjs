@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { CircuitJsonModelAdapterPrimitives } from './CircuitJsonModelAdapterPrimitives.mjs'
+import { KicadArcGeometry } from '../kicad/KicadArcGeometry.mjs'
 
 const Primitives = CircuitJsonModelAdapterPrimitives
 
@@ -79,7 +80,238 @@ export class CircuitJsonPcbArtworkBuilder {
         )
 
         if (ownerComponentId) element.pcb_component_id = ownerComponentId
+        return CircuitJsonPcbArtworkBuilder.#canonicalElement(element)
+    }
+
+    /**
+     * Projects one owned legacy artwork shape directly onto a pinned
+     * CircuitJSON primitive.
+     * @param {Record<string, any>} element Artwork element.
+     * @returns {Record<string, any> | null} Canonical artwork element.
+     */
+    static #canonicalElement(element) {
+        if (
+            element.type === 'pcb_silkscreen_path' ||
+            element.type === 'pcb_fabrication_note_path'
+        ) {
+            return CircuitJsonPcbArtworkBuilder.#canonicalPath(element)
+        }
+        if (element.type === 'pcb_courtyard') {
+            return CircuitJsonPcbArtworkBuilder.#canonicalCourtyard(element)
+        }
         return element
+    }
+
+    /**
+     * Completes one silk or fabrication path, using a generic note path for
+     * board-level artwork that has no component owner.
+     * @param {Record<string, any>} element Artwork element.
+     * @returns {Record<string, any> | null} Canonical path element.
+     */
+    static #canonicalPath(element) {
+        const route = CircuitJsonPcbArtworkBuilder.#route(element)
+        if (route.length < 2) return null
+        const side = CircuitJsonPcbArtworkBuilder.#side(element.layer)
+        const strokeWidth = Number(element.width) || 0
+        if (!element.pcb_component_id) {
+            const id =
+                element.pcb_silkscreen_path_id ||
+                element.pcb_fabrication_note_path_id
+            delete element.pcb_silkscreen_path_id
+            delete element.pcb_fabrication_note_path_id
+            element.type = 'pcb_note_path'
+            element.pcb_note_path_id = id
+        }
+        element.layer = side
+        element.route = route
+        element.stroke_width = strokeWidth
+        return element
+    }
+
+    /**
+     * Maps one courtyard shape to its shape-specific upstream element.
+     * @param {Record<string, any>} element Courtyard artwork element.
+     * @returns {Record<string, any> | null} Canonical courtyard element.
+     */
+    static #canonicalCourtyard(element) {
+        if (!element.pcb_component_id) {
+            return CircuitJsonPcbArtworkBuilder.#courtyardNotePath(element)
+        }
+        const id = element.pcb_courtyard_id
+        const side = CircuitJsonPcbArtworkBuilder.#side(element.layer)
+        delete element.pcb_courtyard_id
+        element.layer = side
+
+        if (element.shape === 'circle') {
+            element.type = 'pcb_courtyard_circle'
+            element.pcb_courtyard_circle_id = id
+            return element
+        }
+        if (
+            element.shape === 'polygon' &&
+            String(element.source_type || '')
+                .toLowerCase()
+                .includes('rect') &&
+            CircuitJsonPcbArtworkBuilder.#isAxisAlignedRectangle(element.points)
+        ) {
+            const bounds = CircuitJsonPcbArtworkBuilder.#bounds(element.points)
+            if (!bounds) return null
+            element.type = 'pcb_courtyard_rect'
+            element.pcb_courtyard_rect_id = id
+            element.center = {
+                x: (bounds.minX + bounds.maxX) / 2,
+                y: (bounds.minY + bounds.maxY) / 2
+            }
+            element.width = bounds.maxX - bounds.minX
+            element.height = bounds.maxY - bounds.minY
+            return element
+        }
+        if (element.shape === 'polygon') {
+            if (!Array.isArray(element.points) || element.points.length < 3) {
+                return null
+            }
+            element.type = 'pcb_courtyard_polygon'
+            element.pcb_courtyard_polygon_id = id
+            return element
+        }
+
+        const outline = CircuitJsonPcbArtworkBuilder.#route(element)
+        if (outline.length < 2) return null
+        element.type = 'pcb_courtyard_outline'
+        element.pcb_courtyard_outline_id = id
+        element.outline = outline
+        return element
+    }
+
+    /**
+     * Preserves unowned courtyard geometry as a generic PCB note path.
+     * @param {Record<string, any>} element Courtyard artwork element.
+     * @returns {Record<string, any> | null} Canonical note path.
+     */
+    static #courtyardNotePath(element) {
+        const route = CircuitJsonPcbArtworkBuilder.#route(element)
+        if (route.length < 2) return null
+        const id = element.pcb_courtyard_id
+        delete element.pcb_courtyard_id
+        element.type = 'pcb_note_path'
+        element.pcb_note_path_id = id
+        element.layer = CircuitJsonPcbArtworkBuilder.#side(element.layer)
+        element.route = route
+        element.stroke_width = Number(element.width) || 0
+        return element
+    }
+
+    /**
+     * Returns a usable polyline for one artwork shape.
+     * @param {Record<string, any>} element Artwork element.
+     * @returns {{ x: number, y: number }[]} Canonical route points.
+     */
+    static #route(element) {
+        if (
+            element.shape === 'arc' &&
+            element.start &&
+            element.mid &&
+            element.end
+        ) {
+            const route = KicadArcGeometry.toPolyline(
+                element.start,
+                element.mid,
+                element.end
+            ).map((point) => Primitives.point(point.x, point.y))
+            route[0] = element.start
+            route[route.length - 1] = element.end
+            return route
+        }
+        if (Array.isArray(element.points)) return element.points
+        if (element.start && element.end) {
+            return [element.start, element.end]
+        }
+        if (
+            element.shape === 'circle' &&
+            element.center &&
+            Number(element.radius) > 0
+        ) {
+            const points = []
+            for (let index = 0; index <= 32; index += 1) {
+                const angle = (index / 32) * Math.PI * 2
+                points.push({
+                    x: element.center.x + Math.cos(angle) * element.radius,
+                    y: element.center.y + Math.sin(angle) * element.radius
+                })
+            }
+            return points
+        }
+        return []
+    }
+
+    /**
+     * Computes exact bounds for a point list.
+     * @param {{ x: number, y: number }[]} points Point list.
+     * @returns {{ minX: number, minY: number, maxX: number, maxY: number } | null} Bounds.
+     */
+    static #bounds(points) {
+        if (!Array.isArray(points) || points.length < 3) return null
+        let minX = Infinity
+        let minY = Infinity
+        let maxX = -Infinity
+        let maxY = -Infinity
+        for (const point of points) {
+            const x = Number(point.x)
+            const y = Number(point.y)
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+            minX = Math.min(minX, x)
+            minY = Math.min(minY, y)
+            maxX = Math.max(maxX, x)
+            maxY = Math.max(maxY, y)
+        }
+        return {
+            minX,
+            minY,
+            maxX,
+            maxY
+        }
+    }
+
+    /**
+     * Returns true when transformed rectangle points remain axis-aligned.
+     * Rotated KiCad rectangles are emitted as polygons to preserve geometry.
+     * @param {{ x: number, y: number }[]} points Rectangle point ring.
+     * @returns {boolean} Whether every edge follows one board axis.
+     */
+    static #isAxisAlignedRectangle(points) {
+        if (!Array.isArray(points)) return false
+        const ring = points.slice()
+        if (
+            ring.length > 1 &&
+            ring[0].x === ring[ring.length - 1].x &&
+            ring[0].y === ring[ring.length - 1].y
+        ) {
+            ring.pop()
+        }
+        if (ring.length !== 4) return false
+        const epsilon = 1e-9
+        for (let index = 0; index < ring.length; index += 1) {
+            const current = ring[index]
+            const next = ring[(index + 1) % ring.length]
+            const dx = Math.abs(Number(next.x) - Number(current.x))
+            const dy = Math.abs(Number(next.y) - Number(current.y))
+            const horizontal = dx > epsilon && dy <= epsilon
+            const vertical = dy > epsilon && dx <= epsilon
+            if (!horizontal && !vertical) return false
+        }
+        return true
+    }
+
+    /**
+     * Returns the canonical top or bottom side for artwork.
+     * @param {unknown} layer Layer name.
+     * @returns {'top' | 'bottom'} Canonical side.
+     */
+    static #side(layer) {
+        const value = String(layer || '').toLowerCase()
+        return value.includes('bottom') || value.startsWith('b.')
+            ? 'bottom'
+            : 'top'
     }
 
     /**

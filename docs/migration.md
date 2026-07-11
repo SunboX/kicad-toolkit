@@ -15,6 +15,12 @@ Version 1.1.1 is a subpath-parity patch. Code importing
 identities and exact export-key layout as the other toolkits. No parser,
 project-loader, document, or native-extension behavior changed.
 
+Version 1.1.2 corrects CircuitJSON projection for legacy footprint values,
+required typed-component properties, owned footprint artwork, board-level PCB
+notes, and shape-specific courtyard elements. The common `Parser` and
+`ProjectLoader` signatures and their document/project envelope shapes remain
+unchanged; consumers no longer need to repair these elements after parsing.
+
 | 1.0.29                                              | 1.1.0 common API                              |
 | --------------------------------------------------- | --------------------------------------------- |
 | `KicadParser.parseArrayBuffer(fileName, data)`      | `Parser.parse({ fileName, data })`            |

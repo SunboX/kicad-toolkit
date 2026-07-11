@@ -26,9 +26,9 @@ function findElement(circuitJson, type, predicate = () => true) {
 }
 
 /**
- * Verifies PCB text rows survive generic Circuit JSON conversion.
+ * Verifies ownerless PCB text rows survive as canonical note text.
  */
-test('CircuitJsonModelAdapter emits PCB text elements with layer and visibility metadata', () => {
+test('CircuitJsonModelAdapter emits PCB note text with layer and visibility metadata', () => {
     const rendererModel = {
         sourceFormat: 'kicad',
         kind: 'pcb',
@@ -79,27 +79,27 @@ test('CircuitJsonModelAdapter emits PCB text elements with layer and visibility 
     const circuitJson = CircuitJsonModelAdapter.fromRendererModel(rendererModel)
     const silkscreenText = findElement(
         circuitJson,
-        'pcb_silkscreen_text',
+        'pcb_note_text',
         (element) => element.text === 'REF**'
     )
     const fabricationText = findElement(
         circuitJson,
-        'pcb_fabrication_note_text',
+        'pcb_note_text',
         (element) => element.text === 'ASSEMBLY'
     )
     const report = CircuitJsonConformanceChecker.check(circuitJson)
 
-    assert.equal(silkscreenText.pcb_silkscreen_text_id.length > 0, true)
+    assert.equal(silkscreenText.pcb_note_text_id.length > 0, true)
     assert.equal(silkscreenText.x, 2.54)
     assert.equal(silkscreenText.y, 5.08)
     assert.deepEqual(silkscreenText.anchor_position, { x: 2.54, y: 5.08 })
-    assert.equal(silkscreenText.layer, 'top_silkscreen')
+    assert.equal(silkscreenText.layer, 'top')
     assert.equal(silkscreenText.ccw_rotation, 90)
     assert.equal(silkscreenText.font_size, 1.2)
     assert.equal(silkscreenText.stroke_width, 0.15)
     assert.equal(silkscreenText.is_hidden, false)
-    assert.equal(fabricationText.pcb_fabrication_note_text_id.length > 0, true)
-    assert.equal(fabricationText.layer, 'bottom_fabrication')
+    assert.equal(fabricationText.pcb_note_text_id.length > 0, true)
+    assert.equal(fabricationText.layer, 'bottom')
     assert.equal(fabricationText.ccw_rotation, 315)
     assert.equal(fabricationText.font_size, 1)
     assert.equal(fabricationText.is_hidden, true)

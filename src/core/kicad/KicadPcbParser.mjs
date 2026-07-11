@@ -326,7 +326,6 @@ function parseScalarValue(value) {
 function optionalText(node) {
     return node ? textValue(node) : undefined
 }
-
 /**
  * Reads optional number from a node.
  * @param {Array | undefined} node Value node.
@@ -335,7 +334,6 @@ function optionalText(node) {
 function optionalNumber(node) {
     return node ? numberValue(node[1], 0) : undefined
 }
-
 /**
  * Reads optional boolean from a node.
  * @param {Array | undefined} node Value node.
@@ -345,7 +343,6 @@ function optionalBoolean(node) {
     if (!node) return undefined
     return node.length === 1 ? true : booleanValue(node[1], false)
 }
-
 /**
  * Reads optional two-coordinate value from a node.
  * @param {Array | undefined} node Coordinate node.
@@ -354,7 +351,6 @@ function optionalBoolean(node) {
 function optionalVec2(node) {
     return node ? SExpressionTree.vec2(node) : undefined
 }
-
 /**
  * Removes undefined fields from an object.
  * @param {Record<string, unknown>} value Source object.
@@ -383,6 +379,9 @@ function parseFootprint(node, index, netResolver, boardTextContext) {
     const referenceText = children(node, 'fp_text').find((entry) => {
         return String(entry[1] || '') === 'reference'
     })
+    const valueText = children(node, 'fp_text').find((entry) => {
+        return String(entry[1] || '') === 'value'
+    })
     const reference = String(
         referenceProperty?.[2] || referenceText?.[2] || `FP${index + 1}`
     )
@@ -407,7 +406,8 @@ function parseFootprint(node, index, netResolver, boardTextContext) {
             netResolver
         })
     })
-    const footprintValue = propertyText(properties, 'Value')
+    const footprintValue =
+        propertyText(properties, 'Value') || String(valueText?.[2] || '')
     const footprintName =
         propertyText(properties, 'Footprint') || String(node[1] || '')
     const footprintTextContext = {

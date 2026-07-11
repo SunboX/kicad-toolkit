@@ -32,6 +32,12 @@ the shared `ZipArchiveInspector`. Their identities match the exports from
 format-owned implementations also exported at the package root. See the
 [1.1.1 release notes](docs/release-notes-v1.1.1.md).
 
+Version 1.1.2 makes every projected PCB element valid against the pinned
+CircuitJSON schema. It preserves legacy footprint values, derives required
+passive and connector properties, retains footprint ownership for artwork,
+and maps board notes and courtyard geometry to their canonical CircuitJSON
+types. See the [1.1.2 release notes](docs/release-notes-v1.1.2.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).
@@ -164,6 +170,8 @@ import 'kicad-toolkit/styles/renderers.css'
 - [Capabilities](docs/capabilities.md)
 - [Migration from 1.0.29](docs/migration.md)
 - [1.1.0 release notes](docs/release-notes-v1.1.0.md)
+- [1.1.1 release notes](docs/release-notes-v1.1.1.md)
+- [1.1.2 release notes](docs/release-notes-v1.1.2.md)
 - [Model Format](docs/model-format.md)
 - [Native Extension API](docs/native-api.md)
 - [Native Capability Inventory](docs/native-capabilities.md)

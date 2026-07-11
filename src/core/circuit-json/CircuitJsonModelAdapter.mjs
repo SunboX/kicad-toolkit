@@ -19,6 +19,7 @@ import { CircuitJsonSchematicGraphicsBuilder } from './CircuitJsonSchematicGraph
 import { CircuitJsonSchematicTraceBuilder } from './CircuitJsonSchematicTraceBuilder.mjs'
 import { CircuitJsonSourceComponentFtype } from './CircuitJsonSourceComponentFtype.mjs'
 import { CircuitJsonSourceComponentMetadata } from './CircuitJsonSourceComponentMetadata.mjs'
+import { CircuitJsonSourceComponentCanonicalizer } from './CircuitJsonSourceComponentCanonicalizer.mjs'
 const Primitives = CircuitJsonModelAdapterPrimitives
 const Elements = CircuitJsonModelAdapterElements
 
@@ -73,6 +74,7 @@ export class CircuitJsonModelAdapter {
             )
         }
         CircuitJsonModelAdapter.#appendBom(circuitJson, model, idScope)
+        CircuitJsonSourceComponentCanonicalizer.normalize(circuitJson)
         CircuitJsonProjectMetadataBuilder.finalize(
             projectMetadata,
             circuitJson,
@@ -420,7 +422,9 @@ export class CircuitJsonModelAdapter {
             if (portPlacement) portPlacements.push(portPlacement)
         }
 
-        CircuitJsonPcbTextBuilder.append(circuitJson, idScope, pcb.texts)
+        CircuitJsonPcbTextBuilder.append(circuitJson, idScope, pcb.texts, {
+            ownerComponentIds: pcbComponentIds
+        })
 
         CircuitJsonPcbTraceRouteBuilder.append(
             circuitJson,

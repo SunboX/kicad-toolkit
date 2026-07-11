@@ -49,6 +49,8 @@ test('required project files exist', async () => {
         'docs/native-capabilities.md',
         'docs/native-model-format.md',
         'docs/release-notes-v1.1.0.md',
+        'docs/release-notes-v1.1.1.md',
+        'docs/release-notes-v1.1.2.md',
         'docs/schemas/kicad_toolkit/normalized_model_a1.schema.json',
         'docs/schemas/kicad_toolkit/project_bundle_a1.schema.json',
         'docs/schemas/kicad_toolkit/netlist_a1.schema.json',

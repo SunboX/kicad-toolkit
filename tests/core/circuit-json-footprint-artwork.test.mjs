@@ -241,7 +241,7 @@ test('KicadParser projects standalone footprint pads, text, and artwork into Cir
     const fabText = findElement(circuitJson, 'pcb_fabrication_note_text')
     const silkPath = findElement(circuitJson, 'pcb_silkscreen_path')
     const fabPath = findElement(circuitJson, 'pcb_fabrication_note_path')
-    const courtyard = findElement(circuitJson, 'pcb_courtyard')
+    const courtyard = findElement(circuitJson, 'pcb_courtyard_circle')
 
     assert.equal(conformance.valid, true)
     assert.equal(elementsOf(circuitJson, 'source_component').length, 1)
@@ -267,18 +267,39 @@ test('KicadParser emits Circuit JSON artwork paths for board graphics', () => {
         bytesFor(artworkBoardSource())
     )
     const conformance = CircuitJsonConformanceChecker.check(circuitJson)
-    const silkPath = findElement(circuitJson, 'pcb_silkscreen_path')
-    const fabPath = findElement(circuitJson, 'pcb_fabrication_note_path')
-    const courtyard = findElement(circuitJson, 'pcb_courtyard')
+    const silkPath = findElement(
+        circuitJson,
+        'pcb_note_path',
+        (element) => element.source_layer === 'F.SilkS'
+    )
+    const fabPath = findElement(
+        circuitJson,
+        'pcb_note_path',
+        (element) => element.source_layer === 'F.Fab'
+    )
+    const courtyard = findElement(
+        circuitJson,
+        'pcb_note_path',
+        (element) => element.source_layer === 'F.CrtYd'
+    )
 
     assert.equal(conformance.valid, true)
     assert.deepEqual(silkPath.start, { x: 1, y: 1 })
     assert.deepEqual(silkPath.end, { x: 3, y: 1 })
     assert.equal(silkPath.width, 0.2)
+    assert.equal(silkPath.route.length, 2)
     assert.equal(fabPath.shape, 'arc')
     assert.equal(fabPath.points.length, 3)
+    assert.equal(fabPath.route.length > 3, true)
+    assert.equal(
+        fabPath.route.some(
+            (point) => Math.abs(point.y - fabPath.start.y) > Number.EPSILON
+        ),
+        true
+    )
     assert.equal(courtyard.shape, 'polygon')
     assert.equal(courtyard.points.length, 5)
+    assert.equal(courtyard.route.length, 5)
 })
 
 test('KicadParser includes footprint-owned Edge.Cuts in recovered board outlines', () => {
