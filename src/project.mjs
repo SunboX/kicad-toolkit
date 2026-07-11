@@ -4,7 +4,8 @@
 export {
     ArchiveEntryPath,
     ArchiveLimits,
-    ProjectResult
+    ProjectResult,
+    ZipArchiveInspector
 } from 'circuitjson-toolkit/project'
 
 export { ProjectLoader } from './convergence/ProjectLoader.mjs'

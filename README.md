@@ -25,6 +25,13 @@ package subpaths. `Parser.parse()` now accepts `{ fileName, data }` and returns
 an `ecad-toolkit.document.v1` envelope with dense CircuitJSON in `model`.
 `ProjectLoader` accepts `{ name, data }` entries and expands ZIP input itself.
 
+Version 1.1.1 completes exact subpath parity: `kicad-toolkit/parser` includes
+the shared `CircuitJsonDocumentContext`, and `kicad-toolkit/project` includes
+the shared `ZipArchiveInspector`. Their identities match the exports from
+`circuitjson-toolkit`, while KiCad's `Parser` and `ProjectLoader` remain the
+format-owned implementations also exported at the package root. See the
+[1.1.1 release notes](docs/release-notes-v1.1.1.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).

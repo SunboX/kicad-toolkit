@@ -9,6 +9,12 @@ Version 1.1.0 intentionally changes root names, parameters, return shapes, and
 package subpaths to match every other ECAD toolkit. No KiCad feature was
 deleted.
 
+Version 1.1.1 is a subpath-parity patch. Code importing
+`CircuitJsonDocumentContext` from `kicad-toolkit/parser` or
+`ZipArchiveInspector` from `kicad-toolkit/project` now sees the same shared
+identities and exact export-key layout as the other toolkits. No parser,
+project-loader, document, or native-extension behavior changed.
+
 | 1.0.29                                              | 1.1.0 common API                              |
 | --------------------------------------------------- | --------------------------------------------- |
 | `KicadParser.parseArrayBuffer(fileName, data)`      | `Parser.parse({ fileName, data })`            |

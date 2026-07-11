@@ -46,6 +46,9 @@ const document = await Parser.parseAsync(
 )
 ```
 
+The parser subpath also exports the shared `CircuitJsonDocumentContext`,
+`DocumentResult`, asset, diagnostic, progress, error, and worker-protocol
+classes with the same identities as `circuitjson-toolkit/parser`.
 `Parser.parse()`, `parseAsync()`, `tryParse()`, and `supports()` follow the
 common contract. Inputs use `{ fileName, data, assets? }`; `data` may be a
 string, `ArrayBuffer`, or `Uint8Array`. Successful parsing returns an immutable
@@ -85,6 +88,10 @@ independently: successful documents remain in the project, failed candidates
 emit deterministic diagnostics, and `statistics.failureCount` counts only
 those parse failures.
 
+The project subpath also exports the shared `ArchiveEntryPath`, `ArchiveLimits`,
+`ProjectResult`, and `ZipArchiveInspector` identities from
+`circuitjson-toolkit/project`.
+
 For PCB projects, the loader resolves `${KIPRJMOD}` references against the
 directory of the nearest owning `.kicad_pro` entry and emits exact canonical
 asset paths. It falls back to the `.kicad_pcb` directory only when the project
@@ -95,22 +102,22 @@ resolver.
 
 ## Package layout
 
-| Subpath                                   | Purpose                                                               |
-| ----------------------------------------- | --------------------------------------------------------------------- |
-| `kicad-toolkit/parser`                    | Common parser, errors, assets, diagnostics, progress, worker protocol |
-| `kicad-toolkit/project`                   | Common project loader, archive limits, project envelope               |
-| `kicad-toolkit/renderers`                 | Shared CircuitJSON SVG and BOM renderers                              |
-| `kicad-toolkit/interaction`               | Shared PCB interaction service                                        |
-| `kicad-toolkit/query`                     | Shared document query service                                         |
-| `kicad-toolkit/manufacturing`             | Shared manufacturing exporters                                        |
-| `kicad-toolkit/simulation`                | Shared injected simulation service                                    |
-| `kicad-toolkit/scene3d`                   | Shared CircuitJSON scene builder and preparator                       |
-| `kicad-toolkit/capabilities`              | Common capability inventory                                           |
-| `kicad-toolkit/extensions`                | Complete browser-safe native 1.0.29 API                               |
-| `kicad-toolkit/extensions/node`           | Native Node-only CLI helper                                           |
-| `kicad-toolkit/extensions/netlist-query`  | Native netlist query helpers                                          |
-| `kicad-toolkit/testing`                   | Shared contract fixtures and runner                                   |
-| `kicad-toolkit/workers/parser.worker.mjs` | Common worker endpoint                                                |
-| `kicad-toolkit/styles/renderers.css`      | Common optional renderer CSS                                          |
+| Subpath                                   | Purpose                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `kicad-toolkit/parser`                    | Common parser, context, errors, assets, diagnostics, progress, worker protocol |
+| `kicad-toolkit/project`                   | Common project loader, archive inspector/limits, project envelope              |
+| `kicad-toolkit/renderers`                 | Shared CircuitJSON SVG and BOM renderers                                       |
+| `kicad-toolkit/interaction`               | Shared PCB interaction service                                                 |
+| `kicad-toolkit/query`                     | Shared document query service                                                  |
+| `kicad-toolkit/manufacturing`             | Shared manufacturing exporters                                                 |
+| `kicad-toolkit/simulation`                | Shared injected simulation service                                             |
+| `kicad-toolkit/scene3d`                   | Shared CircuitJSON scene builder and preparator                                |
+| `kicad-toolkit/capabilities`              | Common capability inventory                                                    |
+| `kicad-toolkit/extensions`                | Complete browser-safe native 1.0.29 API                                        |
+| `kicad-toolkit/extensions/node`           | Native Node-only CLI helper                                                    |
+| `kicad-toolkit/extensions/netlist-query`  | Native netlist query helpers                                                   |
+| `kicad-toolkit/testing`                   | Shared contract fixtures and runner                                            |
+| `kicad-toolkit/workers/parser.worker.mjs` | Common worker endpoint                                                         |
+| `kicad-toolkit/styles/renderers.css`      | Common optional renderer CSS                                                   |
 
 The complete native API reference remains in [Native Extension API](native-api.md).

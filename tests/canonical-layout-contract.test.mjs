@@ -34,19 +34,22 @@ test('package exposes the complete common layout', async () => {
     )
 })
 
-test('common service subpaths forward exact CircuitJSON identities', async () => {
-    for (const subpath of [
-        'renderers',
-        'interaction',
-        'query',
-        'manufacturing',
-        'simulation',
-        'scene3d',
-        'testing'
-    ]) {
-        const [actual, expected] = await Promise.all([
+for (const subpath of [
+    'parser',
+    'project',
+    'renderers',
+    'interaction',
+    'query',
+    'manufacturing',
+    'simulation',
+    'scene3d',
+    'testing'
+]) {
+    test(`common ${subpath} subpath forwards exact CircuitJSON identities`, async () => {
+        const [actual, expected, root] = await Promise.all([
             import(`../src/${subpath}.mjs`),
-            import(`circuitjson-toolkit/${subpath}`)
+            import(`circuitjson-toolkit/${subpath}`),
+            import('../src/index.mjs')
         ])
         assert.deepEqual(
             Object.keys(actual).sort(),
@@ -54,10 +57,17 @@ test('common service subpaths forward exact CircuitJSON identities', async () =>
             subpath
         )
         for (const name of Object.keys(expected)) {
-            assert.equal(actual[name], expected[name], `${subpath}:${name}`)
+            const packageOwned =
+                (subpath === 'parser' && name === 'Parser') ||
+                (subpath === 'project' && name === 'ProjectLoader')
+            assert.equal(
+                actual[name],
+                packageOwned ? root[name] : expected[name],
+                `${subpath}:${name}`
+            )
         }
-    }
-})
+    })
+}
 
 test('extensions preserve all browser-native and shared exports', async () => {
     const [actual, shared, parser, renderers, scene3d, query] =
