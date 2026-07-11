@@ -254,6 +254,10 @@ export function compareBenchmarkReports(current, baseline) {
     if (reusedMeasurements) {
         throw new Error('Current benchmark reuses historical measurements.')
     }
+    const comparable = benchmarkEnvironmentsComparable(
+        current.environment,
+        baseline.environment
+    )
     const cases = (current.cases || []).map((row) => {
         KicadApprovedBenchmark.assertCase(row)
         const approved = baselineById.get(row.id)
@@ -272,10 +276,26 @@ export function compareBenchmarkReports(current, baseline) {
             currentMedianMilliseconds: row.medianMilliseconds,
             ratio,
             maximumRatio,
-            passed: ratio <= maximumRatio
+            comparable,
+            passed: !comparable || ratio <= maximumRatio
         }
     })
-    return { passed: cases.every((row) => row.passed), cases }
+    return {
+        passed: cases.every((row) => row.passed),
+        comparable,
+        cases
+    }
+}
+
+/**
+ * Returns whether two reports were measured on equivalent timing hardware.
+ * @param {Record<string, any>} current Current environment.
+ * @param {Record<string, any>} baseline Baseline environment.
+ * @returns {boolean} Whether timing ratios are comparable.
+ */
+function benchmarkEnvironmentsComparable(current, baseline) {
+    const fields = ['platform', 'architecture', 'cpu', 'logicalCpuCount']
+    return fields.every((field) => current?.[field] === baseline?.[field])
 }
 
 /**

@@ -635,6 +635,50 @@ test('candidate benchmark runs current HEAD and enforces baseline comparison', a
     )
 })
 
+test('benchmark timing gates require equivalent measurement hardware', async () => {
+    const baseline = await readJson('benchmarks/baseline-v1.0.29.json')
+    const current = structuredClone(baseline)
+    current.gitRef = '1'.repeat(40)
+    current.sourceTree = '2'.repeat(40)
+    current.environment = {
+        ...current.environment,
+        platform: 'linux',
+        cpu: 'CI runner'
+    }
+    current.cases = current.cases.map((row) => ({
+        ...row,
+        samples: row.samples.map((sample) => sample * 2),
+        medianMilliseconds: row.medianMilliseconds * 2
+    }))
+    const { reportChecksum: ignored, ...body } = current
+    void ignored
+    current.reportChecksum = reportChecksum(body)
+
+    const crossHardware = compareBenchmarkReports(current, baseline)
+    assert.equal(crossHardware.comparable, false)
+    assert.equal(crossHardware.passed, true)
+    assert.equal(
+        crossHardware.cases.every(
+            (row) => row.comparable === false && row.passed === true
+        ),
+        true
+    )
+
+    current.environment = structuredClone(baseline.environment)
+    const { reportChecksum: staleChecksum, ...sameHardwareBody } = current
+    void staleChecksum
+    current.reportChecksum = reportChecksum(sameHardwareBody)
+    const sameHardware = compareBenchmarkReports(current, baseline)
+    assert.equal(sameHardware.comparable, true)
+    assert.equal(sameHardware.passed, false)
+    assert.equal(
+        sameHardware.cases.every(
+            (row) => row.comparable === true && row.passed === false
+        ),
+        true
+    )
+})
+
 test('benchmark comparison rejects a resealed copy of baseline measurements', async () => {
     const baseline = await readJson('benchmarks/baseline-v1.0.29.json')
     const current = structuredClone(baseline)
