@@ -44,6 +44,13 @@ fields, derive byte accounting on the receiving side, and honor
 `transferInput` exactly like the other toolkits. See the
 [1.1.3 release notes](docs/release-notes-v1.1.3.md).
 
+Version 1.1.4 adds `KicadExtensionResolver` as the explicit bridge from a
+canonical document envelope to retained source-native renderer data. Apps can
+request `kicad.native-model`, use native KiCad 2D rendering where source
+fidelity matters, and keep CircuitJSON for shared queries, BOM, and fast 3D
+scene construction. See the
+[1.1.4 release notes](docs/release-notes-v1.1.4.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).
@@ -59,6 +66,8 @@ explicit extension subpaths. See the [migration guide](docs/migration.md).
   independently, so one malformed document does not discard valid siblings.
 - Shared CircuitJSON rendering, interaction, query, manufacturing, simulation,
   and right-handed Z-up 3D scene services
+- Opt-in `kicad.native-model` retention with a guarded resolver for native
+  schematic, PCB, layer, and interaction fidelity without reparsing
 - Canonical `cad_component` rows for every visible footprint model, with exact
   project asset paths and independent board-placement and model-local
   transforms for direct viewer and ECAD Forge consumption
@@ -155,14 +164,27 @@ const project = await ProjectLoader.loadAsync([
 Use the retained native API deliberately when needed:
 
 ```js
+import { Parser } from 'kicad-toolkit/parser'
 import {
-    KicadParser,
-    KicadProjectLoader,
-    PcbSvgRenderer
+    KicadExtensionResolver,
+    PcbSvgRenderer as KicadPcbSvgRenderer
 } from 'kicad-toolkit/extensions'
 
-const circuitJson = KicadParser.parseArrayBuffer(file.name, arrayBuffer)
+const document = Parser.parse(
+    { fileName: file.name, data: arrayBuffer },
+    { extensions: ['kicad.native-model'] }
+)
+const nativeModel = KicadExtensionResolver.nativeModel(document)
+
+if (nativeModel?.pcb) {
+    const nativePcbMarkup = KicadPcbSvgRenderer.render(nativeModel)
+}
 ```
+
+`nativeModel(document)` returns `null` when native retention was not requested
+or the canonical source is not KiCad. `hasNativeModel(document)` provides the
+corresponding boolean check. Historical KiCad renderer models pass through the
+same resolver unchanged, so a host can use one migration boundary.
 
 Optional renderer CSS is available through:
 
@@ -179,6 +201,7 @@ import 'kicad-toolkit/styles/renderers.css'
 - [1.1.1 release notes](docs/release-notes-v1.1.1.md)
 - [1.1.2 release notes](docs/release-notes-v1.1.2.md)
 - [1.1.3 release notes](docs/release-notes-v1.1.3.md)
+- [1.1.4 release notes](docs/release-notes-v1.1.4.md)
 - [Model Format](docs/model-format.md)
 - [Native Extension API](docs/native-api.md)
 - [Native Capability Inventory](docs/native-capabilities.md)

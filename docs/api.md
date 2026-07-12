@@ -69,6 +69,41 @@ The parser supports native `.kicad_sch`, `.kicad_pcb`, `.kicad_mod`,
 `.kicad_sym`, `.kicad_jobset`, `.kicad_dru`, `.kicad_wks`, `.net`, `.cmp`,
 legacy `.lib`/`.dcm`/`.mod`, `fp-lib-table`, and `sym-lib-table` inputs.
 
+### Retained native model
+
+Canonical CircuitJSON remains the default and is sufficient for shared
+rendering, query, BOM, manufacturing, simulation, and 3D services. When a host
+needs source-native KiCad schematic, PCB, layer, or interaction fidelity, it
+can retain the native renderer model during the same parse and resolve it
+through the explicit extension boundary:
+
+```js
+import { Parser } from 'kicad-toolkit/parser'
+import { KicadExtensionResolver } from 'kicad-toolkit/extensions'
+
+const document = Parser.parse(
+    { fileName: 'board.kicad_pcb', data: boardBytes },
+    { extensions: ['kicad.native-model'], decodeAssets: 'full' }
+)
+const nativeModel = KicadExtensionResolver.nativeModel(document)
+
+if (KicadExtensionResolver.hasNativeModel(document)) {
+    console.log(nativeModel.pcb)
+}
+```
+
+`nativeModel(document)` returns the owned `extensions.kicad.native` record only
+for an `ecad-toolkit.document.v1` envelope whose owned `source.format` is
+exactly `kicad`. It returns `null` for canonical documents that did not request
+the extension and for other source formats. Historical renderer models pass
+through unchanged only when their owned `sourceFormat` is `kicad` or their
+owned schema begins with `urn:kicad-toolkit:` or `kicad-toolkit.`. The resolver
+does not invoke accessors or reparse source data.
+
+`ProjectLoader.load()` and `loadAsync()` accept the same
+`extensions: ['kicad.native-model']` option and retain the native model on each
+returned KiCad document.
+
 ## Project loading
 
 ```js
@@ -121,7 +156,7 @@ resolver.
 | `kicad-toolkit/simulation`                | Shared injected simulation service                                             |
 | `kicad-toolkit/scene3d`                   | Shared CircuitJSON scene builder and preparator                                |
 | `kicad-toolkit/capabilities`              | Common capability inventory                                                    |
-| `kicad-toolkit/extensions`                | Complete browser-safe native 1.0.29 API                                        |
+| `kicad-toolkit/extensions`                | Browser-safe native 1.0.29 API and canonical native-model resolver             |
 | `kicad-toolkit/extensions/node`           | Native Node-only CLI helper                                                    |
 | `kicad-toolkit/extensions/netlist-query`  | Native netlist query helpers                                                   |
 | `kicad-toolkit/testing`                   | Shared contract fixtures and runner                                            |

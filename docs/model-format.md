@@ -62,6 +62,14 @@ metadata. Select `extensions: 'full'`, `preserveRaw: true`, or
 `extensions: ['kicad.native-model']` to retain the renderer-compatibility model
 under `document.extensions.kicad.native` without reparsing.
 
+Consumers should resolve that optional model through
+`KicadExtensionResolver.nativeModel(document)` from
+`kicad-toolkit/extensions`. The resolver validates the canonical schema and
+owned KiCad source marker before returning the native record; absent or
+wrong-format extensions return `null`. This keeps canonical `model` as the
+shared data path while allowing native 2D fidelity where a host explicitly
+requests it.
+
 `ProjectLoader` returns `ecad-toolkit.project.v1` with canonical documents,
 project relationships, namespaced KiCad metadata, assets, diagnostics, and
 statistics. ZIP paths and central/local metadata are validated before

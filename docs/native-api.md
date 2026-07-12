@@ -22,6 +22,28 @@ Specialized entrypoints are also available:
 - `kicad-toolkit/extensions/workers/kicad-parser.worker.mjs`
 - `kicad-toolkit/extensions/styles/kicad-renderers.css`
 
+## Canonical envelope bridge
+
+`KicadExtensionResolver` is the additive bridge between the common canonical
+document contract and the retained native renderer model:
+
+```js
+import { Parser } from 'kicad-toolkit/parser'
+import { KicadExtensionResolver } from 'kicad-toolkit/extensions'
+
+const document = Parser.parse(
+    { fileName, data },
+    { extensions: ['kicad.native-model'] }
+)
+const nativeModel = KicadExtensionResolver.nativeModel(document)
+```
+
+`nativeModel(document)` returns the retained KiCad object or `null`, and
+`hasNativeModel(document)` returns the equivalent boolean. The resolver also
+passes historical KiCad renderer models through unchanged, allowing old and
+canonical inputs to share one native-rendering boundary. It does not alter the
+canonical envelope, invoke caller accessors, or parse the source a second time.
+
 ## Parser
 
 ```js
