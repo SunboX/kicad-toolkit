@@ -294,7 +294,7 @@ export class CircuitJsonSchematicImageBuilder {
         if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
             return null
         }
-        for (let offset = 2; offset + 8 < bytes.length;) {
+        for (let offset = 2; offset + 8 < bytes.length; ) {
             if (bytes[offset] !== 0xff) {
                 offset += 1
                 continue
