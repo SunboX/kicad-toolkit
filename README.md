@@ -51,6 +51,10 @@ fidelity matters, and keep CircuitJSON for shared queries, BOM, and fast 3D
 scene construction. See the
 [1.1.4 release notes](docs/release-notes-v1.1.4.md).
 
+Version 1.1.5 republishes the same runtime behavior with the clean-checkout
+formatting gate corrected. See the
+[1.1.5 release notes](docs/release-notes-v1.1.5.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).
@@ -202,6 +206,7 @@ import 'kicad-toolkit/styles/renderers.css'
 - [1.1.2 release notes](docs/release-notes-v1.1.2.md)
 - [1.1.3 release notes](docs/release-notes-v1.1.3.md)
 - [1.1.4 release notes](docs/release-notes-v1.1.4.md)
+- [1.1.5 release notes](docs/release-notes-v1.1.5.md)
 - [Model Format](docs/model-format.md)
 - [Native Extension API](docs/native-api.md)
 - [Native Capability Inventory](docs/native-capabilities.md)
