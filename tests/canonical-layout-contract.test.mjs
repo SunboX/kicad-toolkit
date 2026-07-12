@@ -21,6 +21,7 @@ const COMMON_EXPORTS = [
     './workers/parser.worker.mjs',
     './styles/renderers.css'
 ]
+const KICAD_CONVERGENCE_EXTENSION_EXPORTS = ['KicadExtensionResolver']
 
 test('package exposes the complete common layout', async () => {
     const pkg = JSON.parse(
@@ -90,7 +91,11 @@ test('extensions preserve all browser-native and shared exports', async () => {
     )
     assert.deepEqual(
         Object.keys(actual).sort(),
-        [...native, ...Object.keys(shared)].sort()
+        [
+            ...native,
+            ...Object.keys(shared),
+            ...KICAD_CONVERGENCE_EXTENSION_EXPORTS
+        ].sort()
     )
 })
 
