@@ -182,6 +182,13 @@ coordinates with the same inverse component rotation used for footprint
 artwork.
 Custom polygon pad primitives are projected as `polygon` pads with deterministic
 board-space points when the primitive geometry is available.
+Plated and non-plated drill projection retains circular or pill geometry,
+board-space slot rotation, and pad-local drill offsets. Rectangular, rounded,
+pill, circular, and custom polygon outer pads keep independent copper and drill
+dimensions. The canonical plated-hole variants use `rect_ccw_rotation`,
+`hole_ccw_rotation`, `hole_offset_x`, `hole_offset_y`, `rect_border_radius`,
+and `pad_outline` where their source geometry requires them instead of reducing
+all through-hole pads to circles.
 
 PCB drawing and copper objects use `type` values such as `line`, `circle`,
 `arc`, `curve`, `polygon`, `segment`, `via`, `zone`, `dimension`, `image`,
@@ -198,6 +205,9 @@ compatible with shape-specific courtyard rows such as `pcb_courtyard_rect`,
 preserves normalized millimeter coordinates, stroke width, source layer, source
 type, and owning PCB component ids when the graphic comes from a placed
 footprint.
+Filled source artwork additionally retains `fill: true`, allowing common 2D
+and 3D renderers to reconstruct filled silkscreen polygons without inspecting
+KiCad-native records.
 
 Filled zone objects preserve the first contour on `points` for compatibility
 and expose all recovered contours on `contours` when the source filled polygon
@@ -213,6 +223,12 @@ Multi-line text is preserved and rendered by the SVG renderer using the KiCad
 stroke font helper. Board and footprint text variables are expanded during PCB
 parsing when the referenced board, title-block, footprint, layer, or pad data is
 available; unresolved variables are left unchanged.
+CircuitJSON PCB text rows retain independent `font_width` and `font_height`,
+`stroke_width`, the exact nine-position `source_anchor_alignment`, hidden
+state, source layer/type provenance, and the appropriate canonical mirroring
+field. Board and fabrication notes keep the narrower upstream
+`anchor_alignment` while the additive source anchor preserves edge-center
+placement for lossless rendering.
 KiCad `gr_text_box` and `fp_text_box` entries also preserve `textBox` metadata
 with source type, shape, border, knockout, corner points, margins, width, and
 height for 3D scene layout consumers.

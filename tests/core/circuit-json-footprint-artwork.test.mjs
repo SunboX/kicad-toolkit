@@ -3,6 +3,7 @@
 
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { CircuitJsonDocument } from 'circuitjson-toolkit'
 import {
     CircuitJsonConformanceChecker,
     KicadParser
@@ -67,7 +68,10 @@ function standaloneFootprintSource() {
             (property "Value" "Pad_Artwork"
                 (at 0 1 0)
                 (layer "F.Fab")
-                (effects (font (size 1 0.8) (thickness 0.12)))
+                (effects
+                    (font (size 1 0.8) (thickness 0.12))
+                    (justify left)
+                )
             )
             (fp_line
                 (start -1 -1)
@@ -98,6 +102,12 @@ function standaloneFootprintSource() {
                 (at 0.8 0 0)
                 (size 1.3 1.3)
                 (drill 0.7)
+                (layers "*.Cu" "*.Mask")
+            )
+            (pad "3" thru_hole oval
+                (at 2.4 0 30)
+                (size 2.4 1.2)
+                (drill oval 1.6 0.6)
                 (layers "*.Cu" "*.Mask")
             )
         )
@@ -236,7 +246,11 @@ test('KicadParser projects standalone footprint pads, text, and artwork into Cir
     )
     const conformance = CircuitJsonConformanceChecker.check(circuitJson)
     const smtPad = findElement(circuitJson, 'pcb_smtpad')
-    const platedHole = findElement(circuitJson, 'pcb_plated_hole')
+    const platedHoles = elementsOf(circuitJson, 'pcb_plated_hole')
+    const platedHole = platedHoles.find((element) => element.shape === 'circle')
+    const platedSlot = platedHoles.find((element) =>
+        String(element.shape).includes('pill_hole_with_rect_pad')
+    )
     const silkText = findElement(circuitJson, 'pcb_silkscreen_text')
     const fabText = findElement(circuitJson, 'pcb_fabrication_note_text')
     const silkPath = findElement(circuitJson, 'pcb_silkscreen_path')
@@ -246,15 +260,25 @@ test('KicadParser projects standalone footprint pads, text, and artwork into Cir
     assert.equal(conformance.valid, true)
     assert.equal(elementsOf(circuitJson, 'source_component').length, 1)
     assert.equal(elementsOf(circuitJson, 'pcb_component').length, 1)
-    assert.equal(elementsOf(circuitJson, 'source_port').length, 2)
-    assert.equal(elementsOf(circuitJson, 'pcb_port').length, 2)
+    assert.equal(elementsOf(circuitJson, 'source_port').length, 3)
+    assert.equal(elementsOf(circuitJson, 'pcb_port').length, 3)
     assert.equal(smtPad.shape, 'rect')
     assert.equal(smtPad.width, 1.2)
     assert.equal(smtPad.height, 0.8)
     assert.equal(platedHole.outer_diameter, 1.3)
     assert.equal(platedHole.hole_diameter, 0.7)
+    assert.ok(platedSlot)
+    assert.equal(platedSlot.rect_pad_width, 2.4)
+    assert.equal(platedSlot.rect_pad_height, 1.2)
+    assert.equal(platedSlot.hole_width, 1.6)
+    assert.equal(platedSlot.hole_height, 0.6)
+    assert.equal(platedSlot.rect_ccw_rotation, 30)
+    assert.equal(platedSlot.hole_ccw_rotation, 30)
     assert.equal(silkText.text, 'REF**')
     assert.equal(fabText.text, 'Pad_Artwork')
+    assert.equal(fabText.anchor_alignment, 'center')
+    assert.equal(fabText.source_anchor_alignment, 'center_left')
+    assert.deepEqual(CircuitJsonDocument.validateModel([...circuitJson]), [])
     assert.equal(silkPath.width, 0.12)
     assert.equal(fabPath.points.length, 5)
     assert.equal(courtyard.shape, 'circle')

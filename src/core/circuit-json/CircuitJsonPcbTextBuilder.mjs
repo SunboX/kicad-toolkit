@@ -5,6 +5,10 @@
 import { CircuitJsonModelAdapterPrimitives } from './CircuitJsonModelAdapterPrimitives.mjs'
 
 const Primitives = CircuitJsonModelAdapterPrimitives
+const RESTRICTED_ANCHOR_TYPES = new Set([
+    'pcb_note_text',
+    'pcb_fabrication_note_text'
+])
 
 /**
  * Builds Circuit JSON PCB text elements from parsed board text rows.
@@ -50,6 +54,8 @@ export class CircuitJsonPcbTextBuilder {
         const type = CircuitJsonPcbTextBuilder.#textType(text, ownerComponentId)
         const idField = CircuitJsonPcbTextBuilder.#textIdField(type)
         const position = Primitives.milPoint(text.x, text.y)
+        const sourceAnchorAlignment =
+            CircuitJsonPcbTextBuilder.#anchorAlignment(text)
         const element = {
             type,
             [idField]: Primitives.id(idScope, [
@@ -57,12 +63,21 @@ export class CircuitJsonPcbTextBuilder {
                 text.id || text.uuid || textIndex
             ]),
             text: textValue,
-            x: position.x,
-            y: position.y,
             anchor_position: position,
             layer: CircuitJsonPcbTextBuilder.#side(text),
             ccw_rotation: Primitives.normalizedRotation(text.rotation),
             font_size: Primitives.pcbTextFontSize(text),
+            font_width: CircuitJsonPcbTextBuilder.#fontWidth(text),
+            font_height: CircuitJsonPcbTextBuilder.#fontHeight(text),
+            anchor_alignment: RESTRICTED_ANCHOR_TYPES.has(type)
+                ? CircuitJsonPcbTextBuilder.#noteAnchorAlignment(
+                      sourceAnchorAlignment
+                  )
+                : sourceAnchorAlignment,
+            source_anchor_alignment: sourceAnchorAlignment,
+            ...(type === 'pcb_note_text'
+                ? { is_mirrored_from_top_view: text.mirrored === true }
+                : { is_mirrored: text.mirrored === true }),
             is_hidden: Primitives.isHiddenText(text)
         }
         const strokeWidth = Primitives.pcbTextStrokeWidth(text)
@@ -70,9 +85,16 @@ export class CircuitJsonPcbTextBuilder {
             text.textKind || text.sourceType || text.propertyName || text.kind,
             ''
         )
+        const sourceLayer = Primitives.string(text.layer, '')
+        const sourceType = CircuitJsonPcbTextBuilder.#sourceType(
+            text,
+            ownerComponentId
+        )
 
         if (strokeWidth !== undefined) element.stroke_width = strokeWidth
         if (sourceTextKind) element.source_text_kind = sourceTextKind
+        if (sourceLayer) element.source_layer = sourceLayer
+        if (sourceType) element.source_type = sourceType
         if (ownerComponentId) element.pcb_component_id = ownerComponentId
 
         circuitJson.push(element)
@@ -105,6 +127,86 @@ export class CircuitJsonPcbTextBuilder {
             return 'pcb_fabrication_note_text_id'
         }
         return 'pcb_note_text_id'
+    }
+
+    /**
+     * Resolves the original text width in millimeters.
+     * @param {Record<string, unknown>} text PCB text primitive.
+     * @returns {number}
+     */
+    static #fontWidth(text) {
+        return Primitives.round(
+            Primitives.number(
+                text.sizeX ?? text.fontWidth ?? text.font?.width,
+                Primitives.pcbTextFontSize(text)
+            ) || Primitives.pcbTextFontSize(text)
+        )
+    }
+
+    /**
+     * Resolves the original text height in millimeters.
+     * @param {Record<string, unknown>} text PCB text primitive.
+     * @returns {number}
+     */
+    static #fontHeight(text) {
+        return Primitives.round(
+            Primitives.number(
+                text.sizeY ?? text.fontHeight ?? text.font?.height,
+                Primitives.pcbTextFontSize(text)
+            ) || Primitives.pcbTextFontSize(text)
+        )
+    }
+
+    /**
+     * Converts independent horizontal and vertical alignment into CircuitJSON.
+     * @param {Record<string, unknown>} text PCB text primitive.
+     * @returns {string}
+     */
+    static #anchorAlignment(text) {
+        const horizontal = ['left', 'right'].includes(
+            String(text.hAlign || '').toLowerCase()
+        )
+            ? String(text.hAlign).toLowerCase()
+            : 'center'
+        const vertical = ['top', 'bottom'].includes(
+            String(text.vAlign || '').toLowerCase()
+        )
+            ? String(text.vAlign).toLowerCase()
+            : 'center'
+
+        if (horizontal === 'center' && vertical === 'center') return 'center'
+        return `${vertical}_${horizontal}`
+    }
+
+    /**
+     * Reduces exact alignment to the narrower upstream PCB-note enum.
+     * @param {string} alignment Exact source alignment.
+     * @returns {string}
+     */
+    static #noteAnchorAlignment(alignment) {
+        return [
+            'center',
+            'top_left',
+            'top_right',
+            'bottom_left',
+            'bottom_right'
+        ].includes(alignment)
+            ? alignment
+            : 'center'
+    }
+
+    /**
+     * Resolves retained KiCad text provenance without using document identity.
+     * @param {Record<string, unknown>} text PCB text primitive.
+     * @param {string} ownerComponentId Owning PCB component id.
+     * @returns {string}
+     */
+    static #sourceType(text, ownerComponentId) {
+        const explicit = Primitives.string(text.sourceType || text.type, '')
+        if (explicit) return explicit
+        return !ownerComponentId && String(text.layer || '').trim()
+            ? 'gr_text'
+            : ''
     }
 
     /**

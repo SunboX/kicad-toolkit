@@ -325,6 +325,13 @@ export class CircuitJsonPcbLibraryBuilder {
      * @returns {object}
      */
     static #pad(pad, componentIndex) {
+        const drillWidth = Primitives.number(pad.drillWidth, 0) || 0
+        const drillHeight = Primitives.number(pad.drillHeight, 0) || 0
+        const drillMinorDimension =
+            drillWidth > 0 && drillHeight > 0
+                ? Math.min(drillWidth, drillHeight)
+                : 0
+
         return {
             ...pad,
             componentIndex,
@@ -338,7 +345,15 @@ export class CircuitJsonPcbLibraryBuilder {
                 pad.sizeTopY || pad.sizeY || pad.height
             ),
             holeDiameter: CircuitJsonPcbLibraryBuilder.#millimeterToMil(
-                pad.holeDiameter || pad.drill || pad.drillDiameter
+                pad.holeDiameter ||
+                    drillMinorDimension ||
+                    pad.drill ||
+                    pad.drillDiameter
+            ),
+            holeSlotLength: CircuitJsonPcbLibraryBuilder.#millimeterToMil(
+                pad.holeSlotLength ||
+                    pad.slotLength ||
+                    Math.max(drillWidth, drillHeight)
             ),
             shapeTopName: pad.shapeTopName || pad.shapeName || pad.shape,
             layer: CircuitJsonPcbLibraryBuilder.#primaryPadLayer(pad),

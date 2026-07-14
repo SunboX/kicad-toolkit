@@ -55,6 +55,12 @@ Version 1.1.5 republishes the same runtime behavior with the clean-checkout
 formatting gate corrected. See the
 [1.1.5 release notes](docs/release-notes-v1.1.5.md).
 
+Version 1.2.0 preserves exact KiCad pad, drill, silkscreen, and PCB text
+geometry in the canonical CircuitJSON model. Oval and slotted drills, custom
+and rounded pads, filled silkscreen artwork, independent text dimensions,
+source anchors, and mirroring now flow directly to common renderers. See the
+[1.2.0 release notes](docs/release-notes-v1.2.0.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).
@@ -207,6 +213,7 @@ import 'kicad-toolkit/styles/renderers.css'
 - [1.1.3 release notes](docs/release-notes-v1.1.3.md)
 - [1.1.4 release notes](docs/release-notes-v1.1.4.md)
 - [1.1.5 release notes](docs/release-notes-v1.1.5.md)
+- [1.2.0 release notes](docs/release-notes-v1.2.0.md)
 - [Model Format](docs/model-format.md)
 - [Native Extension API](docs/native-api.md)
 - [Native Capability Inventory](docs/native-capabilities.md)

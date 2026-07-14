@@ -70,6 +70,7 @@ export class CircuitJsonPcbArtworkBuilder {
                 options.coordinateUnits || 'mil',
                 0
             ),
+            ...(drawing.fill === true ? { fill: true } : {}),
             source_layer: String(drawing.layer || ''),
             source_type: String(drawing.sourceType || drawing.type || ''),
             ...shape

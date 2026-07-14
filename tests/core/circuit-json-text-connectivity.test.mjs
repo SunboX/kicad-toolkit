@@ -26,6 +26,19 @@ function findElement(circuitJson, type, predicate = () => true) {
 }
 
 /**
+ * Encodes source text as an exact ArrayBuffer window.
+ * @param {string} source Source text.
+ * @returns {ArrayBuffer}
+ */
+function bytesFor(source) {
+    const buffer = Buffer.from(source, 'utf8')
+    return buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength
+    )
+}
+
+/**
  * Verifies ownerless PCB text rows survive as canonical note text.
  */
 test('CircuitJsonModelAdapter emits PCB note text with layer and visibility metadata', () => {
@@ -59,8 +72,13 @@ test('CircuitJsonModelAdapter emits PCB note text with layer and visibility meta
                     y: 200,
                     layer: 'F.SilkS',
                     rotation: 90,
+                    sizeX: 0.8,
                     sizeY: 1.2,
                     thickness: 0.15,
+                    mirrored: true,
+                    hAlign: 'left',
+                    vAlign: 'center',
+                    ownerId: 'board',
                     visible: true
                 },
                 {
@@ -90,13 +108,20 @@ test('CircuitJsonModelAdapter emits PCB note text with layer and visibility meta
     const report = CircuitJsonConformanceChecker.check(circuitJson)
 
     assert.equal(silkscreenText.pcb_note_text_id.length > 0, true)
-    assert.equal(silkscreenText.x, 2.54)
-    assert.equal(silkscreenText.y, 5.08)
+    assert.equal(Object.hasOwn(silkscreenText, 'x'), false)
+    assert.equal(Object.hasOwn(silkscreenText, 'y'), false)
     assert.deepEqual(silkscreenText.anchor_position, { x: 2.54, y: 5.08 })
     assert.equal(silkscreenText.layer, 'top')
     assert.equal(silkscreenText.ccw_rotation, 90)
     assert.equal(silkscreenText.font_size, 1.2)
+    assert.equal(silkscreenText.font_width, 0.8)
+    assert.equal(silkscreenText.font_height, 1.2)
     assert.equal(silkscreenText.stroke_width, 0.15)
+    assert.equal(silkscreenText.anchor_alignment, 'center')
+    assert.equal(silkscreenText.source_anchor_alignment, 'center_left')
+    assert.equal(silkscreenText.is_mirrored_from_top_view, true)
+    assert.equal(silkscreenText.source_layer, 'F.SilkS')
+    assert.equal(silkscreenText.source_type, 'gr_text')
     assert.equal(silkscreenText.is_hidden, false)
     assert.equal(fabricationText.pcb_note_text_id.length > 0, true)
     assert.equal(fabricationText.layer, 'bottom')
@@ -104,6 +129,61 @@ test('CircuitJsonModelAdapter emits PCB note text with layer and visibility meta
     assert.equal(fabricationText.font_size, 1)
     assert.equal(fabricationText.is_hidden, true)
     assert.equal(report.valid, true)
+})
+
+test('KiCad board text keeps default vertical centering with left mirror rotation', () => {
+    const source = `
+        (kicad_pcb
+            (version 20241229)
+            (layers
+                (0 "F.Cu" signal)
+                (31 "B.Cu" signal)
+                (37 "F.SilkS" user)
+                (44 "Edge.Cuts" user)
+            )
+            (gr_rect
+                (start 0 0)
+                (end 20 10)
+                (stroke (width 0.1) (type solid))
+                (fill none)
+                (layer "Edge.Cuts")
+            )
+            (gr_text "MARK"
+                (at 15 8 330)
+                (layer "B.SilkS")
+                (effects
+                    (font (size 1.2 0.8) (thickness 0.12))
+                    (justify left mirror)
+                )
+            )
+        )
+    `
+    const rendererModel = KicadParser.parseArrayBufferToRendererModel(
+        'neutral-board.kicad_pcb',
+        bytesFor(source)
+    )
+    const nativeText = rendererModel.pcb.texts.find(
+        (text) => text.text === 'MARK'
+    )
+    const circuitJson = KicadParser.parseArrayBuffer(
+        'neutral-board.kicad_pcb',
+        bytesFor(source)
+    )
+    const canonicalText = findElement(
+        circuitJson,
+        'pcb_note_text',
+        (element) => element.text === 'MARK'
+    )
+
+    assert.equal(nativeText.hAlign, 'left')
+    assert.equal(nativeText.vAlign, 'center')
+    assert.equal(nativeText.mirrored, true)
+    assert.equal(nativeText.rotation, 30)
+    assert.deepEqual(canonicalText.anchor_position, { x: 15, y: 8 })
+    assert.equal(canonicalText.anchor_alignment, 'center')
+    assert.equal(canonicalText.source_anchor_alignment, 'center_left')
+    assert.equal(canonicalText.is_mirrored_from_top_view, true)
+    assert.equal(canonicalText.ccw_rotation, 30)
 })
 
 /**
