@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { CircuitJsonModelAdapterPadFace } from './CircuitJsonModelAdapterPadFace.mjs'
+
 const MILS_PER_MM = 39.37007874015748
 
 /**
@@ -313,7 +315,10 @@ export class CircuitJsonModelAdapterPrimitives {
      */
     static padShape(pad) {
         const shape = String(
-            pad.shapeTopName || pad.shapeName || pad.shape || ''
+            CircuitJsonModelAdapterPadFace.shapeName(
+                pad,
+                CircuitJsonModelAdapterPrimitives.layerName(pad)
+            )
         )
             .toLowerCase()
             .replace(/[\s_-]+/gu, '')
@@ -355,13 +360,14 @@ export class CircuitJsonModelAdapterPrimitives {
             }
         }
 
-        const width = CircuitJsonModelAdapterPrimitives.milNumber(
-            pad.sizeTopX || pad.sizeX || pad.width,
-            0
-        )
+        const layer = CircuitJsonModelAdapterPrimitives.layerName(pad)
+        const widthMil = CircuitJsonModelAdapterPadFace.size(pad, layer, 'X')
+        const heightMil =
+            CircuitJsonModelAdapterPadFace.size(pad, layer, 'Y') || widthMil
+        const width = CircuitJsonModelAdapterPrimitives.milNumber(widthMil, 0)
         const height = CircuitJsonModelAdapterPrimitives.milNumber(
-            pad.sizeTopY || pad.sizeY || pad.height,
-            0
+            heightMil,
+            widthMil
         )
         const rotation = CircuitJsonModelAdapterPrimitives.normalizedRotation(
             pad.rotation ?? pad.holeRotation ?? 0
@@ -436,14 +442,19 @@ export class CircuitJsonModelAdapterPrimitives {
             return CircuitJsonModelAdapterPrimitives.round(explicitRadius)
         }
 
+        const activeCornerRadius =
+            CircuitJsonModelAdapterPrimitives.layerName(pad) === 'bottom'
+                ? pad.cornerRadiusBottom
+                : pad.cornerRadiusTop
         const ratio =
+            CircuitJsonModelAdapterPrimitives.#percentRatio(
+                activeCornerRadius
+            ) ??
             CircuitJsonModelAdapterPrimitives.number(
                 pad.roundrectRatio ?? pad.roundrect_rratio,
                 null
             ) ??
-            CircuitJsonModelAdapterPrimitives.#percentRatio(
-                pad.cornerRadiusTop ?? pad.cornerRadius
-            )
+            CircuitJsonModelAdapterPrimitives.#percentRatio(pad.cornerRadius)
 
         if (ratio === null) return 0
         return CircuitJsonModelAdapterPrimitives.round(
@@ -468,9 +479,12 @@ export class CircuitJsonModelAdapterPrimitives {
      * @returns {'top' | 'bottom'}
      */
     static side(layer) {
-        return String(layer || '')
+        const normalized = String(layer || '')
             .toLowerCase()
-            .includes('bottom')
+            .trim()
+        return normalized.includes('bottom') ||
+            normalized.includes('back') ||
+            normalized === 'b.cu'
             ? 'bottom'
             : 'top'
     }
@@ -481,21 +495,24 @@ export class CircuitJsonModelAdapterPrimitives {
      * @returns {string}
      */
     static layerName(primitive) {
-        const layerName = String(primitive.layerName || primitive.layer || '')
-            .toLowerCase()
-            .trim()
+        const candidates = [
+            primitive.layerName,
+            primitive.layer,
+            ...CircuitJsonModelAdapterPrimitives.array(primitive.layers),
+            primitive.side
+        ]
+        for (const candidate of candidates) {
+            const [layerName] =
+                CircuitJsonModelAdapterPrimitives.#normalizeCopperLayer(
+                    candidate
+                )
+            if (layerName) return layerName
+        }
+
         const layerId = CircuitJsonModelAdapterPrimitives.number(
             primitive.layerId,
             null
         )
-        const innerMatch = layerName.match(/^in(\d+)(?:\.cu)?$/u)
-        if (layerName.includes('bottom') || layerName === 'b.cu') {
-            return 'bottom'
-        }
-        if (layerName.includes('top') || layerName === 'f.cu') {
-            return 'top'
-        }
-        if (innerMatch) return `inner${innerMatch[1]}`
         if (layerId === 0 || layerId === 1) return 'top'
         if (layerId === 31 || layerId === 32) return 'bottom'
         return 'top'
@@ -511,6 +528,27 @@ export class CircuitJsonModelAdapterPrimitives {
             return ['top', 'bottom']
         }
         return [CircuitJsonModelAdapterPrimitives.layerName(primitive)]
+    }
+
+    /**
+     * Returns whether an SMT pad's authored face is covered by solder mask.
+     * @param {Record<string, unknown>} pad Renderer-model pad.
+     * @returns {boolean | undefined}
+     */
+    static smtPadCoveredWithSolderMask(pad) {
+        return CircuitJsonModelAdapterPadFace.coveredWithSolderMask(
+            pad,
+            CircuitJsonModelAdapterPrimitives.layerName(pad)
+        )
+    }
+
+    /**
+     * Returns an explicit SMT pad solder-mask margin in millimeters.
+     * @param {Record<string, unknown>} pad Renderer-model pad.
+     * @returns {number | undefined}
+     */
+    static smtPadSolderMaskMargin(pad) {
+        return CircuitJsonModelAdapterPadFace.solderMaskMargin(pad)
     }
 
     /**
@@ -753,8 +791,20 @@ export class CircuitJsonModelAdapterPrimitives {
 
         if (!layer) return []
         if (layer === '*.cu') return ['top', 'bottom']
-        if (layer.includes('bottom') || layer === 'b.cu') return ['bottom']
-        if (layer.includes('top') || layer === 'f.cu') return ['top']
+        if (
+            layer.includes('bottom') ||
+            layer.includes('back') ||
+            layer === 'b.cu'
+        ) {
+            return ['bottom']
+        }
+        if (
+            layer.includes('top') ||
+            layer.includes('front') ||
+            layer === 'f.cu'
+        ) {
+            return ['top']
+        }
         if (innerMatch) return [`inner${innerMatch[1]}`]
         return []
     }

@@ -651,7 +651,7 @@ test('CircuitJsonModelAdapter emits richer source component metadata', () => {
     const namedPort = sourcePorts.find((port) => port.name === 'R')
     const metadataComponent = sourceComponents.get('U1')
     const roundRectPad = findElement(circuitJson, 'pcb_smtpad', (pad) => {
-        return pad.pcb_component_id.endsWith('_5') && pad.x === 11.43
+        return pad.pcb_component_id.endsWith('_u1') && pad.x === 11.43
     })
 
     assert.equal(sourceComponents.get('J1').ftype, 'simple_pin_header')

@@ -417,6 +417,7 @@ export class CircuitJsonModelAdapter {
                 pad,
                 padIndex,
                 componentIds,
+                pcbComponentIds,
                 sourceNetIds
             )
             if (portPlacement) portPlacements.push(portPlacement)
@@ -534,6 +535,7 @@ export class CircuitJsonModelAdapter {
      * @param {Record<string, unknown>} pad
      * @param {number} padIndex
      * @param {Map<string, string>} componentIds
+     * @param {Map<string, string>} pcbComponentIds
      * @param {Map<string, string>} sourceNetIds
      * @returns {{ pcbPortId: string, sourcePortId: string, sourceNetId: string | undefined, center: object, layers: string[] }}
      */
@@ -543,6 +545,7 @@ export class CircuitJsonModelAdapter {
         pad,
         padIndex,
         componentIds,
+        pcbComponentIds,
         sourceNetIds
     ) {
         const sourceComponentId =
@@ -556,10 +559,19 @@ export class CircuitJsonModelAdapter {
             sourceComponentId
         )
         const pcbPortId = Primitives.id(idScope, ['pcb_port', sourcePortId])
-        const pcbComponentId = Primitives.id(idScope, [
-            'pcb_component',
-            pad.componentIndex ?? 'unassigned'
-        ])
+        const pcbComponentId =
+            [
+                pad.componentIndex,
+                pad.footprintId,
+                pad.footprintReference,
+                pad.designator
+            ]
+                .map((key) => pcbComponentIds.get(String(key ?? '')))
+                .find(Boolean) ||
+            Primitives.id(idScope, [
+                'pcb_component',
+                pad.componentIndex ?? 'unassigned'
+            ])
         const center = Primitives.milPoint(pad.x, pad.y)
         const layer = Primitives.layerName(pad)
         const layers = Primitives.layers(pad)
@@ -626,8 +638,17 @@ export class CircuitJsonModelAdapter {
             shape: Primitives.padShape(pad)
         }
         const geometry = Primitives.smtPadGeometry(pad)
+        const coveredWithSolderMask =
+            Primitives.smtPadCoveredWithSolderMask(pad)
+        const solderMaskMargin = Primitives.smtPadSolderMaskMargin(pad)
 
         smtPad.shape = geometry.shape
+        if (coveredWithSolderMask !== undefined) {
+            smtPad.is_covered_with_solder_mask = coveredWithSolderMask
+        }
+        if (solderMaskMargin !== undefined) {
+            smtPad.soldermask_margin = solderMaskMargin
+        }
         if (geometry.shape === 'polygon') {
             smtPad.points = geometry.points
         } else if (smtPad.shape === 'circle') {

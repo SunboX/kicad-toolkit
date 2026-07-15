@@ -67,6 +67,12 @@ deeply frozen without a redundant defensive graph copy. Parser parameters,
 document envelopes, extension fields, and return shapes remain unchanged. See
 the [1.3.0 release notes](docs/release-notes-v1.3.0.md).
 
+Version 1.3.1 restores bottom-side SMD pads at the canonical CircuitJSON
+boundary. Pad layer, dimensions, shape, corner radius, solder-mask state, and
+component ownership now come from the authored copper face, so shared 2D and
+3D consumers receive complete top and bottom geometry. See the
+[1.3.1 release notes](docs/release-notes-v1.3.1.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).
@@ -121,6 +127,8 @@ explicit extension subpaths. See the [migration guide](docs/migration.md).
 - Emit Circuit JSON arrays from parser roots, including connected PCB routes,
   endpoint ports, vias, copper pours, board cutouts, and non-serialized
   renderer-compatibility fields for existing consumers
+- Preserve face-specific top and bottom SMD pad geometry, solder-mask openings,
+  and valid component ownership in canonical CircuitJSON
 - Render schematic SVG, PCB SVG, and grouped BOM HTML
 - Build non-interactive PCB 3D scene-description data for host applications,
   including full companion model payloads, multiple models per footprint,
@@ -221,6 +229,7 @@ import 'kicad-toolkit/styles/renderers.css'
 - [1.1.5 release notes](docs/release-notes-v1.1.5.md)
 - [1.2.0 release notes](docs/release-notes-v1.2.0.md)
 - [1.3.0 release notes](docs/release-notes-v1.3.0.md)
+- [1.3.1 release notes](docs/release-notes-v1.3.1.md)
 - [Model Format](docs/model-format.md)
 - [Native Extension API](docs/native-api.md)
 - [Native Capability Inventory](docs/native-capabilities.md)
