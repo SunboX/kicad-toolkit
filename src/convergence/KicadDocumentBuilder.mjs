@@ -83,7 +83,7 @@ export class KicadDocumentBuilder {
             normalized.options.retainSource === 'reference'
                 ? { sourceReference: normalized.sourceReference }
                 : {}
-        return DocumentResult.createValidated(
+        return DocumentResult.createValidatedOwned(
             {
                 model: canonicalModel,
                 source: {

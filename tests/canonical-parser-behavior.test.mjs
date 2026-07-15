@@ -158,6 +158,33 @@ test('parser applies common extension, asset, and source policies', () => {
     assert.deepEqual(asset, new Uint8Array([1, 2, 3, 4]))
 })
 
+test('parser adopts owned native extension graphs without recopying ordinary nodes', () => {
+    const nativeSummary = { analysis: { copperLayerCount: 2 } }
+    const nativeModel = []
+    nativeModel.kind = 'pcb'
+    nativeModel.summary = nativeSummary
+    nativeModel.bom = []
+    nativeModel.diagnostics = []
+    const original = KicadParser.parseArrayBuffer
+    KicadParser.parseArrayBuffer = () => nativeModel
+    try {
+        const document = Parser.parse(
+            {
+                fileName: 'owned-graph.kicad_pcb',
+                data: '(kicad_pcb)'
+            },
+            { extensions: 'full' }
+        )
+
+        assert.equal(document.extensions.kicad.summary, nativeSummary)
+        assert.equal(document.extensions.kicad.native.summary, nativeSummary)
+        assert.equal(Object.isFrozen(nativeSummary), true)
+        assert.equal(Object.isFrozen(nativeSummary.analysis), true)
+    } finally {
+        KicadParser.parseArrayBuffer = original
+    }
+})
+
 test('async parser emits ordered progress and honors cancellation', async () => {
     const controller = new AbortController()
     const stages = []

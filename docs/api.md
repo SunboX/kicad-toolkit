@@ -57,6 +57,13 @@ The parser applies the shared `CircuitJsonDocument.normalizeModel()` boundary
 before validation, so its model is directly consumable by the viewer and the
 other common services.
 
+The convergence builder transfers its newly decoded ordinary CircuitJSON and
+native extension graphs into the shared owned-document validator. Eligible
+graph nodes retain identity and are deeply frozen in place, avoiding a second
+full defensive copy. This is an internal ownership optimization after source
+decoding: raw caller data remains untrusted, and every public parser parameter,
+validation rule, document field, and return shape is unchanged.
+
 Common options include `worker`, `signal`, `onProgress`, `extensions`,
 `preserveRaw`, `decodeAssets`, `retainSource`, `transferInput`, and `reports`.
 Unknown extension/report ids fail with `ERR_CAPABILITY_UNAVAILABLE`.
