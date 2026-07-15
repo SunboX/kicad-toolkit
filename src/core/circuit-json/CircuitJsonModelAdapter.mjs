@@ -572,7 +572,10 @@ export class CircuitJsonModelAdapter {
                 'pcb_component',
                 pad.componentIndex ?? 'unassigned'
             ])
-        const center = Primitives.milPoint(pad.x, pad.y)
+        const isThroughHole = Primitives.isThroughHolePad(pad)
+        const center = isThroughHole
+            ? Primitives.milPoint(pad.x, pad.y)
+            : Primitives.smtPadCenter(pad)
         const layer = Primitives.layerName(pad)
         const layers = Primitives.layers(pad)
         const rawPortHint = Primitives.string(
@@ -608,7 +611,7 @@ export class CircuitJsonModelAdapter {
             layers
         })
 
-        if (Primitives.isThroughHolePad(pad)) {
+        if (isThroughHole) {
             Elements.appendPcbHole(circuitJson, idScope, pad, padIndex, {
                 center,
                 layers,

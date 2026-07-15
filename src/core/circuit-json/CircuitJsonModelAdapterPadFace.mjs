@@ -58,6 +58,31 @@ export class CircuitJsonModelAdapterPadFace {
     }
 
     /**
+     * Resolves the active face's local pad offset in renderer-model mils.
+     * @param {Record<string, unknown>} pad Renderer-model pad.
+     * @param {string} layer Canonical copper layer.
+     * @returns {{ x: number, y: number }}
+     */
+    static offset(pad, layer) {
+        const isBottom = layer === 'bottom'
+        const activeSide = isBottom ? 'Bottom' : 'Top'
+        const oppositeSide = isBottom ? 'Top' : 'Bottom'
+
+        return {
+            x: CircuitJsonModelAdapterPadFace.#firstFinite([
+                pad[`offset${activeSide}X`],
+                pad.offsetX,
+                pad[`offset${oppositeSide}X`]
+            ]),
+            y: CircuitJsonModelAdapterPadFace.#firstFinite([
+                pad[`offset${activeSide}Y`],
+                pad.offsetY,
+                pad[`offset${oppositeSide}Y`]
+            ])
+        }
+    }
+
+    /**
      * Returns whether the active pad face is covered by solder mask.
      * @param {Record<string, unknown>} pad Renderer-model pad.
      * @param {string} layer Canonical copper layer.
@@ -119,6 +144,26 @@ export class CircuitJsonModelAdapterPadFace {
         if (code === 4) return 'roundrect'
         if (code === 9) return 'custom'
         return code === 0 ? 'rect' : ''
+    }
+
+    /**
+     * Returns the first finite numeric candidate, or zero.
+     * @param {unknown[]} candidates Candidate values.
+     * @returns {number}
+     */
+    static #firstFinite(candidates) {
+        for (const candidate of candidates) {
+            if (
+                candidate === undefined ||
+                candidate === null ||
+                candidate === ''
+            ) {
+                continue
+            }
+            const numeric = Number(candidate)
+            if (Number.isFinite(numeric)) return numeric
+        }
+        return 0
     }
 }
 

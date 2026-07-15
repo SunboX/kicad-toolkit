@@ -10,6 +10,8 @@ workaround.
 - Bottom SMD pads now emit `layer: 'bottom'`; top pads remain on `top`.
 - Width, height, shape, rounded-corner radius, and exact right-angle rotation
   come from the resolved copper face instead of always reading the top face.
+- Active-face offsets rotate with the source pad and are folded into canonical
+  pad and port coordinates.
 - Bottom-only pads no longer fall through to raw KiCad millimeter fields and
   accidentally reinterpret those values as mils.
 - The renderer compatibility model now names top, inner, and bottom pad shapes
@@ -28,7 +30,7 @@ workaround.
 ## Verification
 
 - A source-neutral bottom-pad regression covers side, non-square dimensions,
-  rounded corners, rotation, mask state, mask margin, port layers, and component
-  ownership.
+  rounded corners, rotation, a nonzero face offset, mask state, mask margin,
+  port layers, and component ownership.
 - The complete package suite passes with 478 tests.
 - The package formatting gate and npm dry-run are part of the release gate.

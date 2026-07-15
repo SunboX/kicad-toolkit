@@ -68,9 +68,9 @@ document envelopes, extension fields, and return shapes remain unchanged. See
 the [1.3.0 release notes](docs/release-notes-v1.3.0.md).
 
 Version 1.3.1 restores bottom-side SMD pads at the canonical CircuitJSON
-boundary. Pad layer, dimensions, shape, corner radius, solder-mask state, and
-component ownership now come from the authored copper face, so shared 2D and
-3D consumers receive complete top and bottom geometry. See the
+boundary. Pad layer, dimensions, shape, corner radius, rotated face offset,
+solder-mask state, and component ownership now come from the authored copper
+face, so shared 2D and 3D consumers receive complete top and bottom geometry. See the
 [1.3.1 release notes](docs/release-notes-v1.3.1.md).
 
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at

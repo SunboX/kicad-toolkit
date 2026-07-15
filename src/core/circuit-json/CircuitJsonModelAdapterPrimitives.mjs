@@ -552,6 +552,44 @@ export class CircuitJsonModelAdapterPrimitives {
     }
 
     /**
+     * Returns an SMT pad center with its rotated active-face offset applied.
+     * @param {Record<string, unknown>} pad Renderer-model pad.
+     * @returns {{ x: number, y: number }}
+     */
+    static smtPadCenter(pad) {
+        const center = CircuitJsonModelAdapterPrimitives.milPoint(pad.x, pad.y)
+        const layer = CircuitJsonModelAdapterPrimitives.layerName(pad)
+        const offsetMil = CircuitJsonModelAdapterPadFace.offset(pad, layer)
+        const offsetX = CircuitJsonModelAdapterPrimitives.milNumber(
+            offsetMil.x,
+            0
+        )
+        const offsetY = CircuitJsonModelAdapterPrimitives.milNumber(
+            offsetMil.y,
+            0
+        )
+        const rotation =
+            (CircuitJsonModelAdapterPrimitives.normalizedRotation(
+                pad.rotation ?? pad.holeRotation ?? 0
+            ) *
+                Math.PI) /
+            180
+
+        return {
+            x: CircuitJsonModelAdapterPrimitives.round(
+                center.x +
+                    offsetX * Math.cos(rotation) -
+                    offsetY * Math.sin(rotation)
+            ),
+            y: CircuitJsonModelAdapterPrimitives.round(
+                center.y +
+                    offsetX * Math.sin(rotation) +
+                    offsetY * Math.cos(rotation)
+            )
+        }
+    }
+
+    /**
      * Returns a normalized Circuit JSON layer reference for PCB text.
      * @param {Record<string, unknown>} primitive PCB text primitive.
      * @returns {string}
@@ -848,7 +886,7 @@ export class CircuitJsonModelAdapterPrimitives {
      * @returns {{ x: number, y: number }}
      */
     static #padLocalPoint(pad, point) {
-        const center = CircuitJsonModelAdapterPrimitives.milPoint(pad.x, pad.y)
+        const center = CircuitJsonModelAdapterPrimitives.smtPadCenter(pad)
         const localX = CircuitJsonModelAdapterPrimitives.number(point.x, 0) || 0
         const localY = CircuitJsonModelAdapterPrimitives.number(point.y, 0) || 0
         const rotation =

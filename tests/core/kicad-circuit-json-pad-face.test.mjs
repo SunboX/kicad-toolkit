@@ -23,6 +23,8 @@ test('KicadParser projects an SMD pad from its authored copper face', () => {
     assert.deepEqual(
         {
             layer: smtPad.layer,
+            x: smtPad.x,
+            y: smtPad.y,
             width: smtPad.width,
             height: smtPad.height,
             cornerRadius: smtPad.corner_radius,
@@ -34,6 +36,8 @@ test('KicadParser projects an SMD pad from its authored copper face', () => {
         },
         {
             layer: 'bottom',
+            x: 6.2,
+            y: 3.9,
             width: 0.8,
             height: 1.2,
             cornerRadius: 0.2,
@@ -83,6 +87,15 @@ function bottomPadPcbSource() {
                 (layers "B.Cu" "B.Mask" "B.Paste")
                 (roundrect_rratio 0.25)
                 (solder_mask_margin 0.05)
+                (padstack
+                    (mode custom)
+                    (layer "B.Cu"
+                        (shape roundrect)
+                        (size 1.2 0.8)
+                        (offset 0.1 0.2)
+                        (roundrect_rratio 0.25)
+                    )
+                )
             )
         )
     )`

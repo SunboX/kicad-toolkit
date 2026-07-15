@@ -179,9 +179,11 @@ into width/height so simple right-angle pads stay unrotated in serialized
 output; arbitrary pad angles use rotated pad shape names with `ccw_rotation`.
 The projection resolves one authored copper face before emitting each SMD pad.
 That same face determines the canonical `layer`, dimensions, shape, corner
-radius, solder-mask coverage and margin, port layer, and component owner. A
-bottom-only pad therefore never falls back to an absent top-face size or to
-unscaled raw KiCad millimeter dimensions.
+radius, local offset, solder-mask coverage and margin, port layer, and component
+owner. Face offsets rotate with the source pad and are folded into the canonical
+pad and port center because CircuitJSON pads do not carry a separate offset
+field. A bottom-only pad therefore never falls back to an absent top-face size
+or to unscaled raw KiCad millimeter dimensions.
 Project export converts component-owned pad centers into footprint-local
 coordinates with the same inverse component rotation used for footprint
 artwork.
