@@ -1,6 +1,6 @@
 {
     "name": "kicad-toolkit",
-    "version": "1.3.1",
+    "version": "1.3.2",
     "description": "KiCad parsing into CircuitJSON with shared ECAD toolkit services",
     "keywords": [
         "kicad",
@@ -61,6 +61,7 @@
         "docs/release-notes-v1.2.0.md",
         "docs/release-notes-v1.3.0.md",
         "docs/release-notes-v1.3.1.md",
+        "docs/release-notes-v1.3.2.md",
         "docs/schemas/kicad_toolkit/normalized_model_a1.schema.json",
         "docs/schemas/kicad_toolkit/project_bundle_a1.schema.json",
         "docs/schemas/kicad_toolkit/netlist_a1.schema.json",
@@ -123,7 +124,7 @@
         "benchmark": "node --expose-gc scripts/run-benchmarks.mjs"
     },
     "dependencies": {
-        "circuitjson-toolkit": "^1.4.0",
+        "circuitjson-toolkit": "^1.4.1",
         "fflate": "^0.8.2"
     },
     "devDependencies": {

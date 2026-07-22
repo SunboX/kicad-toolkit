@@ -25,6 +25,7 @@ import {
     ProjectLoader,
     QueryService,
     SchematicSvgRenderer,
+    SelfAdjustingComputation,
     SimulationService,
     ToolkitCapabilities,
     ToolkitError

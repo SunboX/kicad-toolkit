@@ -73,6 +73,12 @@ solder-mask state, and component ownership now come from the authored copper
 face, so shared 2D and 3D consumers receive complete top and bottom geometry. See the
 [1.3.1 release notes](docs/release-notes-v1.3.1.md).
 
+Version 1.3.2 re-exports the canonical `SelfAdjustingComputation` runtime from
+CircuitJSON Toolkit 1.4.1. Persistent KiCad consumers can retain dependency
+traces across input edits without changing parser, document, renderer, or
+native-extension contracts. See the
+[1.3.2 release notes](docs/release-notes-v1.3.2.md).
+
 No KiCad feature was removed. The complete browser-safe 1.0.29 API remains at
 `kicad-toolkit/extensions`; Node-only and native netlist-query helpers have
 explicit extension subpaths. See the [migration guide](docs/migration.md).
@@ -230,6 +236,7 @@ import 'kicad-toolkit/styles/renderers.css'
 - [1.2.0 release notes](docs/release-notes-v1.2.0.md)
 - [1.3.0 release notes](docs/release-notes-v1.3.0.md)
 - [1.3.1 release notes](docs/release-notes-v1.3.1.md)
+- [1.3.2 release notes](docs/release-notes-v1.3.2.md)
 - [Model Format](docs/model-format.md)
 - [Native Extension API](docs/native-api.md)
 - [Native Capability Inventory](docs/native-capabilities.md)
